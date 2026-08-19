@@ -80,7 +80,9 @@ describe('applying an approved diff', () => {
       sectorFor,
       skipped: new Set(['META']),
     });
-    expect(result.holdings.find((h) => h.ticker === 'META')?.shares).toBe(11);
+    // The point is that the skipped row is untouched, not what the number is.
+    const metaBefore = SEED_HOLDINGS.find((h) => h.ticker === 'META')!.shares;
+    expect(result.holdings.find((h) => h.ticker === 'META')?.shares).toBe(metaBefore);
     expect(result.holdings.find((h) => h.ticker === 'PLTR')?.shares).toBe(45);
   });
 

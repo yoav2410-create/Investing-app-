@@ -14,7 +14,7 @@ const text = async () => (await page.locator('body').innerText()).replace(/\s+/g
 await page.goto('http://localhost:8080/plan', { waitUntil: 'networkidle' });
 await page.waitForTimeout(900);
 const before = await text();
-const headroomOf = (t) => t.match(/Headroom over 30% floor\D{0,4}([+−-]?\d+\.\d)pp/)?.[1];
+const headroomOf = (t) => t.match(/Headroom over \d+% floor\D{0,4}([+−-]?\d+\.\d)pp/)?.[1];
 const beforeHeadroom = headroomOf(before);
 console.log('as things stand, headroom =', beforeHeadroom);
 
@@ -41,12 +41,24 @@ await page.evaluate(() => { document.querySelector('[data-scroller]').scrollTop 
 await page.waitForTimeout(400);
 const legBefore = await text();
 const doneBefore = legBefore.match(/(\d)\/8 done/)?.[1];
-await page.getByText('Full exit. Proceeds fund the Constellation add', { exact: false }).click();
+// Target the leg by its role and what it does, not by its prose. The note text
+// is demo copy and is meant to change; "the checkbox that exits VST" is the
+// thing actually under test.
+const vstLeg = page.getByRole('checkbox', { name: /Exit VST/i }).first();
+if ((await vstLeg.count()) === 0) problems.push('could not find the VST exit leg to tick');
+await vstLeg.click();
 await page.waitForTimeout(600);
 const legAfter = await text();
 const doneAfter = legAfter.match(/(\d)\/8 done/)?.[1];
-console.log(`marking the Vistra exit done: tranche A ${doneBefore}/8 -> ${doneAfter}/8`);
-if (doneBefore === doneAfter) problems.push('marking a leg done did not change the tranche counter');
+console.log(`marking the VST exit done: tranche A ${doneBefore}/8 -> ${doneAfter}/8`);
+// Both halves have to be readable. A counter that becomes unreadable makes
+// "it changed" trivially true, which is how a check like this passes while
+// testing nothing.
+if (!doneBefore || !doneAfter) {
+  problems.push(`tranche counter unreadable (before=${doneBefore}, after=${doneAfter})`);
+} else if (doneBefore === doneAfter) {
+  problems.push('marking a leg done did not change the tranche counter');
+}
 await page.screenshot({ path: `${OUT}/interaction-leg-done.png` });
 
 // ---- 3. Every list row navigates to the right detail screen ----------------

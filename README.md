@@ -1,7 +1,7 @@
 # Portfolio Brief
 
-An iPhone app for a single owner's ~$100K US equities book. It replaces the daily
-HTML "Portfolio Brief" report with something you open on your phone: account
+An iPhone app for a single owner's US equities book. It replaces a daily HTML
+report with something you open on your phone: account
 snapshot, sector concentration, returns attribution, a deep analytical page per
 stock, market overview, and an interactive rebalancing action board.
 
@@ -98,7 +98,13 @@ npm run verify:features      # metric explainers, insights, sentiment card
 npm run verify:simulation    # Monte Carlo horizons and basis, the FCF bridge
 npm run build:pages          # the GitHub Pages build, base path and PWA shell
 npm run verify:pwa           # installable, routable, remembers the key
+npm run verify:privacy       # no credentials or personal data in the build
 ```
+
+`verify:privacy` runs in CI before anything is published, and fails the build
+rather than shipping. The bundle is the real boundary — the seed data is
+compiled into it, and a Pages site is publicly reachable on every plan, so
+repository visibility controls none of what the app shows.
 
 The browser-driven checks need Playwright's Chromium once
 (`npx playwright install chromium`); they find it themselves after that, or take

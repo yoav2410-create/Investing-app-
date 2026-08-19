@@ -1,6 +1,6 @@
 # Portfolio Brief — working notes
 
-A native iPhone app for one owner's ~$100K US equities book. Expo + React
+A native iPhone app for a single owner's US equities book. Expo + React
 Native + TypeScript. Read this before changing anything; it is the context a
 fresh session would otherwise have to rediscover.
 
@@ -146,42 +146,33 @@ realistic but invented, marked `Seed`, and two holdings (`LLY`, `LMT`) were
 added to fill out a fourteen-name book. `docs/DATA.md` has the full picture.
 Do not present seed figures as the owner's actual position.
 
-## Before publishing anything: what the bundle contains
+## The bundle is public — keep it that way on purpose
 
-Read this before making the repository public or deploying Pages. It was found
-late and it changes what "publish" means.
+The seed data is compiled into the built JavaScript, not just the source, and a
+Pages site is publicly reachable on every plan (password-protected Pages is
+Enterprise-only). So repository visibility does not control what the app
+exposes. The bundle does.
 
-**The seed data is baked into the built JavaScript**, not just the source. Grep
-the export and `Raise cash to the 30% floor`, `18420` and `4318.6` are all in
-there. A Pages site is publicly reachable on every plan — password-protected
-Pages is Enterprise-only — so paying to keep the repository private does *not*
-keep the app's contents private. Repository visibility is the wrong lever.
+The seed data was therefore replaced with neutral demo values: round share
+counts, round cost bases, `$15,000` and `€2,500` cash, `$5,000` realised P&L,
+and a plan whose notes explain the mechanic each leg demonstrates rather than
+arguing an investment case. Nothing in it describes a real position or a real
+strategy, and `scripts/privacy-check.mjs` asserts that.
 
-What is genuinely personal in there:
+**Keep it that way.** If you make the demo data more realistic, make it more
+*illustrative*, not more personal: pick figures that exercise a case the screens
+need (a position at the cap, a losing position, an ETF with no P/E), never
+figures copied from someone's account. The same goes for the plan notes — a
+made-up thesis written in confident prose is exactly what this app exists not to
+produce.
 
-- **The rebalancing plan is the owner's real strategy**, not invented: the 30%
-  cash floor, the 15% position cap, the full exits from VST and TSSI with their
-  stated reasoning, the two-leg PLTR wind-down, the target sector mix.
-- **Share counts, cost bases, cash balances and realised P&L** read as real
-  whether or not they are (`SEED_HOLDINGS`, `SEED_CASH`, `realizedPnl`).
-- **The owner's email** is in the commit history, so a public repository exposes
-  it permanently.
+Verified clean across the full history: no API keys, tokens or credentials have
+ever been committed. Anything imported from a screenshot lives only in the
+phone's storage and is never part of a build.
 
-What is *not* exposed, verified across the full history: no API keys, tokens or
-credentials have ever been committed. Anything imported from a screenshot lives
-only in the phone's storage and is never part of a build.
-
-The per-company analytical data — multiples, revenue, EBITDA — is public
-information about public companies and carries no privacy weight.
-
-**So the fix is not repository visibility, it is the bundle.** Replacing
-`SEED_HOLDINGS`, `SEED_CASH`, `realizedPnl` and `SEED_PLAN` with neutral demo
-values makes publishing safe under any option, and costs the owner nothing —
-importing a screenshot replaces all of it on first use anyway. Note that several
-verification assertions are pinned to the current seed figures (cash headroom
-11.7pp, effective positions 12.1, weighted beta 1.35, the "nuclear" search
-hitting one name); they are checking the numbers the seed produces, so they need
-updating to whatever the new data yields, not deleting.
+One thing sanitising cannot reach: **the owner's email is in the commit
+history**, so a public repository exposes it. Fixing that means publishing from
+a repository with fresh history, not editing files.
 
 ## Getting it onto the phone
 

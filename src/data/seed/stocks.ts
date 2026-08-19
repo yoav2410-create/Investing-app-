@@ -299,7 +299,7 @@ const SPECS: StockSpec[] = [
       risk: '148x forward earnings against a consensus price target 9% below spot. Options positioning has flipped bearish (1.14 volume, 1.06 open interest). A single decelerating quarter re-rates this violently.',
       verdict: 'sell',
       verdictReasoning:
-        'Exiting the whole position across tranches A and B, staged deliberately to spread the tax event across two settlement windows. This is the largest position in the book at roughly 14% of NLV — right at the 15% cap — and it is the single biggest source of cash for the 30% floor. The business is excellent; the position size and the multiple are not defensible together, and the options market agrees.',
+        'Exiting the whole position across tranches A and B, staged deliberately to spread the tax event across two settlement windows. This is the largest position in the book and sits just under the position cap, which makes it the single biggest source of cash for the floor. The business is excellent; the position size and the multiple are not defensible together, and the options market agrees.',
       bullCase: null,
       bearCase: null,
       whatWouldChangeMyMind: null,

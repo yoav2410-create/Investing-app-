@@ -186,9 +186,10 @@ positions that would move together despite sitting in different sectors, calling
 the single biggest risk specifically rather than saying "market risk", and saying
 what it cannot know from the data on file.
 
-Seed book, computed offline: 14 holdings but an effective count of 12.1, weighted
-beta 1.35, 10 names in uptrend against 2 in downtrend, 3 bearish on options flow,
-and cash 11.7pp under its floor.
+On the demo book, computed offline: 14 holdings but an effective count well
+below that, a weighted beta above 1, most names in uptrend, a handful bearish on
+options flow, and cash under its floor — which is what gives the plan screen
+something to solve.
 
 ## Everything else
 
@@ -278,13 +279,8 @@ the bundled dataset is a **starting point, not your book**. Specifically:
   screen. It is internally consistent — the account tiles are derived from the
   holdings and quotes rather than hard-coded — but the share counts, costs and
   prices are not yours.
-- **Two holdings are invented.** Your brief named twelve tickers across a
-  fourteen-holding book; I filled the gap with `LLY` (which gives the healthcare
-  bucket something in it) and `LMT` (a low-beta defense anchor). Replace them.
-- **The plan is at zero legs done.** Your brief said "mid-way through", but every
-  leg I could mark done would have removed a holding the brief also named as
-  currently held. I left them all open so the two do not contradict each other —
-  mark off what you have already executed on the Plan tab.
+- **The plan starts with no legs done**, so the projection has the full sequence
+  to work through. Mark off whatever has already been executed on the Plan tab.
 
 **Fixing all of this is one action**: import a screenshot of your real positions.
 That replaces holdings, share counts, costs, prices and cash in one pass. Then
@@ -300,11 +296,10 @@ Claude Opus 5 is $5/M input, $25/M output.
   cents per stock. Refreshing all 17 is a small number of dollars, and you only
   need it when something has actually reported.
 
-Alpha Vantage is optional. Your current key is the **free tier: 25 requests a
-day**, which is fewer than one per tracked ticker — that is why the scheduler is
-budget-aware and rotates across days. The paid tier that would cover the whole
-book comfortably is the 75 requests/minute plan at about $50/month, and it is
-genuinely optional given the screenshot flow.
+Alpha Vantage is optional. A free key is **25 requests a day**, fewer than one
+per tracked ticker — that is why the scheduler is budget-aware and rotates across
+days. The tier that would cover a full book comfortably is the 75 requests/minute
+plan at about $50/month, and it is genuinely optional given the screenshot flow.
 
 ## What I would do next
 

@@ -65,6 +65,11 @@ jobs:
           EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
         run: node scripts/pwa-shell.mjs dist
 
+      # The bundle is what the public actually sees. Fail the build rather than
+      # publish credentials or owner-specific data by accident.
+      - name: Check nothing personal is in the build
+        run: node scripts/privacy-check.mjs dist
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

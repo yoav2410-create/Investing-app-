@@ -15,17 +15,21 @@ describe('seed portfolio is internally consistent', () => {
 
   it('starts under the 30% cash floor, which is why the plan exists', () => {
     const pct = (cash / SEED_ACCOUNT.netLiquidationValue) * 100;
-    expect(pct).toBeLessThan(30);
+    expect(pct).toBeLessThan(SEED_PLAN.constraints.cashFloorPct * 100);
   });
 
-  it('keeps every position under the 15% cap today', () => {
+  it('keeps every position under the cap today', () => {
     const positions = positionViews(SEED_HOLDINGS, SEED_STOCKS, SEED_ACCOUNT.netLiquidationValue);
-    expect(concentration(positions).topWeightPct).toBeLessThan(15);
+    expect(concentration(positions).topWeightPct).toBeLessThan(
+      SEED_PLAN.constraints.maxPositionPct * 100,
+    );
   });
 
   it('reaches the cash floor once all three tranches are done', () => {
     const p = project(SEED_PLAN, SEED_HOLDINGS, SEED_STOCKS, cash, throughTranche(SEED_PLAN, 'C'));
-    expect(p.cashPct).toBeGreaterThanOrEqual(29.5);
+    // Against the plan's own floor rather than a copied number, so changing the
+    // demo data cannot leave this asserting something the plan no longer says.
+    expect(p.cashPct).toBeGreaterThanOrEqual(SEED_PLAN.constraints.cashFloorPct * 100);
     expect(p.breaches.filter((b) => b.kind === 'cashFloor')).toHaveLength(0);
   });
 
