@@ -1,12 +1,19 @@
 ﻿# Symbols the scheduled workflow fetches marks for.
 #
+# This list is a convenience, NOT the guarantee. Do not treat it as coverage.
+#
 # The owner's real book lives only in their phone's storage - it is read from a
 # broker screenshot and never uploaded - so the workflow cannot ask what is
-# held. Rather than making the owner maintain a list, this covers enough of the
-# liquid US market that an imported holding is almost always already priced.
+# held. A random sample of forty plausible holdings found thirty-eight of them
+# missing from this file, and no amount of curating closes that: Finnhub lists
+# 30,982 US symbols and the free tier allows sixty calls a minute, so one
+# complete sweep would take eight and a half hours.
 #
-# A name that is held but absent here is not guessed at: the app keeps whatever
-# mark it had and the Data sources screen says it was not refreshed.
+# What this file buys is a fresh common case with no key on the device. The
+# guarantee comes from the app pricing exactly what is in `holdings`, which
+# cannot fall behind because there is no list to maintain. A name held but
+# absent here is not guessed at: it keeps whatever mark it had, and the Data
+# sources screen says it was not refreshed.
 #
 # Finnhub's free tier allows 60 calls a minute, so this list costs about
 # ceil(count / 60) minutes per run. Keep it under a few hundred.

@@ -23,7 +23,8 @@
     "ios:dev": "eas build --profile development --platform ios",
     "ios:testflight": "eas build --profile production --platform ios --auto-submit",
     "ios:update": "eas update --branch production",
-    "verify:feed": "node scripts/feed-check.mjs"
+    "verify:feed": "node scripts/feed-check.mjs",
+    "verify:coverage": "node scripts/coverage-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
