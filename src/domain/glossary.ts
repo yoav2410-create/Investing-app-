@@ -362,6 +362,95 @@ export const GLOSSARY = {
     caveat: 'Reconstructed from quarter-end prices and trailing results rather than published, because no one publishes a multiple history.',
   },
 
+  // ------------------------------------------------------------- cash flow
+  adjustedEbitda: {
+    title: 'Adjusted EBITDA',
+    what: 'Earnings before interest, tax, depreciation and amortisation, with one-off items stripped out — the number companies lead with.',
+    read: 'A view of operating profitability before financing and accounting choices. Most valuation multiples are built on it.',
+    caveat: 'It is not cash. It sits above interest, tax, working capital and the capital spending the business needs to keep running — which is exactly what the walk below shows.',
+  },
+  fcf: {
+    title: 'Free cash flow',
+    what: 'The cash left after every operating cost, tax, interest payment and capital expenditure — what the business could actually hand to owners.',
+    read: 'The number that funds dividends, buybacks and debt repayment. Earnings are an opinion; this is closer to a fact.',
+    caveat: 'A company can raise FCF for a year simply by under-investing. Persistently low capex against depreciation is borrowing from the future.',
+  },
+  fcfConversion: {
+    title: 'FCF conversion',
+    what: 'Free cash flow as a percentage of adjusted EBITDA.',
+    read: 'How much of the headline profitability survives to become cash. Above 60% is strong; below 30% means most of it is being consumed.',
+    caveat: 'A low figure is not automatically bad — a business investing heavily into real growth looks identical to one that simply cannot convert. The walk shows you which lines are responsible.',
+  },
+  capex: {
+    title: 'Capital expenditure',
+    what: 'Cash spent on property, plant, equipment and other long-lived assets.',
+    read: 'Split it mentally into maintenance — what it costs to stand still — and growth. Only the second is optional.',
+    caveat: 'Reported as one line, so the split is a judgement. Capex running far above depreciation usually means growth; far below usually means under-investment.',
+  },
+  stockBasedComp: {
+    title: 'Stock-based compensation',
+    what: 'Employees paid in shares rather than cash.',
+    read: 'Deducted here rather than added back. It is non-cash to the company and very real to you: it is paid in the thing you own.',
+    caveat: 'Adjusted EBITDA almost always adds this back, which is why adjusted figures can look far better than the cash ever does.',
+  },
+  workingCapital: {
+    title: 'Working capital',
+    what: 'Cash tied up in inventory and unpaid customer invoices, less what the business owes suppliers.',
+    read: 'A positive number here means growth consumed cash. Fast-growing businesses often fund their own expansion this way.',
+  },
+  cashTaxes: {
+    title: 'Cash taxes',
+    what: 'Tax actually paid, as opposed to the tax expense on the income statement.',
+    read: 'Often materially lower than the reported charge because of timing differences and loss carry-forwards.',
+  },
+  fcfYield: {
+    title: 'FCF yield',
+    what: 'Free cash flow divided by market capitalisation.',
+    read: 'What you would earn in cash terms if the whole business paid out everything it generated. Directly comparable to a bond yield.',
+  },
+
+  // ---------------------------------------------------------- Monte Carlo
+  monteCarlo: {
+    title: 'Monte Carlo projection',
+    what: 'Thousands of simulated futures for this portfolio, each drawing random market and company outcomes, then reading off the range of results.',
+    read: 'The bands are outcome ranges, not forecasts. The middle line is the median path; nine in ten simulations land inside the outer band.',
+    caveat: 'It is only as good as its assumptions, and it models a normal world. Real markets have fatter tails than any of these draws, so the worst 5% shown is optimistic about how bad things can get.',
+  },
+  singleFactorModel: {
+    title: 'How the holdings are linked',
+    what: 'Every holding is driven by one shared market factor scaled by its beta, plus its own independent noise.',
+    read: 'This is what stops the simulation pretending fourteen positions are fourteen independent bets. They fall together because they share the factor.',
+    caveat: 'One factor is a simplification. Two names in the same theme are more correlated than their betas alone imply, so genuine concentration is still under-stated.',
+  },
+  expectedReturn: {
+    title: 'Expected return',
+    what: 'The annual return assumed for each holding before any randomness is applied.',
+    read: 'Under CAPM it is the risk-free rate plus beta times the equity risk premium — higher-beta names are assumed to earn more because they carry more risk.',
+    caveat: 'Switching to analyst targets makes the projection inherit whatever optimism is in those targets. Neither basis is a prediction.',
+  },
+  volatilityEstimate: {
+    title: 'Volatility estimate',
+    what: 'How much each holding is assumed to move, estimated from its 52-week range using the Parkinson estimator and floored at its market exposure.',
+    read: 'Higher volatility widens that holding\'s contribution to the fan in both directions.',
+    caveat: 'A single annual range under-states volatility for a stock that trended steadily rather than swinging, which is why the estimate is never allowed below beta times market volatility.',
+  },
+  probabilityOfBeating: {
+    title: 'Probability of beating the S&P',
+    what: 'The share of simulated paths where the portfolio ends above an S&P 500 holding of the same starting value.',
+    read: 'Compared path by path, so both experience the same simulated market. A figure near 50% means the book is essentially a market bet with extra variance.',
+  },
+  valueAtRisk: {
+    title: 'Worst 5% outcome',
+    what: 'The value below which only one in twenty simulated paths ends up.',
+    read: 'A rough floor for planning: bad but not catastrophic. Use it to check the drawdown you would have to sit through is one you could.',
+    caveat: 'Says nothing about how bad the remaining 5% gets. Tail losses are worse than this number suggests.',
+  },
+  equityRiskPremium: {
+    title: 'Equity risk premium',
+    what: 'The extra annual return equities are assumed to deliver over risk-free government debt.',
+    read: 'The single most consequential assumption in the projection. Historically around 4–6%; the default here is 4.5%.',
+  },
+
   // ------------------------------------------------------------- narrative
   verdict: {
     title: 'Verdict',

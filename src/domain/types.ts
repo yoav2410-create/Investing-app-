@@ -156,6 +156,32 @@ export interface MultipleHistory {
 }
 
 /**
+ * The walk from adjusted EBITDA down to free cash flow.
+ *
+ * All figures are trailing twelve months, in USD, and signed as they appear in
+ * the bridge: `adjustedEbitda` is positive, every deduction below it is stored
+ * as a positive number and subtracted. `freeCashFlow` is stored rather than
+ * always derived, because a company's own reported FCF is worth showing next to
+ * the walk that tries to reach it.
+ */
+export interface CashFlowBridge {
+  adjustedEbitda: number | null;
+  /** Non-cash, but a real cost to owners — added back in adj EBITDA, so removed here. */
+  stockBasedCompensation: number | null;
+  cashInterest: number | null;
+  cashTaxes: number | null;
+  /** Positive means working capital consumed cash. */
+  workingCapitalChange: number | null;
+  capitalExpenditure: number | null;
+  /** Anything the standard lines above do not capture; signed. */
+  otherItems: number | null;
+  /** Reported operating cash flow, when available, as a cross-check. */
+  operatingCashFlow: number | null;
+  /** Reported free cash flow, when available. */
+  freeCashFlow: number | null;
+}
+
+/**
  * Quality and balance-sheet health. These answer "is this a good business?"
  * separately from "is it cheaply priced?" — the two questions the valuation
  * card alone cannot separate.
@@ -297,6 +323,7 @@ export interface Stock {
   multipleHistory: Stamped<MultipleHistory>;
   technicals: Stamped<Technicals>;
   quality: Stamped<QualityMetrics>;
+  cashFlow: Stamped<CashFlowBridge>;
   momentum: Stamped<Momentum>;
   options: Stamped<OptionsPositioning>;
   sentiment: Stamped<Sentiment>;

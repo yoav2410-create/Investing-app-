@@ -135,17 +135,95 @@ applies — the specific way that metric misleads.
 They sit wherever a term appears, not only on table rows: section headings
 ("Multiple history", "The case"), chart captions ("EV / EBITDA", "Net income"),
 the verdict pill, the narrative fields, the trend checks, the plan's tranches,
-and the sector targets. The stock detail page carries 63.
+and the sector targets. The stock detail page carries 72.
 
 The third part is not decoration. A tooltip that explains P/E without mentioning
 that a collapsed-earnings company shows its highest multiple exactly when it is
 cheapest is worse than no tooltip. The glossary lives in
-`src/domain/glossary.ts` and holds 81 entries.
+`src/domain/glossary.ts` and holds 95 entries.
 
 A mistyped `term="…"` renders nothing at all rather than failing, so a test walks
 every screen, extracts each reference and asserts it resolves. Terms chosen from
 data go through a helper with a `GlossaryKey` return type, which makes a wrong
 key a compile error instead of a silent no-op.
+
+## The cash-flow bridge
+
+`src/domain/cashflow.ts` walks adjusted EBITDA down to free cash flow. The lines
+themselves come from a research pass (`cashFlow` on the stock, stamped `Claude`);
+the walk, the subtotals and the ratios are `Computed`.
+
+```
+  Adjusted EBITDA
+− stock-based compensation      → Cash EBITDA
+− cash interest, cash taxes, working-capital move
+                                → Operating cash flow
+− capital expenditure, other items
+                                → Free cash flow
+```
+
+Two rules in there decide what the number means:
+
+**Stock comp is deducted, not added back.** Adding it back is the common
+convention and it treats a real cost as free because it is settled in shares. The
+holder pays it through dilution. This is the single biggest reason the number
+here is lower than the FCF a company reports in its own deck, and it is why META
+converts 7% of adjusted EBITDA to cash rather than a flattering multiple of that.
+
+**A missing line breaks the chain rather than counting as zero.** If cash taxes
+are unknown, the walk stops at cash EBITDA and the card names the lines it does
+not have. Treating an unknown deduction as nil would overstate the cash and the
+overstatement would be invisible — exactly the failure mode this whole document
+exists to avoid.
+
+Ratios shown alongside: conversion (FCF ÷ adjusted EBITDA), capex intensity
+(capex ÷ adjusted EBITDA) and FCF yield (FCF ÷ market cap, using shares implied
+from price and market value).
+
+Securities with no cash-flow statement of their own — funds like `SMH` — hide the
+card rather than render an empty one.
+
+## The Monte Carlo projection
+
+`src/domain/montecarlo.ts`. Everything on that card is `Computed`; it consumes
+positions, betas, 52-week ranges and analyst targets already on file and adds no
+new external data.
+
+Each holding's log return in year *t*:
+
+```
+(μᵢ − σᵢ²/2) + βᵢ · σ_market · z_market,t + σ_idio,i · zᵢ,t
+```
+
+- `z_market,t` is drawn **once per year per path and shared by every holding**.
+  This is the whole point. Drawing independently per name would diversify the
+  book in the simulation in a way it is not diversified in reality, and would
+  understate the downside badly.
+- The benchmark is compounded from those same `z_market` draws, so "beats the
+  S&P in 42% of paths" is a path-by-path comparison, not two distributions
+  compared at the median.
+- `− σᵢ²/2` is the drift adjustment that keeps the *arithmetic* expected return
+  equal to μ after log-normal compounding. Without it the simulation would
+  quietly return less than the μ it was given.
+- **μ** is either CAPM (`risk-free + β × 4.5% equity risk premium`, with the
+  risk-free rate taken from the US 10-year on the same screen) or the analyst
+  target implied return, capped at ±40% so one stale target cannot dominate.
+- **σ** is the Parkinson range estimator, `ln(high/low) / (2·√ln 2)`, from the
+  52-week high and low — floored at `β × market vol` so a quiet year cannot make
+  a high-beta name look safe. Idiosyncratic vol is `√(σ² − (β·σ_market)²)` with a
+  12% floor.
+- Cash compounds at the risk-free rate with no volatility.
+- 5,000 paths, seeded (`mulberry32`) so the same book gives the same answer twice
+  — a projection that changes every time you open it is not something you can
+  reason about.
+
+The histogram clips to the 1st–99th percentile and folds the outliers into the
+end bars, with the counts stated in the caption. Log-normal compounding produces
+a tail long enough that an unclipped axis puts 95% of paths into two bars.
+
+Stated on the page, not buried here: returns are drawn normal while real markets
+have fatter tails, so the worst case shown is optimistic; and one market factor
+means two names in the same theme are treated as less correlated than they are.
 
 ## Known gaps, stated rather than hidden
 
@@ -156,6 +234,13 @@ key a compile error instead of a silent no-op.
 - **Momentum windows** (1M/3M/6M/YTD) need a price history the screenshot flow
   does not provide. They populate on a research pass; until then the only
   windows shown are the ones the 52-week range supports.
+- **Adjusted EBITDA is as the company defines it.** The bridge does not
+  re-derive it from the income statement, so whatever the company chose to
+  exclude stays excluded. Deducting stock comp claws back the largest of those
+  exclusions, but not all of them.
+- **The simulation's correlation structure is one factor.** Two names in the
+  same theme move together only as much as their betas imply, which is less than
+  they really do.
 
 ## The optional Alpha Vantage path
 

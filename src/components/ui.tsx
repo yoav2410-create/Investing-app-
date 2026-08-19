@@ -223,7 +223,7 @@ export function Stat({
         <Text
           variant="caption"
           faint
-          numberOfLines={1}
+          numberOfLines={2}
           style={{ marginTop: spacing.xs - 2 }}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
@@ -401,7 +401,8 @@ export function Label({
   size,
   style,
 }: {
-  children: string;
+  /** Text, including interpolated fragments. */
+  children: React.ReactNode;
   term?: GlossaryKey;
   variant?: TypeKey;
   tone?: Tone;
@@ -416,7 +417,6 @@ export function Label({
     <View
       style={[{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }, style]}
       accessible={!term}
-      accessibilityLabel={term ? undefined : children}
     >
       <Text
         variant={variant}

@@ -1,4 +1,5 @@
 import type {
+  CashFlowBridge,
   FundamentalsSeries,
   Holding,
   Momentum,
@@ -136,6 +137,7 @@ export function blankStock(ticker: string, p: ParsedPosition, sector: SectorId):
     valuation: { value: null, asOf: null, source: 'unavailable' },
     technicals: { value: null, asOf: null, source: 'unavailable' },
     quality: { value: null, asOf: null, source: 'unavailable' },
+    cashFlow: { value: null, asOf: null, source: 'unavailable' },
     momentum: { value: null, asOf: null, source: 'unavailable' },
     options: { value: null, asOf: null, source: 'unavailable' },
     sentiment: { value: null, asOf: null, source: 'unavailable' },
@@ -245,6 +247,9 @@ export function mergeResearch(existing: Stock | undefined, r: ResearchResult, ti
     peerMedianMultiple: keep(r.peerMedianMultiple, base.peerMedianMultiple),
     valuation: stampClaude(valuation),
     quality: r.quality ? stampClaude(mergeQuality(base.quality.value, r.quality)) : base.quality,
+    cashFlow: r.cashFlow
+      ? stampClaude(mergeCashFlow(base.cashFlow.value, r.cashFlow))
+      : base.cashFlow,
     momentum: r.momentum ? stampClaude(mergeMomentum(base.momentum.value, r.momentum)) : base.momentum,
     technicals: r.technicals
       ? stampClaude(mergeTechnicals(base.technicals.value, r.technicals))
@@ -341,5 +346,28 @@ function mergeTechnicals(prev: Technicals | null, next: Partial<Technicals>): Te
     sma200: keep(next.sma200, prev?.sma200 ?? null),
     plusDi: keep(next.plusDi, prev?.plusDi ?? null),
     minusDi: keep(next.minusDi, prev?.minusDi ?? null),
+  };
+}
+
+/**
+ * Claude reports the cash-flow walk in millions; the app stores absolute USD so
+ * it can sit alongside market values without a unit conversion at every use.
+ */
+function mergeCashFlow(
+  prev: CashFlowBridge | null,
+  next: Partial<Record<keyof CashFlowBridge, number | null>>,
+): CashFlowBridge {
+  const scale = (v: number | null | undefined, fallback: number | null): number | null =>
+    v == null ? fallback : v * MILLION;
+  return {
+    adjustedEbitda: scale(next.adjustedEbitda, prev?.adjustedEbitda ?? null),
+    stockBasedCompensation: scale(next.stockBasedCompensation, prev?.stockBasedCompensation ?? null),
+    cashInterest: scale(next.cashInterest, prev?.cashInterest ?? null),
+    cashTaxes: scale(next.cashTaxes, prev?.cashTaxes ?? null),
+    workingCapitalChange: scale(next.workingCapitalChange, prev?.workingCapitalChange ?? null),
+    capitalExpenditure: scale(next.capitalExpenditure, prev?.capitalExpenditure ?? null),
+    otherItems: scale(next.otherItems, prev?.otherItems ?? null),
+    operatingCashFlow: scale(next.operatingCashFlow, prev?.operatingCashFlow ?? null),
+    freeCashFlow: scale(next.freeCashFlow, prev?.freeCashFlow ?? null),
   };
 }

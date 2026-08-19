@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  ScrollView,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
 import { toneColors, type Tone } from '@/theme/tokens';
@@ -583,6 +589,416 @@ export function RangeMeter({
           {format(high)}
         </Text>
       </View>
+    </View>
+  );
+}
+
+
+/**
+ * Waterfall for the EBITDA-to-FCF walk.
+ *
+ * Subtotals are drawn from the baseline; deductions float, so the eye follows
+ * the cash draining out rather than reading a row of unrelated bars. A step the
+ * data cannot supply is drawn as a gap with a dashed outline, because a missing
+ * deduction rendered as zero would overstate the cash that survives.
+ */
+export function WaterfallChart({
+  steps,
+  format,
+  height = 210,
+  style,
+  minColumnWidth = 62,
+}: {
+  steps: {
+    key: string;
+    label: string;
+    delta: number | null;
+    runningTotal: number | null;
+    isSubtotal: boolean;
+  }[];
+  format: (v: number) => string;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+  /** Nine columns will not fit a phone, so the chart scrolls rather than collides. */
+  minColumnWidth?: number;
+}) {
+  const { palette, spacing } = useTheme();
+  const [width, onLayout] = useWidth();
+
+  const drawable = steps.filter((s) => s.runningTotal != null || s.delta != null);
+  const levels = steps.flatMap((s) => (s.runningTotal == null ? [] : [s.runningTotal]));
+  if (levels.length < 2) {
+    return (
+      <View style={style}>
+        <Text variant="caption" faint>
+          Not enough cash-flow lines on file to draw the walk.
+        </Text>
+      </View>
+    );
+  }
+
+  const summary = steps
+    .map((s) =>
+      s.isSubtotal
+        ? `${s.label} ${s.runningTotal == null ? 'unknown' : format(s.runningTotal)}`
+        : `less ${s.label} ${s.delta == null ? 'unknown' : format(Math.abs(s.delta))}`,
+    )
+    .join('; ');
+
+  const padT = 6;
+  const padB = 40;
+  // Draw at whichever is wider: the container, or the width the labels need.
+  const w = Math.max(width, drawable.length * minColumnWidth, 1);
+  const scrolls = w > width + 1;
+  const innerH = Math.max(height - padT - padB, 1);
+  const hi = Math.max(0, ...levels);
+  const lo = Math.min(0, ...levels);
+  const span = hi - lo || 1;
+  const y = (v: number) => padT + innerH - ((v - lo) / span) * innerH;
+  const slot = w / Math.max(drawable.length, 1);
+  const barW = Math.max(slot * 0.62, 4);
+
+  return (
+    <View
+      style={style}
+      onLayout={onLayout}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Cash flow walk. ${summary}.`}
+    >
+      {width > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={scrolls}
+          scrollEnabled={scrolls}
+          contentContainerStyle={{ width: w }}
+        >
+        <Svg width={w} height={height}>
+          <Line x1={0} x2={w} y1={y(0)} y2={y(0)} stroke={palette.chartGrid} strokeWidth={1} />
+          {drawable.map((s, i) => {
+            const x = i * slot + (slot - barW) / 2;
+            const label = (
+              <SvgText
+                key={`t-${s.key}`}
+                x={i * slot + slot / 2}
+                y={height - 26}
+                fill={palette.textFaint}
+                fontSize={9}
+                textAnchor="middle"
+              >
+                {shortLabel(s.label)}
+              </SvgText>
+            );
+
+            if (s.isSubtotal) {
+              if (s.runningTotal == null) return label;
+              const top = Math.min(y(s.runningTotal), y(0));
+              const h = Math.max(Math.abs(y(s.runningTotal) - y(0)), 2);
+              return (
+                <G key={s.key}>
+                  <Rect
+                    x={x}
+                    y={top}
+                    width={barW}
+                    height={h}
+                    rx={2}
+                    fill={s.runningTotal >= 0 ? palette.accent : palette.down}
+                  />
+                  {label}
+                  <SvgText
+                    x={i * slot + slot / 2}
+                    y={height - 12}
+                    fill={palette.text}
+                    fontSize={9}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {format(s.runningTotal)}
+                  </SvgText>
+                </G>
+              );
+            }
+
+            // A deduction floats between the running totals either side of it.
+            const prev = drawable[i - 1]?.runningTotal ?? null;
+            if (s.delta == null || prev == null || s.runningTotal == null) {
+              return (
+                <G key={s.key}>
+                  <Rect
+                    x={x}
+                    y={y(hi) + innerH * 0.35}
+                    width={barW}
+                    height={innerH * 0.18}
+                    rx={2}
+                    fill="none"
+                    stroke={palette.borderStrong}
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                  {label}
+                  <SvgText
+                    x={i * slot + slot / 2}
+                    y={height - 12}
+                    fill={palette.textFaint}
+                    fontSize={9}
+                    textAnchor="middle"
+                  >
+                    n/a
+                  </SvgText>
+                </G>
+              );
+            }
+
+            const top = Math.min(y(prev), y(s.runningTotal));
+            const h = Math.max(Math.abs(y(prev) - y(s.runningTotal)), 2);
+            return (
+              <G key={s.key}>
+                <Rect
+                  x={x}
+                  y={top}
+                  width={barW}
+                  height={h}
+                  rx={2}
+                  fill={s.delta < 0 ? palette.down : palette.up}
+                  opacity={0.85}
+                />
+                {label}
+                <SvgText
+                  x={i * slot + slot / 2}
+                  y={height - 12}
+                  fill={palette.textMuted}
+                  fontSize={9}
+                  textAnchor="middle"
+                >
+                  {format(Math.abs(s.delta))}
+                </SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+        </ScrollView>
+      ) : (
+        <View style={{ height }} />
+      )}
+      <Text variant="caption" faint style={{ marginTop: spacing.xs }}>
+        Blue bars are subtotals from zero; red bars are what each line takes out.
+        {scrolls ? ' Scroll sideways for the full walk.' : ''}
+      </Text>
+    </View>
+  );
+}
+
+function shortLabel(label: string): string {
+  const map: Record<string, string> = {
+    'Adjusted EBITDA': 'Adj EBITDA',
+    'Stock-based compensation': 'SBC',
+    'Cash EBITDA': 'Cash EBITDA',
+    'Cash interest': 'Interest',
+    'Cash taxes': 'Taxes',
+    'Working capital': 'WC',
+    'Operating cash flow': 'OCF',
+    'Capital expenditure': 'Capex',
+    'Free cash flow': 'FCF',
+    'Other items': 'Other',
+  };
+  return map[label] ?? label;
+}
+
+/**
+ * Fan chart for a Monte Carlo projection.
+ *
+ * Two nested bands (5–95 and 25–75) plus the median, with the benchmark median
+ * drawn as a dashed line on the same axes. Showing the benchmark inside the fan
+ * rather than beside it is the whole point: the question is not what the book
+ * might do, it is whether it beats the alternative.
+ */
+export function FanChart({
+  bands,
+  benchmark,
+  format,
+  height = 200,
+  style,
+  label,
+}: {
+  bands: { p5: number; p25: number; p50: number; p75: number; p95: number }[];
+  benchmark: { p50: number }[];
+  format: (v: number) => string;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+  label: string;
+}) {
+  const { palette, spacing } = useTheme();
+  const [width, onLayout] = useWidth();
+  if (bands.length < 2) {
+    return (
+      <View style={style}>
+        <Text variant="caption" faint>
+          Not enough horizon to plot.
+        </Text>
+      </View>
+    );
+  }
+
+  const padT = 8;
+  const padB = 20;
+  const w = Math.max(width, 1);
+  const innerH = Math.max(height - padT - padB, 1);
+  const all = [
+    ...bands.flatMap((b) => [b.p5, b.p95]),
+    ...benchmark.map((b) => b.p50),
+  ];
+  const [lo, hi] = niceBounds(all, 0.05);
+  const x = (i: number) => (i / (bands.length - 1)) * w;
+  const y = (v: number) => padT + innerH - ((v - lo) / (hi - lo)) * innerH;
+
+  const areaPath = (upper: (b: (typeof bands)[number]) => number, lower: (b: (typeof bands)[number]) => number) => {
+    const up = bands.map((b, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(upper(b)).toFixed(1)}`).join('');
+    const down = [...bands]
+      .map((b, i) => ({ b, i }))
+      .reverse()
+      .map(({ b, i }) => `L${x(i).toFixed(1)},${y(lower(b)).toFixed(1)}`)
+      .join('');
+    return `${up}${down}Z`;
+  };
+
+  const line = (pick: (b: (typeof bands)[number]) => number) =>
+    bands.map((b, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(pick(b)).toFixed(1)}`).join('');
+
+  const last = bands[bands.length - 1]!;
+  const benchLast = benchmark[benchmark.length - 1]?.p50 ?? null;
+
+  return (
+    <View
+      style={style}
+      onLayout={onLayout}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`${label}. After ${bands.length - 1} years the middle outcome is ${format(last.p50)}, with a nine-in-ten range from ${format(last.p5)} to ${format(last.p95)}. The benchmark's middle outcome is ${benchLast == null ? 'unknown' : format(benchLast)}.`}
+    >
+      {width > 0 ? (
+        <Svg width={w} height={height}>
+          {[0, 0.5, 1].map((f) => (
+            <Line
+              key={f}
+              x1={0}
+              x2={w}
+              y1={padT + innerH * f}
+              y2={padT + innerH * f}
+              stroke={palette.chartGrid}
+              strokeWidth={1}
+            />
+          ))}
+          <Path d={areaPath((b) => b.p95, (b) => b.p5)} fill={palette.accent} opacity={0.14} />
+          <Path d={areaPath((b) => b.p75, (b) => b.p25)} fill={palette.accent} opacity={0.24} />
+          <Path d={line((b) => b.p50)} stroke={palette.accent} strokeWidth={2.5} fill="none" />
+          {benchmark.length === bands.length ? (
+            <Path
+              d={benchmark.map((b, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(b.p50).toFixed(1)}`).join('')}
+              stroke={palette.textMuted}
+              strokeWidth={2}
+              strokeDasharray="5 4"
+              fill="none"
+            />
+          ) : null}
+          <Circle cx={x(bands.length - 1)} cy={y(last.p50)} r={3.5} fill={palette.accent} />
+          <SvgText x={2} y={height - 4} fill={palette.textFaint} fontSize={10}>
+            now
+          </SvgText>
+          <SvgText x={w - 2} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
+            {bands.length - 1}y
+          </SvgText>
+        </Svg>
+      ) : (
+        <View style={{ height }} />
+      )}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs }}>
+        <Text variant="caption" faint>
+          worst 5% {format(last.p5)}
+        </Text>
+        <Text variant="caption" faint>
+          best 5% {format(last.p95)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** Distribution of terminal outcomes, with the starting value marked. */
+export function Histogram({
+  buckets,
+  marker,
+  format,
+  height = 120,
+  style,
+  label,
+}: {
+  buckets: { x: number; count: number }[];
+  marker: number | null;
+  format: (v: number) => string;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+  label: string;
+}) {
+  const { palette } = useTheme();
+  const [width, onLayout] = useWidth();
+  if (buckets.length === 0) return null;
+
+  const w = Math.max(width, 1);
+  const padB = 16;
+  const innerH = Math.max(height - padB, 1);
+  const maxCount = Math.max(...buckets.map((b) => b.count), 1);
+  const lo = buckets[0]!.x;
+  const hi = buckets[buckets.length - 1]!.x;
+  const span = hi - lo || 1;
+  const slot = w / buckets.length;
+
+  return (
+    <View
+      style={style}
+      onLayout={onLayout}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`${label}. Outcomes range from ${format(lo)} to ${format(hi)}.`}
+    >
+      {width > 0 ? (
+        <Svg width={w} height={height}>
+          {buckets.map((b, i) => {
+            const h = (b.count / maxCount) * innerH;
+            const below = marker != null && b.x < marker;
+            return (
+              <Rect
+                key={i}
+                x={i * slot + slot * 0.1}
+                y={innerH - h}
+                width={slot * 0.8}
+                height={Math.max(h, 1)}
+                rx={1}
+                fill={below ? palette.down : palette.accent}
+                opacity={below ? 0.75 : 0.8}
+              />
+            );
+          })}
+          {marker != null && marker >= lo && marker <= hi ? (
+            <Line
+              x1={((marker - lo) / span) * w}
+              x2={((marker - lo) / span) * w}
+              y1={0}
+              y2={innerH}
+              stroke={palette.text}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+            />
+          ) : null}
+          <SvgText x={2} y={height - 3} fill={palette.textFaint} fontSize={9}>
+            {format(lo)}
+          </SvgText>
+          <SvgText x={w - 2} y={height - 3} fill={palette.textFaint} fontSize={9} textAnchor="end">
+            {format(hi)}
+          </SvgText>
+        </Svg>
+      ) : (
+        <View style={{ height }} />
+      )}
     </View>
   );
 }

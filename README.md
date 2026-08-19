@@ -48,24 +48,50 @@ earnings call and what was said on it, analyst targets and revisions, and news
 from the last month. You can also run one by hand from any stock page.
 
 Every metric carries a **"?"** explaining what it is, how to read it, and where
-it misleads — on table rows, section headings and chart captions alike. 63 on the
-stock detail page.
+it misleads — on table rows, section headings and chart captions alike. 70 on the
+stock detail page, 95 entries in the glossary.
 
 **More → AI insights** reads across the whole book: concentration, what the
 positions have in common regardless of sector, and where the risk actually sits.
 The figures there are computed locally and work without any API key.
 
+## Two things worth knowing about
+
+**Every stock page walks adjusted EBITDA down to free cash flow.** Adjusted
+EBITDA → less stock-based compensation → cash EBITDA → less cash interest, cash
+taxes and the working-capital move → operating cash flow → less capex → free cash
+flow, drawn as a waterfall with the conversion rate, capex intensity and FCF
+yield underneath. Stock comp is *deducted*, not added back — it is a real cost
+paid in shares. If a line is missing the chain stops there rather than treating
+the unknown as zero, because pretending an unknown deduction is nil would
+overstate the cash.
+
+**Market → Where this book could end up** runs a 5,000-path Monte Carlo over the
+actual holdings and compares it to the S&P 500 over 1, 3, 5 or 10 years. Every
+name is driven by one shared market factor scaled by its beta plus its own
+independent noise, so the positions fall together instead of behaving like 14
+independent bets, and the benchmark is simulated from the same market draws so
+the "beats the index" figure is a genuine path-by-path comparison. Expected
+returns come from CAPM or from analyst targets — you can switch — and the
+per-holding weight, beta, return and volatility that went in are all on screen.
+
 ## Verify it yourself
 
 ```bash
 npm run typecheck        # strict TypeScript, no errors
-npm test                 # 38 tests over the analytics, insights, merge and glossary
+npm test                 # 64 tests over the analytics, cash flow, simulation, merge and glossary
 npm run build:web        # produces dist/
 npx serve dist -l 8080 -s
 npm run verify:screenshots   # every route, both themes, two iPhone widths
 npm run verify:interaction   # projection, leg toggling, navigation, no-key path
 npm run verify:features      # metric explainers, insights, sentiment card
+npm run verify:simulation    # Monte Carlo horizons and basis, the FCF bridge
 ```
+
+`verify:simulation` presses the controls rather than just photographing them: it
+switches horizon and return basis and asserts the median outcome actually moves,
+expands the per-holding input table, and checks that a fund with no cash-flow
+statement hides the bridge instead of rendering an empty one.
 
 ## Layout
 
@@ -82,6 +108,8 @@ src/
     portfolio.ts      positions, sector buckets, attribution, concentration
     plan.ts           tranche projection against the cash floor and position cap
     insights.ts       portfolio-level metrics: concentration, breadth, event risk
+    cashflow.ts       the adjusted-EBITDA to free-cash-flow walk
+    montecarlo.ts     single-factor path simulation of the book against the S&P
     glossary.ts       plain-English explanation behind every "?" 
   data/
     provider/claude.ts   screenshot reading + per-stock research

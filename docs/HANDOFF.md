@@ -56,6 +56,7 @@ Beyond what the brief specified, in the order the page presents them:
 | **Valuation** | The multiple that is actually right for *this* business, benchmarked against its own history and its peer median, with a cheap/fair/expensive read and a range meter |
 | **Trend** | 0–5 score, the six checks with pass/fail, and a moving-average-distance chart |
 | **Business quality** | ROE, ROIC, gross margin, FCF margin, net debt/EBITDA, revenue CAGR, revenue and EPS growth, share count change, ownership |
+| **EBITDA → free cash flow** | The full walk from adjusted EBITDA to FCF as a waterfall, with the conversion rate, capex intensity and FCF yield |
 | **Momentum** | 1M / 3M / 6M / 1Y / YTD, plus distance from the 52-week high and low |
 | Options | Put/call by volume and open interest with a bullish/neutral/bearish read |
 | **What the market is saying** | Sentiment score and label, what is driving the tone, analyst revisions, and recent coverage with source, date and why a holder should care |
@@ -81,8 +82,8 @@ specific way that metric misleads.
 They sit beside every complex term, not only on table rows: section headings,
 chart captions like **EV / EBITDA** and **Net income**, the verdict pill, the
 bull and bear cases, each trend check, the plan's tranches, sector targets and
-the market instruments. The stock detail page carries **63**; the glossary holds
-81 entries.
+the market instruments. The stock detail page carries **72**; the glossary holds
+95 entries.
 
 That third part is the point. A tooltip that explains P/E without saying that a
 company whose earnings just collapsed shows its highest multiple exactly when it
@@ -90,6 +91,82 @@ is cheapest is worse than no tooltip. Same for beta breaking down in the selloff
 you wanted it for, EBITDA flattering businesses that must keep spending to stand
 still, and put/call ratios rising because holders are hedging rather than because
 anyone is bearish.
+
+## From adjusted EBITDA to free cash flow
+
+Every stock page walks the bridge explicitly rather than quoting an FCF figure
+and asking you to trust it:
+
+```
+  Adjusted EBITDA
+− stock-based compensation
+= Cash EBITDA
+− cash interest  − cash taxes  − working-capital move
+= Operating cash flow
+− capital expenditure  − other items
+= Free cash flow
+```
+
+drawn as a waterfall (blue bars are subtotals from zero, red bars are what each
+line takes out) and followed by the conversion rate, capex intensity and FCF
+yield.
+
+Two decisions in there are deliberate and worth disagreeing with if you want to:
+
+- **Stock comp is deducted, not added back.** The convention of adding it back
+  treats a real cost as free because it is paid in shares. It is not free; it is
+  paid by the holder through dilution. Deducting it is why META converts only
+  **7%** of adjusted EBITDA to cash — $109.66B adjusted EBITDA, $22.00B of stock
+  comp and $62.00B of capex leave $8.15B — and that is the number an owner of the
+  stock should be looking at.
+- **A missing line breaks the chain rather than counting as zero.** If cash taxes
+  are unknown, the bridge stops at cash EBITDA and says so. Treating an unknown
+  deduction as nil would overstate the cash, and the overstatement would be
+  invisible.
+
+Securities with no cash-flow statement of their own — the ETF, `SMH` — hide the
+card entirely instead of rendering an empty one.
+
+## Where this book could end up
+
+Market → *Where this book could end up* runs a **5,000-path Monte Carlo over the
+actual holdings** and compares it to the S&P 500 over 1, 3, 5 or 10 years. A fan
+chart shows the 5–95 and 25–75 bands with the index as a dashed line, then the
+median outcome, how often the book beats the index, the worst and best 5%, and a
+histogram of where the paths landed.
+
+The model that matters is the correlation one. Each name's log return in a year
+is
+
+```
+(μᵢ − σᵢ²/2) + βᵢ · σ_market · z_market + σ_idio,i · zᵢ
+```
+
+where `z_market` is drawn **once per year and shared by every holding**, so the
+positions fall together instead of behaving like 14 independent bets — which
+would understate the downside badly for a book this correlated. The benchmark is
+simulated from those same market draws, so "beats the S&P in 42% of paths" is a
+genuine path-by-path comparison rather than two separate distributions held up
+side by side.
+
+Inputs, all visible on screen under *Show the per-holding inputs*: weight, beta,
+expected return and volatility per name. Expected returns come from **CAPM**
+(risk-free + β × equity risk premium) or from **analyst targets** capped at ±40%
+— switchable, and the median moves when you switch. Volatility is estimated per
+name from its 52-week range using the Parkinson estimator, floored at β × market
+volatility so a quiet year cannot produce an implausibly safe-looking name. Cash
+compounds at the risk-free rate.
+
+On the seed book: portfolio beta 1.10, median 5-year outcome **$150.3K** against
+an S&P median of **$157.5K**, ahead of the index in only 42% of paths, worst 5%
+$83.4K (−5.2%/yr), best 5% $345.5K (+26.0%/yr). The page says what that means in
+words — the extra risk is not being paid for — rather than leaving you to read it
+off the chart.
+
+Two honest limitations, both stated on the page: returns are drawn from a normal
+distribution while real markets have fatter tails, so the worst case shown is
+optimistic about how bad things get; and a single market factor means two names
+in the same theme are treated as less correlated than they really are.
 
 ## AI insights
 
@@ -109,9 +186,9 @@ positions that would move together despite sitting in different sectors, calling
 the single biggest risk specifically rather than saying "market risk", and saying
 what it cannot know from the data on file.
 
-Seed book, computed offline: 14 holdings but an effective count of 10.9, weighted
-beta 1.30, 10 names in uptrend against 2 in downtrend, 3 bearish on options flow,
-Tech/AI +8.1pp over target and cash 11.7pp under.
+Seed book, computed offline: 14 holdings but an effective count of 12.1, weighted
+beta 1.35, 10 names in uptrend against 2 in downtrend, 3 bearish on options flow,
+and cash 11.7pp under its floor.
 
 ## Everything else
 
@@ -143,8 +220,8 @@ scheduler.
 ## Verification actually run
 
 - `npm run typecheck` — clean, strict mode, `noUncheckedIndexedAccess` on.
-- `npm test` — 26 tests over the analytics, the plan engine and the Claude merge
-  rules.
+- `npm test` — 64 tests over the analytics, the plan engine, the cash-flow
+  bridge, the simulation and the Claude merge rules.
 - `npm run build:web` — bundles clean.
 - **Every route rendered in both themes at 375pt and 440pt** (iPhone SE through
   16 Pro Max) with zero page errors and zero console errors. Screenshots in
@@ -158,12 +235,20 @@ scheduler.
   three sections and dismisses on tap-away, the detail page carries 33
   explainers, the insights page computes entirely offline, and the sentiment card
   states it has no coverage yet rather than implying it has none to find.
+- **Simulation check** (`npm run verify:simulation`): the horizon chips actually
+  re-run the projection (1y median $115.7K vs 5y $150.3K, not a relabelled
+  number), switching to analyst targets moves the median to $181.4K, the
+  per-holding input table lists weight/beta/return/vol for all 14 positions, the
+  FCF bridge renders META's 7% conversion, and the ETF with no cash-flow data
+  hides the bridge rather than showing an empty one.
 - **Edge cases exercised on real screens**: `SMH` (an ETF — no P/E, no earnings,
   no fundamentals; renders "An ETF does not report earnings" and "No revenue
   reported for this security"), `TSSI` (nulls inside the quarterly history),
   `PLTR` (no −DI, so the trend score reports 5 of 6 checks measurable),
-  watchlist names with no share count, and `MCD` (negative shareholder equity,
-  so debt/equity is labelled as not comparable rather than shown bare).
+  watchlist names with no share count, `MCD` (negative shareholder equity, so
+  debt/equity is labelled as not comparable rather than shown bare), and a
+  cash-flow bridge with a hole in it (the walk stops at the last known subtotal
+  and says which lines are missing, instead of implying the rest is zero).
 
 One caveat on the screenshots: they are from the web build driven by Playwright,
 because this environment is Linux and cannot run an iOS simulator. The layouts

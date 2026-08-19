@@ -5,7 +5,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Empty, Label, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
-import { BarChart, LineChart, MaDistanceChart, RangeMeter } from '@/components/charts';
+import { BarChart, LineChart, MaDistanceChart, RangeMeter, WaterfallChart } from '@/components/charts';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
@@ -25,6 +25,7 @@ import { trendLabelTone, trendRead } from '@/domain/technicals';
 import { bandLabel, bandTone, valuationRead } from '@/domain/valuation';
 import { optionsRead, optionsSentence, readTone } from '@/domain/options';
 import { legsForTicker, actionLabel, actionTone } from '@/domain/plan';
+import { buildBridge, conversionTone, fcfYield } from '@/domain/cashflow';
 import type { Stock } from '@/domain/types';
 import type { GlossaryKey } from '@/domain/glossary';
 import type { PrimaryMultiple } from '@/domain/types';
@@ -74,6 +75,10 @@ export default function StockDetailScreen() {
   const val = valuationRead(stock);
   const trend = trendRead(quote?.price ?? null, stock.technicals.value);
   const legs = legsForTicker(plan, ticker);
+  const bridge = buildBridge(stock.cashFlow.value);
+  // Share count is not stored as its own field, so back it out of price-to-sales
+  // against trailing revenue: market cap = P/S x revenue, shares = cap / price.
+  const sharesOutstanding = impliedShares(stock);
   const marketValue = holding && quote ? holding.shares * quote.price : null;
   const weightPct = marketValue != null && nlv > 0 ? (marketValue / nlv) * 100 : null;
   const unrealized = holding && quote ? (quote.price - holding.costBasis) * holding.shares : null;
@@ -354,6 +359,112 @@ export default function StockDetailScreen() {
               />
               <Stat label="Institutional" term="ownership" value={percent(stock.quality.value.institutionalOwnershipPct, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat label="Insider" value={percent(stock.quality.value.insiderOwnershipPct, { sign: false, decimals: 2 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+            </View>
+          </Card>
+        </Section>
+      ) : null}
+
+      {/* -------------------------------------------------------- cashflow */}
+      {bridge ? (
+        <Section
+          title="EBITDA to free cash flow"
+          term="fcfConversion"
+          subtitle={`Trailing twelve months · ${bridge.completeness.known} of ${bridge.completeness.total} deduction lines on file`}
+        >
+          <Card style={{ gap: spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+              <Text variant="title" style={{ fontVariant: ['tabular-nums'] }}>
+                {bridge.conversionPct == null ? '—' : `${bridge.conversionPct.toFixed(0)}%`}
+              </Text>
+              <Label variant="label" muted term="fcfConversion">
+                converts to cash
+              </Label>
+              <Pill
+                label={
+                  bridge.conversionPct == null
+                    ? 'no read'
+                    : bridge.conversionPct >= 60
+                      ? 'Strong conversion'
+                      : bridge.conversionPct >= 30
+                        ? 'Moderate conversion'
+                        : 'Weak conversion'
+                }
+                tone={conversionTone(bridge.conversionPct)}
+                compact
+              />
+            </View>
+
+            <Text variant="body">{bridge.sentence}</Text>
+
+            <WaterfallChart steps={bridge.steps} format={(v) => compactCurrency(v)} />
+
+            <Divider />
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
+              <Stat
+                label="Adjusted EBITDA"
+                term="adjustedEbitda"
+                value={compactCurrency(stock.cashFlow.value?.adjustedEbitda)}
+                style={{ flexBasis: '30%', flexGrow: 1 }}
+              />
+              <Stat
+                label="Free cash flow"
+                term="fcf"
+                value={compactCurrency(bridge.reportedFcf ?? bridge.derivedFcf)}
+                tone={tone(bridge.reportedFcf ?? bridge.derivedFcf)}
+                style={{ flexBasis: '30%', flexGrow: 1 }}
+              />
+              <Stat
+                label="Capex intensity"
+                term="capex"
+                value={percent(bridge.capexIntensityPct, { sign: false, decimals: 0 })}
+                detail="of adjusted EBITDA"
+                tone={(bridge.capexIntensityPct ?? 0) > 45 ? 'warn' : 'flat'}
+                style={{ flexBasis: '30%', flexGrow: 1 }}
+              />
+              <Stat
+                label="FCF yield"
+                term="fcfYield"
+                value={percent(
+                  fcfYield(
+                    bridge.reportedFcf ?? bridge.derivedFcf,
+                    quote?.price ?? null,
+                    sharesOutstanding,
+                  ),
+                  { sign: false, decimals: 2 },
+                )}
+                style={{ flexBasis: '30%', flexGrow: 1 }}
+              />
+            </View>
+
+            <View>
+              {stock.cashFlow.value?.stockBasedCompensation != null ? (
+                <Row
+                  term="stockBasedComp"
+                  label="Stock-based compensation"
+                  value={compactCurrency(stock.cashFlow.value.stockBasedCompensation)}
+                  hint="Deducted here, not added back"
+                />
+              ) : null}
+              <Row
+                term="workingCapital"
+                label="Working capital"
+                value={compactCurrency(stock.cashFlow.value?.workingCapitalChange)}
+                hint="Positive means growth consumed cash"
+              />
+              <Row
+                term="cashTaxes"
+                label="Cash taxes"
+                value={compactCurrency(stock.cashFlow.value?.cashTaxes)}
+              />
+              {bridge.unexplained != null && Math.abs(bridge.unexplained) > 1e6 ? (
+                <Row
+                  label="Unexplained"
+                  value={compactCurrency(bridge.unexplained)}
+                  hint="Gap between the walk and the reported figure"
+                  tone="warn"
+                />
+              ) : null}
             </View>
           </Card>
         </Section>
@@ -733,6 +844,7 @@ export default function StockDetailScreen() {
           <Row label="Technicals" value={sourceLabel(stock, 'technicals')} hint={relativeAsOf(stock.technicals.asOf)} />
           <Row label="Options" value={sourceLabel(stock, 'options')} hint={relativeAsOf(stock.options.asOf)} />
           <Row label="Sentiment" value={sourceLabel(stock, 'sentiment')} hint={relativeAsOf(stock.sentiment.asOf)} />
+          <Row label="Cash flow" value={sourceLabel(stock, 'cashFlow')} hint={relativeAsOf(stock.cashFlow.asOf)} />
           <Row label="Reported figures" value={sourceLabel(stock, 'fundamentals')} hint={relativeAsOf(stock.fundamentals.asOf)} />
           <Row label="Multiple history" value={sourceLabel(stock, 'multipleHistory')} hint={relativeAsOf(stock.multipleHistory.asOf)} />
           <Row label="Earnings" value={sourceLabel(stock, 'earnings')} hint={relativeAsOf(stock.earnings.asOf)} />
@@ -756,6 +868,25 @@ export default function StockDetailScreen() {
       </View>
     </Screen>
   );
+}
+
+/**
+ * Share count is not stored on its own, so it is backed out of price-to-sales
+ * against trailing-twelve-month revenue: market cap = P/S x revenue, and shares
+ * = cap / price. Returns null the moment any input is missing rather than
+ * guessing, because an FCF yield built on a guessed share count is worse than
+ * no FCF yield.
+ */
+function impliedShares(stock: Stock): number | null {
+  const ps = stock.valuation.value?.priceToSales ?? null;
+  const price = stock.quote.value?.price ?? null;
+  const revenue = stock.fundamentals.value?.revenue ?? [];
+  const ttm = revenue.slice(0, 4).reduce<number | null>(
+    (sum, p) => (sum == null || p.value == null ? null : sum + p.value),
+    0,
+  );
+  if (ps == null || price == null || ttm == null || price <= 0 || ttm <= 0) return null;
+  return (ps * ttm) / price;
 }
 
 /** Score is −1 to +1; the midband is genuinely mixed rather than mildly good. */
@@ -805,6 +936,7 @@ function sourceLabel(
     | 'technicals'
     | 'options'
     | 'sentiment'
+    | 'cashFlow'
     | 'fundamentals'
     | 'multipleHistory'
     | 'earnings',

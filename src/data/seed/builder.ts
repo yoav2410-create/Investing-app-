@@ -2,6 +2,7 @@ import type {
   DataSourceId,
   EarningsCall,
   FundamentalsSeries,
+  CashFlowBridge,
   Momentum,
   QualityMetrics,
   Sentiment,
@@ -60,6 +61,10 @@ export interface StockSpec {
   technicals: Technicals;
   quality?: QualityMetrics;
   momentum?: Momentum;
+  /** Which cash-flow shape this business has. Drives the seeded bridge. */
+  cashFlowProfile?: CashFlowProfile;
+  /** Explicit lines override anything the profile would derive. */
+  cashFlow?: Partial<CashFlowBridge>;
   options: OptionsPositioning;
   /** Millions of USD, newest first (8 quarters). */
   revenue: (number | null)[];
@@ -126,6 +131,12 @@ export function buildStock(spec: StockSpec, seedAsOf: string): Stock {
     quote: stamped(quote, asOfFor('quote'), pick('quote')),
     valuation: stamped(spec.valuation, asOfFor('valuation'), pick('valuation')),
     technicals: stamped(spec.technicals, asOfFor('technicals'), pick('technicals')),
+    cashFlow: (() => {
+      const bridge = deriveCashFlow(spec);
+      return bridge
+        ? stamped(bridge, seedAsOf, spec.cashFlow ? 'seed' : 'computed')
+        : stamped<CashFlowBridge>(null, null, 'unavailable');
+    })(),
     quality: (() => {
       const derived = deriveQuality(spec);
       return derived ? stamped(derived, seedAsOf, 'computed') : stamped<QualityMetrics>(null, null, 'unavailable');
@@ -152,6 +163,96 @@ export function buildStock(spec: StockSpec, seedAsOf: string): Stock {
     narrativeAsOf: spec.narrativeAsOf ?? seedAsOf,
     nextEarningsDate: spec.nextEarningsDate,
   };
+}
+
+/**
+ * Cash-flow shapes.
+ *
+ * Every figure is expressed as a share of adjusted EBITDA, which is what makes
+ * the profiles comparable: a power utility and a software company differ far
+ * more in where EBITDA leaks than in how much of it they report. `da` is
+ * depreciation and amortisation as a share of operating income, used to get
+ * from reported operating income back up to EBITDA.
+ *
+ * These are seed shapes, replaced the first time Claude researches the name.
+ */
+export type CashFlowProfile =
+  | 'software'
+  | 'aiHyperscaler'
+  | 'power'
+  | 'industrial'
+  | 'consumer'
+  | 'pharma'
+  | 'smallCap';
+
+const PROFILES: Record<
+  CashFlowProfile,
+  { da: number; sbc: number; interest: number; taxes: number; wc: number; capex: number }
+> = {
+  // Asset-light, pays its people in stock, almost no capex.
+  software: { da: 0.14, sbc: 0.22, interest: 0.02, taxes: 0.14, wc: 0.02, capex: 0.1 },
+  // Same economics, except capex has become the whole story.
+  aiHyperscaler: { da: 0.26, sbc: 0.2, interest: 0.03, taxes: 0.11, wc: 0.02, capex: 0.57 },
+  // Capital is the business: heavy plant, heavy debt.
+  power: { da: 0.42, sbc: 0.01, interest: 0.18, taxes: 0.1, wc: 0.03, capex: 0.55 },
+  industrial: { da: 0.2, sbc: 0.03, interest: 0.1, taxes: 0.15, wc: 0.05, capex: 0.22 },
+  consumer: { da: 0.16, sbc: 0.02, interest: 0.12, taxes: 0.17, wc: 0.01, capex: 0.2 },
+  pharma: { da: 0.18, sbc: 0.06, interest: 0.05, taxes: 0.13, wc: 0.06, capex: 0.18 },
+  // Small caps fund growth out of working capital more than out of plant.
+  smallCap: { da: 0.1, sbc: 0.08, interest: 0.06, taxes: 0.12, wc: 0.18, capex: 0.12 },
+};
+
+function deriveCashFlow(spec: StockSpec): CashFlowBridge | null {
+  const explicit = spec.cashFlow;
+  const profileName = spec.cashFlowProfile;
+  if (!explicit && !profileName) return null;
+
+  const ttmOperating = spec.operatingIncome
+    .slice(0, 4)
+    .reduce<number | null>((sum, v) => (sum == null || v == null ? null : sum + v), 0);
+
+  const profile = profileName ? PROFILES[profileName] : null;
+  const derivedEbitda =
+    ttmOperating != null && profile != null ? ttmOperating * MILLION * (1 + profile.da) : null;
+  const adjustedEbitda = explicit?.adjustedEbitda ?? derivedEbitda;
+  if (adjustedEbitda == null) return null;
+
+  const share = (k: keyof NonNullable<typeof profile>) =>
+    profile ? Math.round(adjustedEbitda * profile[k]) : null;
+
+  const bridge: CashFlowBridge = {
+    adjustedEbitda,
+    stockBasedCompensation: explicit?.stockBasedCompensation ?? share('sbc'),
+    cashInterest: explicit?.cashInterest ?? share('interest'),
+    cashTaxes: explicit?.cashTaxes ?? share('taxes'),
+    workingCapitalChange: explicit?.workingCapitalChange ?? share('wc'),
+    capitalExpenditure: explicit?.capitalExpenditure ?? share('capex'),
+    otherItems: explicit?.otherItems ?? null,
+    operatingCashFlow: explicit?.operatingCashFlow ?? null,
+    freeCashFlow: explicit?.freeCashFlow ?? null,
+  };
+
+  // Fill the two reported cross-checks from the walk itself when the spec did
+  // not supply them, so the card always has something to compare against.
+  const afterOperating =
+    bridge.stockBasedCompensation != null &&
+    bridge.cashInterest != null &&
+    bridge.cashTaxes != null &&
+    bridge.workingCapitalChange != null
+      ? adjustedEbitda -
+        bridge.stockBasedCompensation -
+        bridge.cashInterest -
+        bridge.cashTaxes -
+        bridge.workingCapitalChange
+      : null;
+  bridge.operatingCashFlow = bridge.operatingCashFlow ?? afterOperating;
+  bridge.freeCashFlow =
+    bridge.freeCashFlow ??
+    (afterOperating != null && bridge.capitalExpenditure != null
+      ? afterOperating - bridge.capitalExpenditure
+      : null);
+
+  return bridge;
 }
 
 /**

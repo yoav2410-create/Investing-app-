@@ -139,6 +139,11 @@ describe('merging research', () => {
         revenueGrowthYoY: null, epsGrowthYoY: null, insiderOwnershipPct: null,
         institutionalOwnershipPct: null, shareCountChangePct: null,
       },
+      cashFlow: {
+        adjustedEbitda: null, stockBasedCompensation: null, cashInterest: null,
+        cashTaxes: null, workingCapitalChange: null, capitalExpenditure: null,
+        otherItems: null, operatingCashFlow: null, freeCashFlow: null,
+      },
       momentum: {
         oneMonth: null, threeMonth: null, sixMonth: null, oneYear: null,
         yearToDate: null, fromHighPct: null, fromLowPct: null,
@@ -195,10 +200,25 @@ describe('merging research', () => {
     expect(after.valuation.source).toBe('manual');
   });
 
+  it('scales the cash-flow walk from millions into absolute dollars', () => {
+    const after = mergeResearch(
+      SEED_STOCKS.NOW!,
+      research({
+        cashFlow: { ...research().cashFlow, adjustedEbitda: 2_400, capitalExpenditure: 180 },
+      }),
+      'NOW',
+    );
+    expect(after.cashFlow.value!.adjustedEbitda).toBe(2_400_000_000);
+    expect(after.cashFlow.value!.capitalExpenditure).toBe(180_000_000);
+    // Lines the model left null keep whatever the seed had.
+    expect(after.cashFlow.value!.cashTaxes).toBe(SEED_STOCKS.NOW!.cashFlow.value!.cashTaxes);
+  });
+
   it('builds a safe record for a ticker it has never seen', () => {
     const s = blankStock('NVDA', parsed({ ticker: 'NVDA', shares: 10, price: 180 }), 'tech');
     expect(s.valuation.value).toBeNull();
     expect(s.fundamentals.value).toBeNull();
+    expect(s.cashFlow.value).toBeNull();
     expect(s.quote.value!.price).toBe(180);
     expect(s.narrative.verdict).toBe('watch');
   });

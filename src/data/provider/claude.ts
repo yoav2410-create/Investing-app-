@@ -392,6 +392,17 @@ export interface ResearchResult {
     institutionalOwnershipPct: number | null;
     shareCountChangePct: number | null;
   };
+  cashFlow: {
+    adjustedEbitda: number | null;
+    stockBasedCompensation: number | null;
+    cashInterest: number | null;
+    cashTaxes: number | null;
+    workingCapitalChange: number | null;
+    capitalExpenditure: number | null;
+    otherItems: number | null;
+    operatingCashFlow: number | null;
+    freeCashFlow: number | null;
+  };
   momentum: {
     oneMonth: number | null;
     threeMonth: number | null;
@@ -445,6 +456,7 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       'valuation',
       'quarters',
       'quality',
+      'cashFlow',
       'momentum',
       'technicals',
       'earnings',
@@ -534,6 +546,34 @@ const RESEARCH_TOOL: Anthropic.Tool = {
           insiderOwnershipPct: numberOrNull,
           institutionalOwnershipPct: numberOrNull,
           shareCountChangePct: { type: ['number', 'null'], description: 'Year-on-year change in diluted share count. Negative means buybacks.' },
+        },
+      },
+      cashFlow: {
+        type: 'object',
+        description:
+          'The trailing-twelve-month walk from adjusted EBITDA down to free cash flow. All figures in millions of USD.',
+        additionalProperties: false,
+        required: [
+          'adjustedEbitda', 'stockBasedCompensation', 'cashInterest', 'cashTaxes',
+          'workingCapitalChange', 'capitalExpenditure', 'otherItems',
+          'operatingCashFlow', 'freeCashFlow',
+        ],
+        properties: {
+          adjustedEbitda: { type: ['number', 'null'], description: 'Millions of USD, TTM.' },
+          stockBasedCompensation: {
+            type: ['number', 'null'],
+            description: 'Positive number, TTM. Reported as a positive cost even though EBITDA adds it back.',
+          },
+          cashInterest: { type: ['number', 'null'], description: 'Positive number, cash interest paid TTM.' },
+          cashTaxes: { type: ['number', 'null'], description: 'Positive number, cash taxes paid TTM, not the income-statement charge.' },
+          workingCapitalChange: {
+            type: ['number', 'null'],
+            description: 'Positive when working capital consumed cash, negative when it released cash.',
+          },
+          capitalExpenditure: { type: ['number', 'null'], description: 'Positive number, TTM purchases of property and equipment.' },
+          otherItems: { type: ['number', 'null'], description: 'Signed. Anything the lines above do not capture.' },
+          operatingCashFlow: { type: ['number', 'null'], description: 'As reported, TTM.' },
+          freeCashFlow: { type: ['number', 'null'], description: 'As reported or as the company defines it, TTM.' },
         },
       },
       momentum: {
@@ -694,6 +734,7 @@ Standards:
 - Pick primaryMultiple honestly: EV/EBITDA where debt matters, forward P/E for a profitable grower, P/S where earnings are not yet meaningful. Say why in one sentence.
 - The verdict is a judgement and should read like one: state what would change your mind. Do not hedge into meaninglessness, and do not pretend to a confidence the evidence does not support.
 - For an ETF, most company fields are legitimately null. Say so rather than inventing a P/E.
+- The cash-flow walk matters more than any multiple: report the lines from the actual cash-flow statement, not from the income statement. Cash taxes and cash interest are what was paid, which is usually not the reported charge. Report every deduction as a positive number.
 - Sentiment is about coverage and analyst behaviour, not your own opinion. Cite real pieces with their source and date, and make soWhat say why a holder cares rather than restating the headline.
 - Prefer coverage from the last 30 days. If the most recent thing you can find is months old, say that in the summary — silence reads as "nothing happened", which is a different claim.
 - whatWouldChangeMyMind must name something observable — a margin level, a guidance change, a moving-average break — not a feeling. If you cannot name one, your verdict is not well formed; go back and sharpen it.`;

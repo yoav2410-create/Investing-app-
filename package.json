@@ -12,7 +12,8 @@
     "build:web": "expo export --platform web --output-dir dist --clear",
     "verify:screenshots": "node scripts/screenshots.mjs",
     "verify:interaction": "node scripts/interaction-check.mjs",
-    "verify:features": "node scripts/feature-check.mjs"
+    "verify:features": "node scripts/feature-check.mjs",
+    "verify:simulation": "node scripts/simulation-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
