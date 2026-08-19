@@ -76,5 +76,33 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Without this, a repository that has never had Pages switched on fails
+      # with a 404 and an octokit stack trace, which tells the owner nothing.
+      # The build has already succeeded by this point, so the only thing left
+      # to get wrong is the setting — say so in words.
+      - name: Check Pages is switched on
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages")
+          if [ "$status" = "404" ]; then
+            echo "::error title=GitHub Pages is not enabled::The app built fine — only publishing is blocked."
+            echo ""
+            echo "Fix it once, from a phone or a computer:"
+            echo "  1. Open https://github.com/${{ github.repository }}/settings/pages"
+            echo "  2. Under 'Build and deployment', set Source to 'GitHub Actions'"
+            echo "  3. Re-run this workflow"
+            echo ""
+            echo "If that page says Pages is unavailable, the repository is private on a"
+            echo "free plan. Pages needs either a public repository (free) or GitHub Pro."
+            echo "Note that a Pages site is publicly reachable either way — paying does"
+            echo "not make the published app private."
+            exit 1
+          fi
+          echo "Pages is enabled (HTTP $status). Publishing."
+
       - id: deployment
         uses: actions/deploy-pages@v4

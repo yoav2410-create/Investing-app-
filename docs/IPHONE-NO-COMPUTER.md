@@ -22,6 +22,23 @@ process is GitHub's, and it is free.
 
 ---
 
+## Before you start: Pages needs a public repository, or a paid plan
+
+GitHub's free plan does not host Pages for **private** repositories. This one is
+private, so switching Pages on requires either making the repository public
+(free) or GitHub Pro ($4/month).
+
+Worth knowing before choosing: **the published app is publicly reachable either
+way** — password-protected Pages sites are an Enterprise feature, so paying
+hides the source code, not the app.
+
+The repository contains no keys or credentials — the API key is typed into the
+app on the phone and never leaves it, and the bundled position numbers are
+invented sample data. Making it public exposes the code and the list of tickers
+tracked, and nothing about what is actually held.
+
+`docs/PUBLISH-FROM-PHONE.md` walks through the visibility change tap by tap.
+
 ## Part 1 — Turn on the website (once)
 
 ### Step 1. Open the repository

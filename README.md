@@ -17,10 +17,11 @@ npx expo start
 
 Scan the QR code with the iPhone Camera app. Expo Go opens the app.
 
-**No computer?** [`docs/IPHONE-NO-COMPUTER.md`](docs/IPHONE-NO-COMPUTER.md) gets
-the app onto your home screen using only Safari on the phone, for free — GitHub
-builds it, GitHub Pages serves it, iOS installs it. That is the fastest route to
-something you actually use every morning.
+**No computer?** [`docs/PUBLISH-FROM-PHONE.md`](docs/PUBLISH-FROM-PHONE.md) is
+the step-by-step version written for someone who has never used GitHub, and it
+covers the one decision that route requires — Pages needs either a public
+repository or a paid plan. [`docs/IPHONE-NO-COMPUTER.md`](docs/IPHONE-NO-COMPUTER.md)
+is the shorter version for someone who already knows GitHub.
 
 **With a computer**, [`docs/IPHONE.md`](docs/IPHONE.md) covers Expo Go through to
 a signed TestFlight build, which is what adds background refresh, notifications
@@ -137,7 +138,8 @@ src/
   components/         UI primitives and hand-drawn SVG charts
   theme/              light and dark palettes
 docs/
-  IPHONE-NO-COMPUTER.md  phone-only route: GitHub Actions -> Pages -> home screen
+  PUBLISH-FROM-PHONE.md  phone-only route, written for a first-time GitHub user
+  IPHONE-NO-COMPUTER.md  the same route, short version
   IPHONE.md           getting it onto an iPhone, from clone to TestFlight
   HANDOFF.md          what was built, what it costs, what is missing
   DATA.md             where every number comes from
