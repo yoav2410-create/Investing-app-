@@ -185,7 +185,35 @@ overwrites a value already on file.
 
 Applying an import queues research on every position that moved. Claude searches
 the web for the latest call, analyst revisions and recent news, one ticker at a
-time.
+time. That layer is not CORS-bound — the search happens on Anthropic's side — so
+it can reach whatever source is best for the question, and it is where anything
+resembling "the latest investor call" comes from.
+
+**Prices are a different problem, and the constraint is CORS, not preference.**
+The app is a static site with no server, so a price source has to be readable by
+a browser. Measured, not assumed:
+
+| Source | Answers a script | `Access-Control-Allow-Origin` | Usable |
+| --- | --- | --- | --- |
+| Yahoo Finance `v8/finance/chart` | yes | none | no |
+| Finviz | yes | none | no (and against their terms) |
+| Stooq CSV | 404 | none | no |
+| Alpha Vantage | yes | `*` | yes |
+| Google Sheets published CSV | yes | reflects the origin | yes |
+
+Yahoo and Finviz return perfectly good data to `curl` and are then refused by
+the browser, which is the worst kind of failure to design around: it looks like
+a bug in the app. So prices come from Alpha Vantage, or from a Google Sheet the
+owner publishes — `GOOGLEFINANCE()` exists only inside Sheets, and publishing
+one as CSV is the only way to get Google's quotes onto the phone without a
+server. `src/data/provider/googleSheet.ts`.
+
+That provider re-marks names already held and nothing else. A sheet row for a
+ticker not in the book is not evidence the owner bought it, so it is reported as
+skipped rather than added — positions come from the broker screenshot and only
+from there. An unpublished sheet answers 200 with a sign-in page, so the parser
+checks for markup before trusting the CSV; without that it would parse HTML into
+confident nonsense.
 
 **The bundled dataset is seed data, not the owner's book.** META is real (Alpha
 Vantage, 2026-08-18) and PLTR's technicals are real; everything else is

@@ -206,6 +206,8 @@ export const SEED_MARKET: MarketSnapshot = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
+  // Set by the owner in Settings. Nothing ships pointing at anyone's sheet.
+  priceSheetUrl: '',
   // A free Alpha Vantage key allows 25 requests a day. The scheduler treats
   // this as a hard budget and prioritises accordingly.
   dailyCallBudget: 25,

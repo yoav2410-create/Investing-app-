@@ -177,6 +177,8 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
+      <PriceSheetSection onStatus={setStatus} />
+
       <YourDataSection onStatus={setStatus} />
 
       <Section title="Reset">
@@ -204,6 +206,76 @@ export default function SettingsScreen() {
         </Card>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Prices from a Google Sheet the owner publishes.
+ *
+ * There is no Google Finance API — `GOOGLEFINANCE()` lives only inside Sheets —
+ * and the two sources that could have replaced it, Yahoo and Finviz, send no
+ * CORS headers, so a browser refuses to read their responses however well they
+ * answer a script. With no server of our own, a published sheet is the way to
+ * get Google's quotes onto the phone.
+ *
+ * This re-marks names already held. It does not add positions: those come from
+ * the broker screenshot, which is the only thing that knows what is owned.
+ */
+function PriceSheetSection({ onStatus }: { onStatus: (s: string) => void }) {
+  const { spacing } = useTheme();
+  const settings = useApp((s) => s.settings);
+  const update = useApp((s) => s.updateSettings);
+  const refreshFromSheet = useApp((s) => s.refreshPricesFromSheet);
+  const [draft, setDraft] = useState(settings.priceSheetUrl);
+  const [busy, setBusy] = useState(false);
+  const { palette, radius } = useTheme();
+
+  const run = async () => {
+    setBusy(true);
+    update({ priceSheetUrl: draft.trim() });
+    const res = await refreshFromSheet();
+    setBusy(false);
+    onStatus(res.message);
+  };
+
+  return (
+    <Section title="Prices" subtitle="Google Finance, through a sheet you publish">
+      <Card style={{ gap: spacing.sm }}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="https://docs.google.com/spreadsheets/…"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Google Sheet link"
+          placeholderTextColor={palette.textFaint}
+          style={{
+            borderWidth: 1,
+            borderColor: palette.border,
+            borderRadius: radius.md,
+            color: palette.text,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            minHeight: 44,
+          }}
+        />
+        <Button
+          label={busy ? 'Reading…' : 'Update prices from the sheet'}
+          onPress={run}
+          disabled={busy}
+        />
+        <Text variant="caption" faint>
+          In Sheets, make a tab with a ticker column and a price column —
+          {' '}<Text variant="caption">=GOOGLEFINANCE(A2,"price")</Text> — then File → Share →
+          Publish to web → Comma-separated values. Paste either link here; an ordinary sheet link
+          works too.
+        </Text>
+        <Text variant="caption" faint>
+          This updates the mark on names you already hold. Share counts, cost basis and cash still
+          come from your broker screenshot.
+        </Text>
+      </Card>
+    </Section>
   );
 }
 

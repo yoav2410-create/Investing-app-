@@ -41,6 +41,7 @@ import {
 } from './provider/claude';
 import { buildInsights, summariseForModel } from '@/domain/insights';
 import { stanceProblems, summariseSimulation } from '@/domain/allocation';
+import { fetchSheet, toQuote } from './provider/googleSheet';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
@@ -104,6 +105,8 @@ export interface AppState {
   enqueueResearch: (tickers: string[]) => void;
   clearResearchQueue: () => void;
   analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
+  /** Re-mark held names from the owner's published Google Sheet. */
+  refreshPricesFromSheet: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -306,6 +309,58 @@ export const useApp = create<AppState>()(
       },
 
       clearResearchQueue: () => set({ researchQueue: [] }),
+
+      refreshPricesFromSheet: async (opts) => {
+        const url = get().settings.priceSheetUrl.trim();
+        if (!url) {
+          return { ok: false, message: 'Add the link to your published Google Sheet in Settings first.' };
+        }
+        try {
+          const read = await fetchSheet(url, opts?.fetchImpl ?? fetch);
+          const at = nowIso();
+          const day = todayIso();
+          const state = get();
+          const stocks = { ...state.stocks };
+
+          const updated: string[] = [];
+          const notHeld: string[] = [];
+          for (const q of read.quotes) {
+            const stock = stocks[q.ticker];
+            if (!stock) {
+              // The sheet is a price feed, not a position list. A row for
+              // something the owner does not own is not evidence they bought
+              // it; positions come from the broker screenshot and only from
+              // there.
+              notHeld.push(q.ticker);
+              continue;
+            }
+            stocks[q.ticker] = {
+              ...stock,
+              quote: { value: toQuote(q, day), asOf: at, source: 'googlesheet' },
+            };
+            updated.push(q.ticker);
+          }
+
+          if (updated.length === 0) {
+            return {
+              ok: false,
+              message: `That sheet had ${read.quotes.length} rows but none matched a name you hold${
+                notHeld.length ? ` (${notHeld.slice(0, 5).join(', ')})` : ''
+              }.`,
+            };
+          }
+
+          set({ stocks });
+          const parts = [`Re-marked ${updated.length} of ${state.holdings.length} holdings from your sheet.`];
+          if (notHeld.length) parts.push(`${notHeld.length} row(s) skipped as not held.`);
+          // Rows the sheet itself could not price are the owner's to fix, so
+          // they are named rather than quietly dropped.
+          if (read.skipped.length) parts.push(`Unusable: ${read.skipped.slice(0, 3).join('; ')}.`);
+          return { ok: true, message: parts.join(' ') };
+        } catch (e) {
+          return { ok: false, message: e instanceof Error ? e.message : 'Could not read that sheet.' };
+        }
+      },
 
       analysePortfolioNow: async () => {
         const key = await getClaudeKey();

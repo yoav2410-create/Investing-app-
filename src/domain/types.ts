@@ -18,6 +18,8 @@ export interface Stamped<T> {
 
 export type DataSourceId =
   | 'alphavantage'
+  /** Prices pulled from the owner's own published Google Sheet. */
+  | 'googlesheet'
   | 'computed'
   | 'seed'
   | 'manual'
@@ -490,6 +492,12 @@ export interface RefreshState {
 }
 
 export interface Settings {
+  /**
+   * A Google Sheet published as CSV, used to refresh prices on names already
+   * held. Empty string = not configured. Positions still come from the broker
+   * screenshot; this only re-marks them.
+   */
+  priceSheetUrl: string;
   /** Requests allowed per day. Free Alpha Vantage keys get 25. */
   dailyCallBudget: number;
   /** Refresh automatically when the app opens and a day has passed. */

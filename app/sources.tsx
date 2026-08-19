@@ -21,6 +21,7 @@ const BLOCKS = [
 const SOURCE_META: Record<DataSourceId, { label: string; tone: 'up' | 'accent' | 'warn' | 'flat' | 'down' }> = {
   manual: { label: 'Claude', tone: 'accent' },
   alphavantage: { label: 'Alpha Vantage', tone: 'up' },
+  googlesheet: { label: 'Google Finance', tone: 'up' },
   computed: { label: 'Computed', tone: 'flat' },
   seed: { label: 'Seed', tone: 'warn' },
   unavailable: { label: 'None', tone: 'down' },
