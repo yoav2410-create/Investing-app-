@@ -45,7 +45,14 @@ async function open(route, scheme='light') {
   const { ctx, p } = await open('/stock/META');
   const n = await p.getByRole('button', { name: /^What is / }).count();
   console.log(`stock detail carries ${n} metric explainers`);
-  if (n < 20) problems.push(`only ${n} explainers on the detail page`);
+  if (n < 40) problems.push(`only ${n} explainers on the detail page`);
+  // The headings and chart captions matter as much as the table rows.
+  for (const needed of ['EV / EBITDA', 'Net income', 'Multiple history', 'Trend score', 'Verdict']) {
+    if ((await p.getByLabel(`What is ${needed}?`).count()) === 0) {
+      problems.push(`no explainer beside "${needed}"`);
+    }
+  }
+  console.log('headings and chart captions carry their own explainers');
   await ctx.close();
 }
 
@@ -56,9 +63,15 @@ async function open(route, scheme='light') {
   for (const need of ['Effective positions','Weighted beta','Breadth','Event risk','What carries the book']) {
     if (!t.includes(need)) problems.push(`insights missing "${need}"`);
   }
-  const eff = t.match(/Effective positions ([\d.]+)/)?.[1];
-  const beta = t.match(/Weighted beta ([\d.]+)/)?.[1];
+  // The "?" sits between a label and its value, so allow for it rather than
+  // requiring adjacency — an over-tight regex here would pass while checking
+  // nothing.
+  const valueAfter = (label) => t.match(new RegExp(label + '\\D{0,4}([\\d.]+)'))?.[1];
+  const eff = valueAfter('Effective positions');
+  const beta = valueAfter('Weighted beta');
   console.log(`insights computed offline: effective positions ${eff}, weighted beta ${beta}`);
+  if (!eff || !beta) problems.push('insights figures did not render');
+  else if (Number(eff) > 14) problems.push(`effective positions ${eff} exceeds the holding count`);
   if (!t.includes('No portfolio read yet')) problems.push('insights did not offer the Claude run');
   for (let i=0;i<4;i++){
     await p.evaluate(y => { document.querySelector('[data-scroller]').scrollTop = y; }, i*760);

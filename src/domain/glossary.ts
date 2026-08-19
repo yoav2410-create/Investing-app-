@@ -325,6 +325,161 @@ export const GLOSSARY = {
     what: 'Cash as a share of the account, against the floor you set.',
     read: 'Cash is optionality with a cost: it protects on the way down and lags on the way up.',
   },
+
+  // ------------------------------------------------- reported fundamentals
+  fundamentals: {
+    title: 'Reported fundamentals',
+    what: 'The figures the company itself filed each quarter: revenue, operating income, net income and earnings per share.',
+    read: 'The shape of the bars matters more than any single one. Steady growth, a step change, or a stall each tell you something different.',
+    caveat: 'Quarterly figures are seasonal for many businesses. Compare a quarter with the same quarter last year, not with the one before it.',
+  },
+  revenue: {
+    title: 'Revenue',
+    what: 'Total sales for the quarter, before any costs.',
+    read: 'The top line. Growth here is the hardest thing for a company to fake and the hardest to manufacture.',
+  },
+  operatingIncome: {
+    title: 'Operating income',
+    what: 'Profit from the core business after operating costs, but before interest and tax.',
+    read: 'Compare its trajectory with revenue: rising faster means margins are expanding, slower means costs are outrunning sales.',
+  },
+  netIncome: {
+    title: 'Net income',
+    what: 'What is left after every cost, including interest, tax and one-off items.',
+    read: 'The bottom line, and the number earnings per share is calculated from.',
+    caveat: 'The most easily distorted figure on the statement. A single asset sale or writedown can swing it without the business changing at all.',
+  },
+  eps: {
+    title: 'Earnings per share',
+    what: 'Net income divided by the number of shares outstanding.',
+    read: 'What each share you own earned. This is the number P/E is built on and the one analysts forecast.',
+    caveat: 'Buybacks raise EPS without the business earning more, because the same profit is divided among fewer shares.',
+  },
+  multipleHistory: {
+    title: 'Multiple history',
+    what: 'What the market has been willing to pay for this company each quarter over the last two and a half years.',
+    read: 'The dashed line marks today. Below the range means the market is paying less than it usually has; above means more.',
+    caveat: 'Reconstructed from quarter-end prices and trailing results rather than published, because no one publishes a multiple history.',
+  },
+
+  // ------------------------------------------------------------- narrative
+  verdict: {
+    title: 'Verdict',
+    what: 'A judgement on what to do with this position: buy, add, hold, trim, sell, or watch.',
+    read: 'It is an opinion, formed from the figures on this page and your rebalancing plan. Read the reasoning underneath before acting on the label.',
+    caveat: 'Written at a point in time. If the company has reported since, the page says so — the verdict predates the news.',
+  },
+  thesis: {
+    title: 'Thesis',
+    what: 'The one-line reason this position exists in the book.',
+    read: 'If you cannot state it in a sentence, that is itself information.',
+  },
+  catalyst: {
+    title: 'Catalyst',
+    what: 'A specific, identifiable event that could cause the market to reprice the shares.',
+    read: 'The more concrete and the more dated, the more useful. "Improving sentiment" is not a catalyst; a contract award is.',
+  },
+  keyRisk: {
+    title: 'Key risk',
+    what: 'The thing most likely to make owning this a mistake.',
+    read: 'Not every risk — the one that actually threatens the reason you own it.',
+  },
+  bullBearCase: {
+    title: 'Bull and bear case',
+    what: 'The strongest honest argument each way, stated without hedging.',
+    read: 'Deliberately written as advocacy on both sides. If one of them feels obviously weak to you, that disagreement is worth examining.',
+  },
+  whatWouldChangeMyMind: {
+    title: 'What would change the verdict',
+    what: 'A specific, observable thing that would flip the recommendation.',
+    read: 'This is the field that keeps a verdict honest. If nothing could change it, it was never a judgement — it was a position.',
+  },
+
+  // ------------------------------------------------------------------ plan
+  tranche: {
+    title: 'Tranche',
+    what: 'One instalment of a multi-step plan. This plan runs in three: A, B and C.',
+    read: 'Splitting trades across tranches spreads the entry or exit price and, for a sale, can spread the tax event across settlement windows.',
+    caveat: 'Staging costs you if the price runs away. It buys certainty about the average, not the best outcome.',
+  },
+  planLeg: {
+    title: 'Plan leg',
+    what: 'A single action inside a tranche: buy, sell, exit, hold or defer, with a share count.',
+    read: 'Tap to mark it done. The projection above recalculates cash, sector mix and constraint breaches as you do.',
+  },
+  planProjection: {
+    title: 'Projection',
+    what: 'What the account would look like if the selected tranche were completed at current marks.',
+    read: 'Use it to check the plan gets you back over the cash floor before you trade, not after.',
+    caveat: 'Priced at the marks from your last screenshot. Real fills will differ.',
+  },
+
+  // ------------------------------------------------------------- portfolio
+  attribution: {
+    title: 'Attribution',
+    what: 'Which positions produced today\'s gain or loss, in dollars and as a share of the total move.',
+    read: 'A day that looks flat at the account level can hide two large positions cancelling each other out.',
+  },
+  sectorTarget: {
+    title: 'Target mix',
+    what: 'The share of the account you have decided each sector should hold.',
+    read: 'The notch on each bar is the target; the bar is where you actually are. The gap is drift.',
+  },
+  drift: {
+    title: 'Drift',
+    what: 'How far a sector has moved from its target weight, in percentage points.',
+    read: 'Drift accumulates from price moves alone — you can end up overweight something without ever buying more of it.',
+  },
+  topMovers: {
+    title: 'Top movers',
+    what: 'The holdings with the largest percentage moves today.',
+    read: 'A quick check on whether the day was broad or driven by one or two names.',
+  },
+  needsAttention: {
+    title: 'Needs attention',
+    what: 'Constraint breaches, broken trends and bearish options flow, gathered in one place.',
+    read: 'Everything here is derived from thresholds you set. An empty list means nothing crossed one.',
+  },
+  snapshot: {
+    title: 'Snapshot',
+    what: 'A daily record of account value, day P&L, and each holding\'s trend score and verdict.',
+    read: 'Taken automatically whenever the book is updated. It is what makes the history view possible.',
+  },
+  watchlistOnly: {
+    title: 'Watchlist',
+    what: 'A name tracked and analysed but not currently held.',
+    read: 'Carries the same analysis as a holding. Position-level figures are blank because there is no position.',
+  },
+
+  // ---------------------------------------------------------------- market
+  marketIndex: {
+    title: 'Market index',
+    what: 'A benchmark measuring a broad slice of the market — the S&P 500, Dow and Nasdaq Composite.',
+    read: 'Context for whether a move in your book was yours or everyone\'s.',
+  },
+  treasuryYield: {
+    title: 'Treasury yield',
+    what: 'The annual return on US government debt at a given maturity.',
+    read: 'The risk-free rate everything else is priced against. Rising yields make future earnings worth less today, which pressures high-multiple growth names most.',
+  },
+  etf: {
+    title: 'ETF',
+    what: 'An exchange-traded fund: a basket of securities that trades like a single share.',
+    read: 'Gives you exposure to a sector without picking a winner inside it.',
+    caveat: 'Most sector ETFs are top-heavy — a few large holdings drive most of the move, so the diversification is thinner than the ticker count suggests.',
+  },
+
+  // ----------------------------------------------------------- provenance
+  dataProvenance: {
+    title: 'Where the numbers came from',
+    what: 'The source and age of each block of data on this page.',
+    read: 'Blocks refresh independently, so live prices can sit beside week-old fundamentals. This is where you check which is which.',
+  },
+  costBasis: {
+    title: 'Average cost',
+    what: 'What you paid per share, averaged across every purchase of this position.',
+    read: 'The line between an unrealised gain and an unrealised loss.',
+  },
   themeOverlap: {
     title: 'Theme overlap',
     what: 'Positions that would move together because they depend on the same underlying driver, regardless of their sector label.',

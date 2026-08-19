@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
-import { Pill, Screen, Text } from '@/components/ui';
+import { Label, Pill, Screen, Text } from '@/components/ui';
 import { StockRow } from '@/components/StockRow';
 import { useApp } from '@/data/store';
 import { positionViews } from '@/domain/portfolio';
@@ -144,9 +144,31 @@ export default function StocksScreen() {
         label="Sort by"
       />
 
-      <Text variant="caption" muted>
-        {rows.length} of {Object.keys(stocks).length} names
-      </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: spacing.sm,
+        }}
+      >
+        <Text variant="caption" muted>
+          {rows.length} of {Object.keys(stocks).length} names
+        </Text>
+        {/* Each row carries three reads; this is where they are explained. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Label variant="caption" faint term="verdict">
+            Verdict
+          </Label>
+          <Label variant="caption" faint term="trendScore">
+            Trend
+          </Label>
+          <Label variant="caption" faint term="valuationBand">
+            Valuation
+          </Label>
+        </View>
+      </View>
 
       <View style={{ gap: spacing.sm }}>
         {rows.map((s) => (

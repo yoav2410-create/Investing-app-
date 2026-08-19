@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '@/theme/ThemeProvider';
-import { Button, Card, Divider, Empty, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
+import { Button, Card, Divider, Empty, Label, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
 import { BarChart, LineChart, MaDistanceChart, RangeMeter } from '@/components/charts';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
@@ -26,6 +26,26 @@ import { bandLabel, bandTone, valuationRead } from '@/domain/valuation';
 import { optionsRead, optionsSentence, readTone } from '@/domain/options';
 import { legsForTicker, actionLabel, actionTone } from '@/domain/plan';
 import type { Stock } from '@/domain/types';
+import type { GlossaryKey } from '@/domain/glossary';
+import type { PrimaryMultiple } from '@/domain/types';
+
+/**
+ * Which explainer belongs with a trend check. Typed rather than inlined so a
+ * wrong key is a compile error instead of a "?" that silently opens nothing.
+ */
+function trendCheckTerm(label: string): GlossaryKey {
+  if (label.startsWith('RSI')) return 'rsi';
+  if (label.startsWith('+DI')) return 'directionalIndicators';
+  return 'movingAverage';
+}
+
+/** Which explainer belongs with each headline multiple. */
+const MULTIPLE_TERM: Record<PrimaryMultiple, GlossaryKey> = {
+  evEbitda: 'evEbitda',
+  forwardPe: 'forwardPe',
+  trailingPe: 'trailingPe',
+  ps: 'priceToSales',
+};
 
 export default function StockDetailScreen() {
   const { ticker: raw } = useLocalSearchParams<{ ticker: string }>();
@@ -112,7 +132,7 @@ export default function StockDetailScreen() {
         <Card>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
             <Stat label="Shares" value={fmtShares(holding.shares)} style={{ flexBasis: '28%', flexGrow: 1 }} />
-            <Stat label="Market value" value={compactCurrency(marketValue)} style={{ flexBasis: '28%', flexGrow: 1 }} />
+            <Stat label="Market value" term="marketValue" value={compactCurrency(marketValue)} style={{ flexBasis: '28%', flexGrow: 1 }} />
             <Stat
               label="Unrealised" term="unrealizedPnl"
               value={compactCurrency(unrealized)}
@@ -124,7 +144,7 @@ export default function StockDetailScreen() {
               tone={tone(unrealized)}
               style={{ flexBasis: '28%', flexGrow: 1 }}
             />
-            <Stat label="Avg cost" value={currency(holding.costBasis)} style={{ flexBasis: '28%', flexGrow: 1 }} />
+            <Stat label="Avg cost" term="costBasis" value={currency(holding.costBasis)} style={{ flexBasis: '28%', flexGrow: 1 }} />
             <Stat
               label="Weight" term="weight"
               value={weightPct == null ? '—' : `${weightPct.toFixed(1)}%`}
@@ -143,6 +163,7 @@ export default function StockDetailScreen() {
             label={VERDICT_LABEL[stock.narrative.verdict]}
             tone={VERDICT_TONE[stock.narrative.verdict]}
           />
+          <InfoButton term="verdict" size={15} />
           <Text variant="caption" faint style={{ flex: 1 }}>
             Written {relativeAsOf(stock.narrativeAsOf)}
           </Text>
@@ -169,10 +190,11 @@ export default function StockDetailScreen() {
             <Text variant="title" style={{ fontVariant: ['tabular-nums'] }}>
               {val.current == null ? '—' : multiple(val.current)}
             </Text>
-            <Text variant="label" muted>
+            <Label variant="label" muted term={MULTIPLE_TERM[val.multiple]}>
               {val.label}
-            </Text>
+            </Label>
             <Pill label={bandLabel(val.band)} tone={bandTone(val.band)} compact />
+            <InfoButton term="valuationBand" size={14} />
           </View>
 
           <Text variant="body">{val.sentence}</Text>
@@ -273,6 +295,9 @@ export default function StockDetailScreen() {
             <Pill label={trend.label} tone={trendLabelTone(trend.label)} />
           </View>
 
+          <Label variant="caption" muted term="maDistance">
+            Distance from each moving average
+          </Label>
           <MaDistanceChart
             price={quote?.price ?? null}
             averages={[
@@ -288,6 +313,7 @@ export default function StockDetailScreen() {
             {trend.checks.map((c) => (
               <Row
                 key={c.label}
+                term={trendCheckTerm(c.label)}
                 label={c.label}
                 value={c.passed == null ? '—' : c.passed ? `✓ ${c.detail}` : `✗ ${c.detail}`}
                 tone={c.passed == null ? undefined : c.passed ? 'up' : 'down'}
@@ -414,21 +440,18 @@ export default function StockDetailScreen() {
               ) : null}
               {stock.sentiment.value.analystRevisions ? (
                 <>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Text variant="label" muted>
-                      Analyst revisions
-                    </Text>
-                    <InfoButton term="analystRevisions" size={14} />
-                  </View>
+                  <Label variant="label" muted term="analystRevisions">
+                    Analyst revisions
+                  </Label>
                   <Text variant="body">{stock.sentiment.value.analystRevisions}</Text>
                 </>
               ) : null}
               {stock.sentiment.value.headlines.length ? (
                 <>
                   <Divider />
-                  <Text variant="label" muted>
+                  <Label variant="label" muted term="sentiment">
                     Recent coverage
-                  </Text>
+                  </Label>
                   {stock.sentiment.value.headlines.map((h, n) => (
                     <View key={n} style={{ gap: 2, paddingVertical: spacing.xs }}>
                       <Text variant="body">{h.headline}</Text>
@@ -456,6 +479,7 @@ export default function StockDetailScreen() {
 
       {/* -------------------------------------------------------- earnings */}
       <Section
+        term="earningsSurprise"
         title="Latest earnings call"
         subtitle={
           stock.nextEarningsDate
@@ -495,18 +519,18 @@ export default function StockDetailScreen() {
               {stock.earnings.value.callSummary ? (
                 <>
                   <Divider />
-                  <Text variant="label" muted>
+                  <Label variant="label" muted term="fundamentals">
                     The call in brief
-                  </Text>
+                  </Label>
                   <Text variant="body">{stock.earnings.value.callSummary}</Text>
                 </>
               ) : null}
               {stock.earnings.value.managementSaid ? (
                 <>
                   <Divider />
-                  <Text variant="label" muted>
+                  <Label variant="label" muted term="fundamentals">
                     What management said
-                  </Text>
+                  </Label>
                   <Text variant="body">{stock.earnings.value.managementSaid}</Text>
                 </>
               ) : null}
@@ -534,17 +558,17 @@ export default function StockDetailScreen() {
               ) : null}
               {stock.earnings.value.guidance ? (
                 <>
-                  <Text variant="label" muted>
+                  <Label variant="label" muted term="catalyst">
                     Guidance
-                  </Text>
+                  </Label>
                   <Text variant="body">{stock.earnings.value.guidance}</Text>
                 </>
               ) : null}
               {stock.earnings.value.watchNext ? (
                 <>
-                  <Text variant="label" muted>
+                  <Label variant="label" muted term="whatWouldChangeMyMind">
                     What to watch next call
-                  </Text>
+                  </Label>
                   <Text variant="body">{stock.earnings.value.watchNext}</Text>
                 </>
               ) : null}
@@ -559,10 +583,10 @@ export default function StockDetailScreen() {
       </Section>
 
       {/* ---------------------------------------------------------- charts */}
-      <Section title="Fundamentals" subtitle="Eight quarters, newest on the right">
+      <Section title="Fundamentals" subtitle="Eight quarters, newest on the right" term="fundamentals">
         <Card style={{ gap: spacing.xl }}>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Revenue</Text>
+            <Label term="revenue">Revenue</Label>
             <BarChart
               points={stock.fundamentals.value?.revenue ?? []}
               format={(v) => compactCurrency(v)}
@@ -571,7 +595,7 @@ export default function StockDetailScreen() {
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Operating income</Text>
+            <Label term="operatingIncome">Operating income</Label>
             <BarChart
               points={stock.fundamentals.value?.operatingIncome ?? []}
               format={(v) => compactCurrency(v)}
@@ -580,7 +604,7 @@ export default function StockDetailScreen() {
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Net income</Text>
+            <Label term="netIncome">Net income</Label>
             <BarChart
               points={stock.fundamentals.value?.netIncome ?? []}
               format={(v) => compactCurrency(v)}
@@ -589,7 +613,7 @@ export default function StockDetailScreen() {
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Diluted EPS</Text>
+            <Label term="eps">Diluted EPS</Label>
             <LineChart
               points={stock.fundamentals.value?.eps ?? []}
               format={(v) => currency(v)}
@@ -600,10 +624,10 @@ export default function StockDetailScreen() {
         </Card>
       </Section>
 
-      <Section title="Multiple history" subtitle="Ten quarters, with today marked">
+      <Section title="Multiple history" subtitle="Ten quarters, with today marked" term="multipleHistory">
         <Card style={{ gap: spacing.xl }}>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Trailing P/E</Text>
+            <Label term="trailingPe">Trailing P/E</Label>
             <LineChart
               points={stock.multipleHistory.value?.peHistory ?? []}
               format={(v) => multiple(v)}
@@ -617,7 +641,7 @@ export default function StockDetailScreen() {
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">EV / EBITDA</Text>
+            <Label term="evEbitda">EV / EBITDA</Label>
             <LineChart
               points={stock.multipleHistory.value?.evEbitdaHistory ?? []}
               format={(v) => multiple(v)}
@@ -631,7 +655,7 @@ export default function StockDetailScreen() {
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Text variant="label">Price / sales</Text>
+            <Label term="priceToSales">Price / sales</Label>
             <LineChart
               points={stock.multipleHistory.value?.psHistory ?? []}
               format={(v) => multiple(v)}
@@ -648,23 +672,24 @@ export default function StockDetailScreen() {
       </Section>
 
       {/* ------------------------------------------------------- narrative */}
-      <Section title="The case">
+      <Section title="The case" term="bullBearCase">
         <Card style={{ gap: spacing.md }}>
           {stock.narrative.catalyst ? (
-            <Field label="Catalyst" tone="up" text={stock.narrative.catalyst} />
+            <Field label="Catalyst" term="catalyst" tone="up" text={stock.narrative.catalyst} />
           ) : null}
           {stock.narrative.risk ? (
-            <Field label="Key risk" tone="down" text={stock.narrative.risk} />
+            <Field label="Key risk" term="keyRisk" tone="down" text={stock.narrative.risk} />
           ) : null}
           {stock.narrative.bullCase ? (
-            <Field label="Bull case" tone="up" text={stock.narrative.bullCase} />
+            <Field label="Bull case" term="bullBearCase" tone="up" text={stock.narrative.bullCase} />
           ) : null}
           {stock.narrative.bearCase ? (
-            <Field label="Bear case" tone="down" text={stock.narrative.bearCase} />
+            <Field label="Bear case" term="bullBearCase" tone="down" text={stock.narrative.bearCase} />
           ) : null}
           {stock.narrative.whatWouldChangeMyMind ? (
             <Field
               label="What would change the verdict"
+              term="whatWouldChangeMyMind"
               tone="accent"
               text={stock.narrative.whatWouldChangeMyMind}
             />
@@ -677,7 +702,7 @@ export default function StockDetailScreen() {
 
       {/* ------------------------------------------------------------ plan */}
       {legs.length ? (
-        <Section title="In the plan">
+        <Section title="In the plan" term="planLeg">
           <Card style={{ gap: spacing.sm }}>
             {legs.map((l) => (
               <View key={l.id} style={{ gap: 2 }}>
@@ -701,7 +726,7 @@ export default function StockDetailScreen() {
       ) : null}
 
       {/* ----------------------------------------------------- provenance */}
-      <Section title="Where these numbers came from">
+      <Section title="Where these numbers came from" term="dataProvenance">
         <Card>
           <Row label="Price" value={sourceLabel(stock, 'quote')} hint={relativeAsOf(stock.quote.asOf)} />
           <Row label="Valuation" value={sourceLabel(stock, 'valuation')} hint={relativeAsOf(stock.valuation.asOf)} />
@@ -741,11 +766,24 @@ function sentimentTone(score: number | null | undefined): 'up' | 'down' | 'flat'
   return 'flat';
 }
 
-function Field({ label, tone, text }: { label: string; tone: 'up' | 'down' | 'accent'; text: string }) {
+function Field({
+  label,
+  term,
+  tone,
+  text,
+}: {
+  label: string;
+  term?: GlossaryKey;
+  tone: 'up' | 'down' | 'accent';
+  text: string;
+}) {
   const { spacing } = useTheme();
   return (
     <View style={{ gap: spacing.xs }}>
-      <Pill label={label} tone={tone} compact />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+        <Pill label={label} tone={tone} compact />
+        {term ? <InfoButton term={term} size={14} /> : null}
+      </View>
       <Text variant="body">{text}</Text>
     </View>
   );

@@ -383,6 +383,56 @@ export function Button({
   );
 }
 
+/**
+ * A label with an optional "?" beside it.
+ *
+ * The row primitives already take a `term`, but a lot of the complexity in this
+ * app lives in headings and chart captions — "EV / EBITDA", "Multiple history",
+ * "What would change the verdict" — where there is no row to hang it on. This
+ * makes adding one a single prop rather than a nested View every time.
+ */
+export function Label({
+  children,
+  term,
+  variant = 'label',
+  tone,
+  muted,
+  faint,
+  size,
+  style,
+}: {
+  children: string;
+  term?: GlossaryKey;
+  variant?: TypeKey;
+  tone?: Tone;
+  muted?: boolean;
+  faint?: boolean;
+  /** Overrides the icon size, which otherwise tracks the text variant. */
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { type } = useTheme();
+  return (
+    <View
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }, style]}
+      accessible={!term}
+      accessibilityLabel={term ? undefined : children}
+    >
+      <Text
+        variant={variant}
+        tone={tone}
+        muted={muted}
+        faint={faint}
+        style={{ flexShrink: 1 }}
+        accessibilityRole={variant === 'heading' || variant === 'title' ? 'header' : undefined}
+      >
+        {children}
+      </Text>
+      {term ? <InfoButton term={term} size={size ?? Math.round(type[variant].size * 0.92)} /> : null}
+    </View>
+  );
+}
+
 /** Shown wherever a block has no data rather than leaving a hole. */
 export function Empty({ title, detail }: { title: string; detail?: string }) {
   const { spacing } = useTheme();

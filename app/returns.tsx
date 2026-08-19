@@ -65,7 +65,7 @@ export default function ReturnsScreen() {
         </Card>
       </Section>
 
-      <Section title="Today's attribution" subtitle="Who actually moved the number">
+      <Section title="Today's attribution" term="attribution" subtitle="Who actually moved the number">
         <Card>
           {rows.every((r) => r.contribution === 0) ? (
             <Text variant="body" muted>
@@ -90,7 +90,7 @@ export default function ReturnsScreen() {
         </Card>
       </Section>
 
-      <Section title="Carrying the gains">
+      <Section title="Carrying the gains" term="unrealizedPnl">
         <Card>
           {winners.length === 0 ? (
             <Text variant="body" muted>
@@ -110,7 +110,7 @@ export default function ReturnsScreen() {
         </Card>
       </Section>
 
-      <Section title="Underwater">
+      <Section title="Underwater" term="unrealizedPnl">
         <Card>
           {losers.length === 0 ? (
             <Text variant="body" muted>

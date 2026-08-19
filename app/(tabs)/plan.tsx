@@ -52,6 +52,7 @@ export default function PlanScreen() {
       </Section>
 
       <Section
+        term="planProjection"
         title={projected ? `If tranche ${preview} is finished` : 'As things stand'}
         subtitle="Tap a tranche below to project it"
       >
@@ -118,7 +119,7 @@ export default function PlanScreen() {
         </Card>
       </Section>
 
-      <Section title="Tranches">
+      <Section title="Tranches" term="tranche">
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {progress.map((p) => {
             const active = preview === p.tranche;
@@ -161,6 +162,7 @@ export default function PlanScreen() {
         <Section
           key={t}
           title={`Tranche ${t}`}
+          term="planLeg"
           action={
             <Text
               variant="caption"

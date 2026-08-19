@@ -63,6 +63,7 @@ export default function HistoryScreen() {
   return (
     <Screen>
       <Section
+        term="snapshot"
         title="Net liquidation value"
         subtitle={`${ordered.length} snapshot${ordered.length === 1 ? '' : 's'} from ${longDate(first.date)}`}
       >
@@ -110,7 +111,7 @@ export default function HistoryScreen() {
         </Section>
       ) : null}
 
-      <Section title="Every snapshot">
+      <Section title="Every snapshot" term="snapshot">
         <Card>
           {[...ordered].reverse().map((s) => (
             <Row

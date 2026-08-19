@@ -40,7 +40,7 @@ export default function MarketScreen() {
         As of {relativeAsOf(market.asOf)}
       </Text>
 
-      <Section title="Indices">
+      <Section title="Indices" term="marketIndex">
         <Card>
           {indices.map((i) => (
             <Row
@@ -53,7 +53,7 @@ export default function MarketScreen() {
         </Card>
       </Section>
 
-      <Section title="ETFs">
+      <Section title="ETFs" term="etf">
         <Card>
           {etfs.map((i) => (
             <Row
@@ -66,7 +66,7 @@ export default function MarketScreen() {
         </Card>
       </Section>
 
-      <Section title="Treasury yields">
+      <Section title="Treasury yields" term="treasuryYield">
         <Card>
           {yields.map((i) => (
             <Row

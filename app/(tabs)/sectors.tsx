@@ -50,7 +50,7 @@ export default function SectorsScreen() {
         </Card>
       </Section>
 
-      <Section title="Current vs target" subtitle="Bar is current, the notch is the plan's target">
+      <Section title="Current vs target" term="sectorTarget" subtitle="Bar is current, the notch is the plan's target">
         <Card>
           <TargetBars
             rows={buckets.map((b) => ({ label: b.label, current: b.weightPct, target: b.targetPct }))}
@@ -59,7 +59,7 @@ export default function SectorsScreen() {
       </Section>
 
       {(overweight.length > 0 || underweight.length > 0) && (
-        <Section title="Drift" subtitle="More than 3 points away from target">
+        <Section title="Drift" term="drift" subtitle="More than 3 points away from target">
           <Card style={{ gap: spacing.sm }}>
             {overweight.map((b) => (
               <View key={b.sector} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>

@@ -21,13 +21,15 @@ export default function WatchlistScreen() {
 
   return (
     <Screen>
-      <Card>
-        <Text variant="body" muted>
-          Names being considered but not yet held. Each one carries the same analysis as a holding —
-          the difference is that there is no share count behind it, so position-level figures are
-          blank by design.
-        </Text>
-      </Card>
+      <Section title="Watchlist" term="watchlistOnly">
+        <Card>
+          <Text variant="body" muted>
+            Names being considered but not yet held. Each one carries the same analysis as a
+            holding — the difference is that there is no share count behind it, so position-level
+            figures are blank by design.
+          </Text>
+        </Card>
+      </Section>
 
       {watch.length === 0 ? (
         <Text variant="body" muted>

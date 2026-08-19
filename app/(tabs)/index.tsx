@@ -235,7 +235,7 @@ export default function PortfolioScreen() {
       </Section>
 
       {snapshots.length > 1 ? (
-        <Section title="Value over time" subtitle={`${snapshots.length} daily snapshots`}>
+        <Section title="Value over time" term="snapshot" subtitle={`${snapshots.length} daily snapshots`}>
           <Card style={{ gap: spacing.sm }}>
             <Sparkline
               values={snapshots.map((s) => s.netLiquidationValue)}
@@ -248,7 +248,7 @@ export default function PortfolioScreen() {
         </Section>
       ) : null}
 
-      <Section title="Today's movers">
+      <Section title="Today's movers" term="topMovers">
         <View style={{ gap: spacing.sm }}>
           {movers.gainers.length === 0 && movers.losers.length === 0 ? (
             <Card>
@@ -274,7 +274,7 @@ export default function PortfolioScreen() {
         </View>
       </Section>
 
-      <Section title="Needs attention">
+      <Section title="Needs attention" term="needsAttention">
         <Card style={{ gap: spacing.sm }}>
           {attentionItems(positions, stocks, plan.constraints.maxPositionPct * 100).map((item) => (
             <View key={item.key} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>

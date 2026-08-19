@@ -47,8 +47,9 @@ moved goes into a queue, and Claude works through it one at a time: the latest
 earnings call and what was said on it, analyst targets and revisions, and news
 from the last month. You can also run one by hand from any stock page.
 
-Every metric in the app carries a **"?"** explaining what it is, how to read it,
-and where it misleads.
+Every metric carries a **"?"** explaining what it is, how to read it, and where
+it misleads — on table rows, section headings and chart captions alike. 63 on the
+stock detail page.
 
 **More → AI insights** reads across the whole book: concentration, what the
 positions have in common regardless of sector, and where the risk actually sits.
@@ -58,7 +59,7 @@ The figures there are computed locally and work without any API key.
 
 ```bash
 npm run typecheck        # strict TypeScript, no errors
-npm test                 # 32 tests over the analytics, insights and merge logic
+npm test                 # 38 tests over the analytics, insights, merge and glossary
 npm run build:web        # produces dist/
 npx serve dist -l 8080 -s
 npm run verify:screenshots   # every route, both themes, two iPhone widths

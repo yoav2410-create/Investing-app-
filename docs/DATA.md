@@ -130,13 +130,22 @@ actually held — 18 from 14 holdings, which is impossible. Caught by a test.
 
 Every metric in the app carries a "?" that opens a plain-English explanation in
 three parts: what it is, how to read the number in front of you, and — where it
-applies — the specific way that metric misleads. The stock detail page carries
-33 of them.
+applies — the specific way that metric misleads.
+
+They sit wherever a term appears, not only on table rows: section headings
+("Multiple history", "The case"), chart captions ("EV / EBITDA", "Net income"),
+the verdict pill, the narrative fields, the trend checks, the plan's tranches,
+and the sector targets. The stock detail page carries 63.
 
 The third part is not decoration. A tooltip that explains P/E without mentioning
 that a collapsed-earnings company shows its highest multiple exactly when it is
 cheapest is worse than no tooltip. The glossary lives in
-`src/domain/glossary.ts`.
+`src/domain/glossary.ts` and holds 81 entries.
+
+A mistyped `term="…"` renders nothing at all rather than failing, so a test walks
+every screen, extracts each reference and asserts it resolves. Terms chosen from
+data go through a helper with a `GlossaryKey` return type, which makes a wrong
+key a compile error instead of a silent no-op.
 
 ## Known gaps, stated rather than hidden
 

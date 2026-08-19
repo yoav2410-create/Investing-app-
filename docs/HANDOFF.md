@@ -76,7 +76,13 @@ the verdict to name something observable rather than hedge.
 
 Each one carries a **"?"** that opens a plain-English explanation in three parts:
 what it is, how to read the number in front of you, and — where it applies — the
-specific way that metric misleads. The stock detail page carries 33 of them.
+specific way that metric misleads.
+
+They sit beside every complex term, not only on table rows: section headings,
+chart captions like **EV / EBITDA** and **Net income**, the verdict pill, the
+bull and bear cases, each trend check, the plan's tranches, sector targets and
+the market instruments. The stock detail page carries **63**; the glossary holds
+81 entries.
 
 That third part is the point. A tooltip that explains P/E without saying that a
 company whose earnings just collapsed shows its highest multiple exactly when it

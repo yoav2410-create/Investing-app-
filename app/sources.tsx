@@ -85,7 +85,7 @@ export default function SourcesScreen() {
         </Card>
       </Section>
 
-      <Section title="Per stock">
+      <Section title="Per stock" term="dataProvenance">
         <View style={{ gap: spacing.sm }}>
           {Object.values(stocks).map((s) => (
             <Card key={s.ticker} style={{ gap: spacing.xs }}>
