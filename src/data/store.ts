@@ -43,6 +43,7 @@ import { buildInsights, summariseForModel } from '@/domain/insights';
 import { stanceProblems, summariseSimulation } from '@/domain/allocation';
 import { fetchSheet, toQuote } from './provider/googleSheet';
 import { fetchQuotes } from './provider/finnhub';
+import { fetchPublishedQuotes, toQuote as toPublishedQuote } from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
@@ -111,6 +112,8 @@ export interface AppState {
   /** Live marks for whatever is held right now. Follows the book, not a list. */
   refreshLiveQuotes: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   refreshingQuotes: boolean;
+  /** When the published feed the marks came from was fetched, for the UI. */
+  quotesFetchedAt: string | null;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -146,6 +149,7 @@ export const useApp = create<AppState>()(
       portfolioRead: null,
       analysingPortfolio: false,
       refreshingQuotes: false,
+      quotesFetchedAt: null,
 
       account: () => deriveAccount(get().holdings, get().stocks, get().cash, SEED_ACCOUNT.realizedPnl),
       cashUsd: () =>
@@ -220,7 +224,7 @@ export const useApp = create<AppState>()(
       readScreenshot: async ({ uri, base64, mediaType, hint }) => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
         }
         try {
           const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
@@ -244,7 +248,7 @@ export const useApp = create<AppState>()(
             ok: true,
             message:
               changed === 0
-                ? `Read ${read.positions.length} positions ג€” nothing has changed.`
+                ? `Read ${read.positions.length} positions — nothing has changed.`
                 : `Read ${read.positions.length} positions, ${changed} differ from the book.`,
           };
         } catch (e) {
@@ -316,24 +320,66 @@ export const useApp = create<AppState>()(
       clearResearchQueue: () => set({ researchQueue: [] }),
 
       refreshLiveQuotes: async (opts) => {
-        const key = await getKey('finnhub');
-        if (!key) {
-          return { ok: false, message: 'Add a free Finnhub key in Settings ג†’ Prices to pull live marks.' };
-        }
         if (get().refreshingQuotes) return { ok: false, message: 'Already refreshing.' };
         set({ refreshingQuotes: true });
         try {
+          // The published feed first. It needs no key, no setup and no decision
+          // from the owner, and the scheduled workflow keeps it current whether
+          // or not the app has been opened — which is the only way "up to date"
+          // can mean anything for a static site nobody is looking at.
+          const published = await fetchPublishedQuotes(opts?.fetchImpl ?? fetch);
           const state = get();
-          // The list is whatever is held right now, so importing a screenshot
-          // changes what gets priced without anyone maintaining a list. A name
-          // that arrives in tonight's import is quoted on the next refresh
-          // because it is in `holdings`, not because someone remembered it.
+          // Whatever is held right now, so a name arriving in tonight's import
+          // is priced on the next open because it is in `holdings`, not because
+          // somebody remembered to add it to a list.
           const symbols = state.holdings.map((h) => h.ticker);
           if (symbols.length === 0) return { ok: false, message: 'Nothing held to price yet.' };
 
-          const batch = await fetchQuotes(symbols, key, { fetchImpl: opts?.fetchImpl, today: todayIso() });
+          let fromFeed = 0;
+          const missing: string[] = [];
+          if (published) {
+            const stocks = { ...state.stocks };
+            for (const ticker of symbols) {
+              const entry = published.quotes[ticker];
+              const stock = stocks[ticker];
+              if (!stock) continue;
+              const quote = entry ? toPublishedQuote(entry, todayIso()) : null;
+              if (!quote) { missing.push(ticker); continue; }
+              // Stamped with when the workflow fetched it, not with now. The
+              // point of a schedule is that the app may be opened long after,
+              // and the age of the mark has to survive that gap intact.
+              stocks[ticker] = {
+                ...stock,
+                quote: { value: quote, asOf: published.fetchedAt, source: 'finnhub' },
+              };
+              fromFeed++;
+            }
+            if (fromFeed > 0) set({ stocks, quotesFetchedAt: published.fetchedAt });
+          }
+
+          // A device key is optional, and only earns its keep on names the
+          // schedule does not carry.
+          const key = await getKey('finnhub');
+          const toTopUp = published ? missing : symbols;
+          if (!key || toTopUp.length === 0) {
+            if (fromFeed > 0) {
+              const parts = [`Re-marked ${fromFeed} of ${symbols.length} holdings from the published feed.`];
+              if (toTopUp.length) {
+                parts.push(`Not covered: ${toTopUp.join(', ')} — they keep their previous marks.`);
+              }
+              return { ok: true, message: parts.join(' ') };
+            }
+            return {
+              ok: false,
+              message: published
+                ? 'The published feed carries none of your holdings yet.'
+                : 'No published marks are available yet.',
+            };
+          }
+
+          const batch = await fetchQuotes(toTopUp, key, { fetchImpl: opts?.fetchImpl, today: todayIso() });
           const at = nowIso();
-          const stocks = { ...state.stocks };
+          const stocks = { ...get().stocks };
           let applied = 0;
           for (const [ticker, quote] of Object.entries(batch.quotes)) {
             const stock = stocks[ticker];
@@ -346,7 +392,7 @@ export const useApp = create<AppState>()(
           if (batch.stoppedEarly === 'auth') {
             return { ok: false, message: 'Finnhub rejected that key. Check it in Settings.' };
           }
-          const parts = [`Re-marked ${applied} of ${symbols.length} holdings.`];
+          const parts = [`Re-marked ${fromFeed + applied} of ${symbols.length} holdings.`];
           if (batch.stoppedEarly === 'rateLimit') {
             parts.push('Finnhub rate limit reached; the rest kept their previous marks.');
           } else if (batch.failures.length) {
@@ -354,7 +400,7 @@ export const useApp = create<AppState>()(
             // looks like a flat stock rather than a missing feed.
             parts.push(`No price for ${batch.failures.map((f) => f.symbol).join(', ')}.`);
           }
-          return { ok: applied > 0, message: parts.join(' ') };
+          return { ok: fromFeed + applied > 0, message: parts.join(' ') };
         } catch (e) {
           return { ok: false, message: e instanceof Error ? e.message : 'Could not refresh quotes.' };
         } finally {
@@ -417,7 +463,7 @@ export const useApp = create<AppState>()(
       analysePortfolioNow: async () => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
         }
         if (get().analysingPortfolio) {
           return { ok: false, message: 'Already running.' };
@@ -434,7 +480,7 @@ export const useApp = create<AppState>()(
           );
           const verdicts = Object.values(state.stocks)
             .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
-            .map((s) => `${s.ticker}: ${s.narrative.verdict} ג€” ${s.narrative.thesis ?? ''}`)
+            .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
             .join('\n');
           const planText = [
             state.plan.summary,
@@ -491,7 +537,7 @@ export const useApp = create<AppState>()(
       researchTicker: async (ticker) => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
         }
         if (get().researching.includes(ticker)) {
           return { ok: false, message: `${ticker} is already being researched.` };
@@ -620,7 +666,7 @@ export function ensureFirstSnapshot() {
 function describeError(e: unknown): string {
   if (e && typeof e === 'object' && 'status' in e) {
     const status = (e as { status?: number }).status;
-    if (status === 401) return 'That Anthropic API key was rejected. Check it in Settings ג†’ Data.';
+    if (status === 401) return 'That Anthropic API key was rejected. Check it in Settings → Data.';
     if (status === 429) return 'Rate limited by the API. Wait a moment and try again.';
     if (status === 400) return 'The request was rejected. If this is a very large screenshot, try cropping it.';
     if (status && status >= 500) return 'The API is having trouble. Try again shortly.';

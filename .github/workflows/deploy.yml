@@ -15,6 +15,15 @@ on:
       - main
       - claude/iphone-investment-app-frn8sy
   workflow_dispatch:
+  # Marks go stale on their own, so something has to run when nobody is
+  # looking. Every 15 minutes through the US session (13:30-20:00 UTC, with a
+  # margin either side for daylight saving), weekdays only — outside those
+  # hours the prices would not have changed and the run would be noise.
+  #
+  # GitHub schedules are best-effort and get delayed under load, which is why
+  # the app shows how old a mark is instead of implying it is live.
+  schedule:
+    - cron: '*/15 13-21 * * 1-5'
 
 # Pages needs these; the defaults are not enough.
 permissions:
@@ -48,6 +57,20 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # Fetched here rather than in the app so the key never ships. The phone
+      # reads the result from its own origin, holds no secret, and does not
+      # have to be open for the numbers to be current.
+      #
+      # continue-on-error: a bad minute at Finnhub should not stop a deploy.
+      # The script already refuses to overwrite good marks with an empty file,
+      # so the worst case is the site republishes with the previous quotes.json
+      # and the app says how old it is.
+      - name: Fetch live marks
+        continue-on-error: true
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: node scripts/fetch-quotes.mjs public
 
       - name: Build the web app
         env:

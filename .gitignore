@@ -48,3 +48,6 @@ dist/
 docs/screenshots/detail-*.png
 docs/screenshots/etf-*.png
 docs/screenshots/planpage-*.png
+
+# Written by the scheduled workflow at build time, never committed.
+public/quotes.json
