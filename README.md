@@ -17,9 +17,14 @@ npx expo start
 
 Scan the QR code with the iPhone Camera app. Expo Go opens the app.
 
-**Getting it onto the phone properly — including its own home-screen icon,
-background refresh and notifications — is written out step by step in
-[`docs/IPHONE.md`](docs/IPHONE.md).**
+**No computer?** [`docs/IPHONE-NO-COMPUTER.md`](docs/IPHONE-NO-COMPUTER.md) gets
+the app onto your home screen using only Safari on the phone, for free — GitHub
+builds it, GitHub Pages serves it, iOS installs it. That is the fastest route to
+something you actually use every morning.
+
+**With a computer**, [`docs/IPHONE.md`](docs/IPHONE.md) covers Expo Go through to
+a signed TestFlight build, which is what adds background refresh, notifications
+and the Face ID lock.
 
 `npm run web` opens the same app in a browser, which is useful for a quick look
 but is not the target: the layouts are designed for a phone.
@@ -90,6 +95,8 @@ npm run verify:screenshots   # every route, both themes, two iPhone widths
 npm run verify:interaction   # projection, leg toggling, navigation, no-key path
 npm run verify:features      # metric explainers, insights, sentiment card
 npm run verify:simulation    # Monte Carlo horizons and basis, the FCF bridge
+npm run build:pages          # the GitHub Pages build, base path and PWA shell
+npm run verify:pwa           # installable, routable, remembers the key
 ```
 
 `verify:simulation` presses the controls rather than just photographing them: it
@@ -123,6 +130,7 @@ src/
   components/         UI primitives and hand-drawn SVG charts
   theme/              light and dark palettes
 docs/
+  IPHONE-NO-COMPUTER.md  phone-only route: GitHub Actions -> Pages -> home screen
   IPHONE.md           getting it onto an iPhone, from clone to TestFlight
   HANDOFF.md          what was built, what it costs, what is missing
   DATA.md             where every number comes from

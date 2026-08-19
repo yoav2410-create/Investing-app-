@@ -25,8 +25,10 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       if (!hasHardware || !enrolled) {
-        // Nothing to authenticate against — locking the owner out of their own
-        // data would be worse than not locking it.
+        // Nothing to authenticate against — no enrolled biometrics, or a
+        // browser, where `hasHardwareAsync` reports false. Locking the owner
+        // out of their own data with no way to satisfy the prompt would be
+        // worse than not locking it.
         setUnlocked(true);
         return;
       }

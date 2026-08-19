@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Row, Screen, Section, Text } from '@/components/ui';
 import { useApp } from '@/data/store';
-import { getKey, maskKey, setKey, type KeyName } from '@/data/keys';
+import { getKey, keyStorageDescription, maskKey, setKey, type KeyName } from '@/data/keys';
 import { runAlertCheck } from '@/data/alerts';
 import { currency, shares as fmtShares } from '@/domain/format';
 
@@ -28,7 +28,7 @@ export default function SettingsScreen() {
           name="anthropic"
           label="Anthropic API key"
           placeholder="sk-ant-…"
-          help="Stored in the device keychain. It never leaves the device except in requests to Anthropic."
+          help={`${keyStorageDescription()} It never leaves this device except in requests to Anthropic.`}
         />
       </Section>
 
@@ -135,8 +135,13 @@ export default function SettingsScreen() {
         <Card>
           <Toggle
             label="Face ID lock"
-            hint="Require authentication whenever the app comes back to the foreground"
-            value={settings.biometricLockEnabled}
+            hint={
+              Platform.OS === 'web'
+                ? 'Not available in a browser — there is no biometric prompt to unlock with'
+                : 'Require authentication whenever the app comes back to the foreground'
+            }
+            value={Platform.OS === 'web' ? false : settings.biometricLockEnabled}
+            disabled={Platform.OS === 'web'}
             onChange={(v) => update({ biometricLockEnabled: v })}
           />
         </Card>
@@ -192,11 +197,13 @@ function Toggle({
   hint,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   hint?: string;
   value: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   const { palette, spacing } = useTheme();
   return (
@@ -209,7 +216,7 @@ function Toggle({
         minHeight: 44,
       }}
     >
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flex: 1, minWidth: 0, opacity: disabled ? 0.5 : 1 }}>
         <Text variant="body">{label}</Text>
         {hint ? (
           <Text variant="caption" faint>
@@ -220,7 +227,9 @@ function Toggle({
       <Switch
         value={value}
         onValueChange={onChange}
+        disabled={disabled}
         accessibilityLabel={label}
+        accessibilityState={{ disabled: !!disabled }}
         trackColor={{ true: palette.accent, false: palette.borderStrong }}
       />
     </View>
