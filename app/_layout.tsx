@@ -99,13 +99,27 @@ function Root() {
     if (hydrated) void requestDurableStorage();
   }, [hydrated]);
 
-  // Re-mark the book on open, so "available without extra work" means the app
-  // does it rather than the owner remembering to. Silent by design: with no key
-  // set this returns a message nobody asked for, and Settings is where that
-  // conversation belongs. The marks that are already on file still render, each
-  // with the date it was fetched.
+  // Re-mark the book on open and then every fifteen minutes while it stays
+  // open, matching the schedule the workflow publishes on. "Up to date without
+  // extra work" has to mean the app does this rather than the owner
+  // remembering to, so it is silent: with no key set it returns a message
+  // nobody asked for, and Settings is where that conversation belongs. The
+  // marks already on file still render, each with the date it was fetched.
+  //
+  // Coming back from the background counts as an open. A phone that has had
+  // the app parked for an hour is the case where the prices on screen are
+  // furthest from the truth, and where a timer alone would not have fired.
   useEffect(() => {
-    if (hydrated) void refreshLiveQuotes();
+    if (!hydrated) return;
+    void refreshLiveQuotes();
+    const timer = setInterval(() => void refreshLiveQuotes(), 15 * 60 * 1000);
+    const sub = RNAppState.addEventListener('change', (s) => {
+      if (s === 'active') void refreshLiveQuotes();
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
   }, [hydrated, refreshLiveQuotes]);
 
   if (!hydrated) {

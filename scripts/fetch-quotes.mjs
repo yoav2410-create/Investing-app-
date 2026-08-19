@@ -32,9 +32,11 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-// Finnhub's free tier reports 60 a minute in X-Ratelimit-Limit. Pacing to just
-// under that is the difference between a full sweep and half a book of 429s.
-const GAP_MS = 1100;
+// Finnhub's free tier reports 60 a minute in X-Ratelimit-Limit, so one call a
+// second is the ceiling. Pacing just under it is the difference between a full
+// sweep and half a book of 429s; going below it buys nothing, because the
+// retry it triggers costs more time than the gap saved.
+const GAP_MS = 1050;
 
 const symbols = readFileSync(UNIVERSE, 'utf8')
   .split('\n')

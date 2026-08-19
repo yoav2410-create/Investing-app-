@@ -329,11 +329,15 @@ export const useApp = create<AppState>()(
           // can mean anything for a static site nobody is looking at.
           const published = await fetchPublishedQuotes(opts?.fetchImpl ?? fetch);
           const state = get();
-          // Whatever is held right now, so a name arriving in tonight's import
-          // is priced on the next open because it is in `holdings`, not because
-          // somebody remembered to add it to a list.
-          const symbols = state.holdings.map((h) => h.ticker);
-          if (symbols.length === 0) return { ok: false, message: 'Nothing held to price yet.' };
+          // Everything the book actually renders, held or watched. This is what
+          // makes coverage self-healing: a name that arrives in tonight's
+          // screenshot import is priced on the next pass because it is in
+          // `stocks`, not because a list somewhere was updated to mention it.
+          // There is no list, so there is nothing to fall out of date.
+          const symbols = [
+            ...new Set([...state.holdings.map((h) => h.ticker), ...Object.keys(state.stocks)]),
+          ];
+          if (symbols.length === 0) return { ok: false, message: 'Nothing in the book to price yet.' };
 
           let fromFeed = 0;
           const missing: string[] = [];
@@ -345,6 +349,13 @@ export const useApp = create<AppState>()(
               if (!stock) continue;
               const quote = entry ? toPublishedQuote(entry, todayIso()) : null;
               if (!quote) { missing.push(ticker); continue; }
+              // Never replace a newer mark with an older one. The feed can be
+              // half an hour behind a price the device fetched itself a moment
+              // ago, and applying it anyway would walk the book backwards -
+              // keeping a price that has already been superseded is exactly the
+              // stale data this is supposed to avoid.
+              const existing = stock.quote?.asOf;
+              if (existing && Date.parse(existing) >= Date.parse(published.fetchedAt)) continue;
               // Stamped with when the workflow fetched it, not with now. The
               // point of a schedule is that the app may be opened long after,
               // and the age of the mark has to survive that gap intact.

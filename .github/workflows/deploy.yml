@@ -20,15 +20,15 @@ on:
   # for daylight saving), weekdays only — outside those hours the prices have
   # not moved and the run would be noise.
   #
-  # Every 30 minutes rather than every 15: the sweep is 537 symbols paced just
-  # under Finnhub's sixty-a-minute allowance, which takes about ten minutes, and
-  # the build adds another two. A quarter-hourly schedule would have runs
-  # overlapping each other. Coverage is worth more than freshness here — a
-  # portfolio is not traded on the half hour — and GitHub delays scheduled runs
-  # under load anyway, which is why the app shows the age of a mark rather than
-  # implying it is live.
+  # Every fifteen minutes, matching the timer the app runs on while it is open.
+  # The sweep is ~517 symbols paced just under Finnhub's sixty-a-minute
+  # allowance, so it takes about nine minutes, and the build adds two: eleven
+  # inside a fifteen-minute window, which is why the list has a documented
+  # ceiling rather than being grown freely. GitHub delays scheduled runs under
+  # load, which is why the app shows the age of a mark instead of implying it
+  # is live.
   schedule:
-    - cron: '5,35 13-21 * * 1-5'
+    - cron: '*/15 13-21 * * 1-5'
 
 # Pages needs these; the defaults are not enough.
 permissions:
