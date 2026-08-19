@@ -6,6 +6,19 @@ import { Button, Card, Divider, Row, Screen, Section, Text } from '@/components/
 import { useApp } from '@/data/store';
 import { getKey, keyStorageDescription, maskKey, setKey, type KeyName } from '@/data/keys';
 import { runAlertCheck } from '@/data/alerts';
+import {
+  durabilityDescription,
+  requestDurableStorage,
+  UNKNOWN_DURABILITY,
+  type StorageDurability,
+} from '@/data/persistence';
+import {
+  parseBackup,
+  pickBackupFile,
+  restoreBackup,
+  saveBackup,
+  type BackupPayload,
+} from '@/data/backup';
 import { currency, shares as fmtShares } from '@/domain/format';
 
 export default function SettingsScreen() {
@@ -164,6 +177,8 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
+      <YourDataSection onStatus={setStatus} />
+
       <Section title="Reset">
         <Card style={{ gap: spacing.sm }}>
           <Text variant="caption" muted>
@@ -189,6 +204,101 @@ export default function SettingsScreen() {
         </Card>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Where the book lives, and how to get a copy of it out.
+ *
+ * The positions were read from a screenshot the owner took by hand and
+ * approved row by row; there is no feed to replay them from. So this screen
+ * states plainly whether the browser has promised to keep them, and offers a
+ * file when it has not — rather than leaving the owner to discover the answer
+ * the hard way.
+ */
+function YourDataSection({ onStatus }: { onStatus: (s: string) => void }) {
+  const { spacing } = useTheme();
+  const [durability, setDurability] = useState<StorageDurability>(UNKNOWN_DURABILITY);
+  const [staged, setStaged] = useState<BackupPayload | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void requestDurableStorage().then(setDurability);
+  }, []);
+
+  const onSave = async () => {
+    setBusy(true);
+    const res = await saveBackup();
+    setBusy(false);
+    onStatus(res.message);
+    // Saving is the moment the answer can change: a browser that refused
+    // before may grant persistence once the app is clearly in use.
+    void requestDurableStorage().then(setDurability);
+  };
+
+  const onChoose = async () => {
+    const text = await pickBackupFile();
+    if (text === null) return;
+    try {
+      setStaged(parseBackup(text));
+      onStatus('Backup read. Check what it holds before restoring.');
+    } catch (e) {
+      setStaged(null);
+      onStatus(e instanceof Error ? e.message : 'That file could not be read.');
+    }
+  };
+
+  return (
+    <Section title="Your data" subtitle="Where the book is kept, and how to keep a copy">
+      <Card style={{ gap: spacing.sm }}>
+        <Text variant="caption" muted>
+          {durabilityDescription(durability)}
+        </Text>
+        <Button label={busy ? 'Saving…' : 'Save a backup'} onPress={onSave} disabled={busy} />
+        <Text variant="caption" faint>
+          A single .json file holding every position, stock, snapshot and the plan. Your API keys
+          are deliberately not in it.
+        </Text>
+
+        {Platform.OS === 'web' ? (
+          <>
+            <Divider />
+            <Button label="Restore from a backup" variant="quiet" onPress={onChoose} />
+            {staged ? (
+              <>
+                <Row label="Holdings" value={String(staged.contents.holdings)} />
+                <Row label="Stocks" value={String(staged.contents.stocks)} />
+                <Row label="Snapshots" value={String(staged.contents.snapshots)} />
+                <Row
+                  label="Exported"
+                  value={staged.exportedAt.slice(0, 16).replace('T', ' ')}
+                />
+                <Text variant="caption" muted>
+                  Restoring replaces the book on this device. There is no undo, so save a backup of
+                  what is here first if you are not sure.
+                </Text>
+                <Button
+                  label="Replace the book with this backup"
+                  tone="down"
+                  onPress={() => {
+                    restoreBackup(staged);
+                    onStatus(
+                      `Restored ${staged.contents.holdings} holdings and ${staged.contents.stocks} stocks.`,
+                    );
+                    setStaged(null);
+                  }}
+                />
+              </>
+            ) : null}
+          </>
+        ) : (
+          <Text variant="caption" faint>
+            Restoring from a file is available in the browser version. Here, share the backup to
+            somewhere you can reach it from Safari.
+          </Text>
+        )}
+      </Card>
+    </Section>
   );
 }
 

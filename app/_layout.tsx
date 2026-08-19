@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
 import { InfoProvider } from '@/components/InfoButton';
 import { Button, Screen, Text } from '@/components/ui';
 import { useApp, ensureFirstSnapshot } from '@/data/store';
+import { requestDurableStorage } from '@/data/persistence';
 
 /** Face ID gate. Re-arms whenever the app goes to the background. */
 function BiometricGate({ children }: { children: React.ReactNode }) {
@@ -86,6 +87,15 @@ function Root() {
 
   useEffect(() => {
     if (hydrated) ensureFirstSnapshot();
+  }, [hydrated]);
+
+  // Asked for once the book is actually on disk, not before: browsers weigh
+  // the request against how much the site is used, and asking with an empty
+  // store is the weakest version of it. Fire-and-forget — a browser that says
+  // no changes nothing about how the app runs, only what Settings reports and
+  // how much the backup file matters.
+  useEffect(() => {
+    if (hydrated) void requestDurableStorage();
   }, [hydrated]);
 
   if (!hydrated) {
