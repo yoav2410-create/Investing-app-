@@ -1,0 +1,80 @@
+# Builds the app and publishes it to GitHub Pages.
+#
+# This is what makes the app installable without owning a computer: the build
+# runs on GitHub's machines, and the owner starts it from the GitHub website on
+# their phone (Actions -> Deploy to GitHub Pages -> Run workflow).
+#
+# It also runs on every push to the feature branch, so a change made anywhere
+# reaches the phone without anyone starting anything.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/iphone-investment-app-frn8sy
+  workflow_dispatch:
+
+# Pages needs these; the defaults are not enough.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer deploy should win, but never kill one that is already uploading.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # If these fail the site is not published. A broken build reaching the
+      # phone is worse than an old one staying there.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the web app
+        env:
+          # GitHub Pages serves a project site under /<repo>/, so every asset
+          # path needs that prefix baked in.
+          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
+        run: npx expo export --platform web --output-dir dist --clear
+
+      # Adds the head tags that make Safari install this as an app rather
+      # than bookmark it, plus the 404 fallback Pages needs for deep links and
+      # the .nojekyll that stops Pages eating the _expo directory. Exits
+      # non-zero if any of it fails to apply.
+      - name: Apply the PWA shell
+        env:
+          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
+        run: node scripts/pwa-shell.mjs dist
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

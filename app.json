@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Portfolio Brief",
+    "slug": "portfolio-brief",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "portfoliobrief",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.portfoliobrief.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Unlock Portfolio Brief with Face ID so your holdings stay private.",
+        "UIBackgroundModes": ["fetch", "processing"]
+      }
+    },
+    "android": {
+      "package": "com.portfoliobrief.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F14",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-notifications",
+      "expo-background-task",
+      ["expo-splash-screen", { "backgroundColor": "#0B0F14", "image": "./assets/splash-icon.png", "imageWidth": 160 }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
