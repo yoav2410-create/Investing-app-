@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ColorValue } from 'react-native';
+import { Platform, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -20,7 +20,23 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: palette.bg },
         headerTintColor: palette.text,
         headerShadowVisible: false,
-        tabBarStyle: { backgroundColor: palette.bgElevated, borderTopColor: palette.border },
+        tabBarStyle: {
+          backgroundColor: palette.bgElevated,
+          borderTopColor: palette.border,
+          // The web tab bar defaults to 48pt: 5pt of padding top and bottom, a
+          // 28pt icon that cannot shrink, and a label that can. The label lost
+          // the argument — its box was squeezed from 14pt to 10pt and
+          // `overflow: hidden` sliced the bottom off every glyph, at every
+          // width, in both themes. 28 + 14 + 10 needs 52.
+          //
+          // Web only: on native React Navigation derives this height from the
+          // bottom safe-area inset, and a fixed number there would put the
+          // labels under the home indicator.
+          ...(Platform.OS === 'web' ? { height: 56 } : {}),
+        },
+        // Pinned so the arithmetic above does not depend on how a given
+        // platform resolves `line-height: normal` for the system font.
+        tabBarLabelStyle: { fontSize: 10, lineHeight: 14 },
         tabBarActiveTintColor: palette.accent,
         tabBarInactiveTintColor: palette.textFaint,
         sceneStyle: { backgroundColor: palette.bg },
