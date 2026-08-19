@@ -16,14 +16,19 @@ on:
       - claude/iphone-investment-app-frn8sy
   workflow_dispatch:
   # Marks go stale on their own, so something has to run when nobody is
-  # looking. Every 15 minutes through the US session (13:30-20:00 UTC, with a
-  # margin either side for daylight saving), weekdays only — outside those
-  # hours the prices would not have changed and the run would be noise.
+  # looking. Through the US session (13:30-20:00 UTC, with a margin either side
+  # for daylight saving), weekdays only — outside those hours the prices have
+  # not moved and the run would be noise.
   #
-  # GitHub schedules are best-effort and get delayed under load, which is why
-  # the app shows how old a mark is instead of implying it is live.
+  # Every 30 minutes rather than every 15: the sweep is 537 symbols paced just
+  # under Finnhub's sixty-a-minute allowance, which takes about ten minutes, and
+  # the build adds another two. A quarter-hourly schedule would have runs
+  # overlapping each other. Coverage is worth more than freshness here — a
+  # portfolio is not traded on the half hour — and GitHub delays scheduled runs
+  # under load anyway, which is why the app shows the age of a mark rather than
+  # implying it is live.
   schedule:
-    - cron: '*/15 13-21 * * 1-5'
+    - cron: '5,35 13-21 * * 1-5'
 
 # Pages needs these; the defaults are not enough.
 permissions:
