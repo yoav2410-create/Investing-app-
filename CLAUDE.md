@@ -146,6 +146,43 @@ realistic but invented, marked `Seed`, and two holdings (`LLY`, `LMT`) were
 added to fill out a fourteen-name book. `docs/DATA.md` has the full picture.
 Do not present seed figures as the owner's actual position.
 
+## Before publishing anything: what the bundle contains
+
+Read this before making the repository public or deploying Pages. It was found
+late and it changes what "publish" means.
+
+**The seed data is baked into the built JavaScript**, not just the source. Grep
+the export and `Raise cash to the 30% floor`, `18420` and `4318.6` are all in
+there. A Pages site is publicly reachable on every plan — password-protected
+Pages is Enterprise-only — so paying to keep the repository private does *not*
+keep the app's contents private. Repository visibility is the wrong lever.
+
+What is genuinely personal in there:
+
+- **The rebalancing plan is the owner's real strategy**, not invented: the 30%
+  cash floor, the 15% position cap, the full exits from VST and TSSI with their
+  stated reasoning, the two-leg PLTR wind-down, the target sector mix.
+- **Share counts, cost bases, cash balances and realised P&L** read as real
+  whether or not they are (`SEED_HOLDINGS`, `SEED_CASH`, `realizedPnl`).
+- **The owner's email** is in the commit history, so a public repository exposes
+  it permanently.
+
+What is *not* exposed, verified across the full history: no API keys, tokens or
+credentials have ever been committed. Anything imported from a screenshot lives
+only in the phone's storage and is never part of a build.
+
+The per-company analytical data — multiples, revenue, EBITDA — is public
+information about public companies and carries no privacy weight.
+
+**So the fix is not repository visibility, it is the bundle.** Replacing
+`SEED_HOLDINGS`, `SEED_CASH`, `realizedPnl` and `SEED_PLAN` with neutral demo
+values makes publishing safe under any option, and costs the owner nothing —
+importing a screenshot replaces all of it on first use anyway. Note that several
+verification assertions are pinned to the current seed figures (cash headroom
+11.7pp, effective positions 12.1, weighted beta 1.35, the "nuclear" search
+hitting one name); they are checking the numbers the seed produces, so they need
+updating to whatever the new data yields, not deleting.
+
 ## Getting it onto the phone
 
 Two routes, both written up:
