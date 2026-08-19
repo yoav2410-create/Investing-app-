@@ -13,7 +13,10 @@
     "verify:screenshots": "node scripts/screenshots.mjs",
     "verify:interaction": "node scripts/interaction-check.mjs",
     "verify:features": "node scripts/feature-check.mjs",
-    "verify:simulation": "node scripts/simulation-check.mjs"
+    "verify:simulation": "node scripts/simulation-check.mjs",
+    "ios:dev": "eas build --profile development --platform ios",
+    "ios:testflight": "eas build --profile production --platform ios --auto-submit",
+    "ios:update": "eas update --branch production"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

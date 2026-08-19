@@ -17,6 +17,10 @@ npx expo start
 
 Scan the QR code with the iPhone Camera app. Expo Go opens the app.
 
+**Getting it onto the phone properly — including its own home-screen icon,
+background refresh and notifications — is written out step by step in
+[`docs/IPHONE.md`](docs/IPHONE.md).**
+
 `npm run web` opens the same app in a browser, which is useful for a quick look
 but is not the target: the layouts are designed for a phone.
 
@@ -119,6 +123,7 @@ src/
   components/         UI primitives and hand-drawn SVG charts
   theme/              light and dark palettes
 docs/
+  IPHONE.md           getting it onto an iPhone, from clone to TestFlight
   HANDOFF.md          what was built, what it costs, what is missing
   DATA.md             where every number comes from
 ```
