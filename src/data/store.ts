@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+﻿import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -27,7 +27,7 @@ import {
   deriveAccount,
 } from './seed';
 import { INITIAL_REFRESH_STATE, runRefresh } from './refresh';
-import { getApiKey, getClaudeKey } from './keys';
+import { getApiKey, getClaudeKey, getKey } from './keys';
 import {
   analysePortfolio,
   createClaude,
@@ -42,6 +42,7 @@ import {
 import { buildInsights, summariseForModel } from '@/domain/insights';
 import { stanceProblems, summariseSimulation } from '@/domain/allocation';
 import { fetchSheet, toQuote } from './provider/googleSheet';
+import { fetchQuotes } from './provider/finnhub';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
@@ -107,6 +108,9 @@ export interface AppState {
   analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
   /** Re-mark held names from the owner's published Google Sheet. */
   refreshPricesFromSheet: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
+  /** Live marks for whatever is held right now. Follows the book, not a list. */
+  refreshLiveQuotes: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
+  refreshingQuotes: boolean;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -141,6 +145,7 @@ export const useApp = create<AppState>()(
       researchLog: [],
       portfolioRead: null,
       analysingPortfolio: false,
+      refreshingQuotes: false,
 
       account: () => deriveAccount(get().holdings, get().stocks, get().cash, SEED_ACCOUNT.realizedPnl),
       cashUsd: () =>
@@ -215,7 +220,7 @@ export const useApp = create<AppState>()(
       readScreenshot: async ({ uri, base64, mediaType, hint }) => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
         }
         try {
           const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
@@ -239,7 +244,7 @@ export const useApp = create<AppState>()(
             ok: true,
             message:
               changed === 0
-                ? `Read ${read.positions.length} positions — nothing has changed.`
+                ? `Read ${read.positions.length} positions ג€” nothing has changed.`
                 : `Read ${read.positions.length} positions, ${changed} differ from the book.`,
           };
         } catch (e) {
@@ -310,6 +315,53 @@ export const useApp = create<AppState>()(
 
       clearResearchQueue: () => set({ researchQueue: [] }),
 
+      refreshLiveQuotes: async (opts) => {
+        const key = await getKey('finnhub');
+        if (!key) {
+          return { ok: false, message: 'Add a free Finnhub key in Settings ג†’ Prices to pull live marks.' };
+        }
+        if (get().refreshingQuotes) return { ok: false, message: 'Already refreshing.' };
+        set({ refreshingQuotes: true });
+        try {
+          const state = get();
+          // The list is whatever is held right now, so importing a screenshot
+          // changes what gets priced without anyone maintaining a list. A name
+          // that arrives in tonight's import is quoted on the next refresh
+          // because it is in `holdings`, not because someone remembered it.
+          const symbols = state.holdings.map((h) => h.ticker);
+          if (symbols.length === 0) return { ok: false, message: 'Nothing held to price yet.' };
+
+          const batch = await fetchQuotes(symbols, key, { fetchImpl: opts?.fetchImpl, today: todayIso() });
+          const at = nowIso();
+          const stocks = { ...state.stocks };
+          let applied = 0;
+          for (const [ticker, quote] of Object.entries(batch.quotes)) {
+            const stock = stocks[ticker];
+            if (!stock) continue;
+            stocks[ticker] = { ...stock, quote: { value: quote, asOf: at, source: 'finnhub' } };
+            applied++;
+          }
+          if (applied > 0) set({ stocks });
+
+          if (batch.stoppedEarly === 'auth') {
+            return { ok: false, message: 'Finnhub rejected that key. Check it in Settings.' };
+          }
+          const parts = [`Re-marked ${applied} of ${symbols.length} holdings.`];
+          if (batch.stoppedEarly === 'rateLimit') {
+            parts.push('Finnhub rate limit reached; the rest kept their previous marks.');
+          } else if (batch.failures.length) {
+            // Named rather than dropped: a name that silently stops updating
+            // looks like a flat stock rather than a missing feed.
+            parts.push(`No price for ${batch.failures.map((f) => f.symbol).join(', ')}.`);
+          }
+          return { ok: applied > 0, message: parts.join(' ') };
+        } catch (e) {
+          return { ok: false, message: e instanceof Error ? e.message : 'Could not refresh quotes.' };
+        } finally {
+          set({ refreshingQuotes: false });
+        }
+      },
+
       refreshPricesFromSheet: async (opts) => {
         const url = get().settings.priceSheetUrl.trim();
         if (!url) {
@@ -365,7 +417,7 @@ export const useApp = create<AppState>()(
       analysePortfolioNow: async () => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
         }
         if (get().analysingPortfolio) {
           return { ok: false, message: 'Already running.' };
@@ -382,7 +434,7 @@ export const useApp = create<AppState>()(
           );
           const verdicts = Object.values(state.stocks)
             .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
-            .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
+            .map((s) => `${s.ticker}: ${s.narrative.verdict} ג€” ${s.narrative.thesis ?? ''}`)
             .join('\n');
           const planText = [
             state.plan.summary,
@@ -439,7 +491,7 @@ export const useApp = create<AppState>()(
       researchTicker: async (ticker) => {
         const key = await getClaudeKey();
         if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
+          return { ok: false, message: 'Add your Anthropic API key in Settings ג†’ Data first.' };
         }
         if (get().researching.includes(ticker)) {
           return { ok: false, message: `${ticker} is already being researched.` };
@@ -462,7 +514,7 @@ export const useApp = create<AppState>()(
           }));
           const headlines = result.sentiment?.headlines?.length ?? 0;
           const message = `${ticker} updated${
-            headlines ? ` · ${headlines} recent article${headlines === 1 ? '' : 's'}` : ''
+            headlines ? ` ֲ· ${headlines} recent article${headlines === 1 ? '' : 's'}` : ''
           }.`;
           set((s) => ({
             researchLog: [{ ticker, at: nowIso(), ok: true, message }, ...s.researchLog].slice(0, 40),
@@ -568,7 +620,7 @@ export function ensureFirstSnapshot() {
 function describeError(e: unknown): string {
   if (e && typeof e === 'object' && 'status' in e) {
     const status = (e as { status?: number }).status;
-    if (status === 401) return 'That Anthropic API key was rejected. Check it in Settings → Data.';
+    if (status === 401) return 'That Anthropic API key was rejected. Check it in Settings ג†’ Data.';
     if (status === 429) return 'Rate limited by the API. Wait a moment and try again.';
     if (status === 400) return 'The request was rejected. If this is a very large screenshot, try cropping it.';
     if (status && status >= 500) return 'The API is having trouble. Try again shortly.';

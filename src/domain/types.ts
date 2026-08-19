@@ -18,6 +18,8 @@ export interface Stamped<T> {
 
 export type DataSourceId =
   | 'alphavantage'
+  /** Live quotes pulled straight from Finnhub. */
+  | 'finnhub'
   /** Prices pulled from the owner's own published Google Sheet. */
   | 'googlesheet'
   | 'computed'

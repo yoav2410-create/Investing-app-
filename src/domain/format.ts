@@ -25,6 +25,27 @@ export function compactCurrency(n: number | null | undefined): string {
   return `${sign}$${abs.toFixed(2)}`;
 }
 
+/**
+ * The tightest honest rendering of a magnitude, for labels sitting on a chart.
+ *
+ * `compactCurrency` is right in a table and too wide on a bar: eight quarters
+ * across a 390pt phone leaves about 42pt a slot, and "$82.40B" does not fit in
+ * it. This drops the currency symbol and a digit — the unit is stated once in
+ * the caption instead of eight times in the picture.
+ */
+export function compactNumber(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return DASH;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '−' : '';
+  if (abs >= 1e12) return `${sign}${(abs / 1e12).toFixed(1)}T`;
+  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
+  // Below a thousand the figure is usually a per-share number, where the second
+  // decimal is the information rather than noise.
+  return `${sign}${abs.toFixed(2)}`;
+}
+
 export function percent(
   n: number | null | undefined,
   opts: { decimals?: number; sign?: boolean } = {},

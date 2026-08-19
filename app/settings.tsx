@@ -226,6 +226,8 @@ function PriceSheetSection({ onStatus }: { onStatus: (s: string) => void }) {
   const settings = useApp((s) => s.settings);
   const update = useApp((s) => s.updateSettings);
   const refreshFromSheet = useApp((s) => s.refreshPricesFromSheet);
+  const refreshLive = useApp((s) => s.refreshLiveQuotes);
+  const refreshingQuotes = useApp((s) => s.refreshingQuotes);
   const [draft, setDraft] = useState(settings.priceSheetUrl);
   const [busy, setBusy] = useState(false);
   const { palette, radius } = useTheme();
@@ -239,8 +241,20 @@ function PriceSheetSection({ onStatus }: { onStatus: (s: string) => void }) {
   };
 
   return (
-    <Section title="Prices" subtitle="Google Finance, through a sheet you publish">
+    <Section title="Prices" subtitle="Live marks for whatever you hold">
       <Card style={{ gap: spacing.sm }}>
+        <KeyField
+          name="finnhub"
+          label="Finnhub key"
+          placeholder="paste your free key"
+          help="finnhub.io — free, no card. This is the only setup: after it, the app re-marks every holding on its own, and a name that arrives in your next screenshot is priced without you doing anything."
+        />
+        <Button
+          label={refreshingQuotes ? 'Refreshing…' : 'Refresh prices now'}
+          onPress={async () => onStatus((await refreshLive()).message)}
+          disabled={refreshingQuotes}
+        />
+        <Divider />
         <TextInput
           value={draft}
           onChangeText={setDraft}

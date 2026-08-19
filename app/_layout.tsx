@@ -84,6 +84,7 @@ function BiometricGate({ children }: { children: React.ReactNode }) {
 function Root() {
   const { palette, scheme } = useTheme();
   const hydrated = useApp((s) => s.hydrated);
+  const refreshLiveQuotes = useApp((s) => s.refreshLiveQuotes);
 
   useEffect(() => {
     if (hydrated) ensureFirstSnapshot();
@@ -97,6 +98,15 @@ function Root() {
   useEffect(() => {
     if (hydrated) void requestDurableStorage();
   }, [hydrated]);
+
+  // Re-mark the book on open, so "available without extra work" means the app
+  // does it rather than the owner remembering to. Silent by design: with no key
+  // set this returns a message nobody asked for, and Settings is where that
+  // conversation belongs. The marks that are already on file still render, each
+  // with the date it was fetched.
+  useEffect(() => {
+    if (hydrated) void refreshLiveQuotes();
+  }, [hydrated, refreshLiveQuotes]);
 
   if (!hydrated) {
     return (

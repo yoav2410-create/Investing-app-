@@ -10,6 +10,7 @@ import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-
 import { useTheme } from '@/theme/ThemeProvider';
 import { toneColors, type Tone } from '@/theme/tokens';
 import { Text } from './ui';
+import { compactNumber } from '@/domain/format';
 import type { QuarterPoint } from '@/domain/types';
 
 /**
@@ -219,8 +220,10 @@ export function BarChart({
     );
   }
 
-  const padT = 8;
-  const padB = 18;
+  // Room above each bar for its own figure, and below the axis for every
+  // period rather than only the two on the ends.
+  const padT = 16;
+  const padB = 24;
   const w = Math.max(width, 1);
   const innerH = Math.max(height - padT - padB, 1);
   const hi = Math.max(...values, 0);
@@ -229,6 +232,14 @@ export function BarChart({
   const slot = w / Math.max(ordered.length, 1);
   const barW = Math.max(slot * 0.58, 3);
   const zeroY = padT + innerH - ((0 - lo) / span) * innerH;
+
+  // A label per bar only while they can be read. Below roughly 34pt a slot the
+  // figures start touching, and two overlapping numbers are worse than one
+  // honest gap — so every other period is labelled instead, ends first.
+  const showEveryValue = slot >= 34;
+  const showEveryPeriod = slot >= 30;
+  const keep = (i: number) =>
+    i === 0 || i === ordered.length - 1 || i % 2 === ordered.length % 2;
 
   return (
     <View
@@ -259,26 +270,67 @@ export function BarChart({
               />
             );
           })}
-          <SvgText x={2} y={height - 4} fill={palette.textFaint} fontSize={10}>
-            {ordered[0]?.label ?? ''}
-          </SvgText>
-          <SvgText x={w - 2} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
-            {ordered[ordered.length - 1]?.label ?? ''}
-          </SvgText>
+
+          {/* The figure each bar stands for, on the bar. Reading a quarter off
+              a shape and a caption was guesswork; the number is the point. */}
+          {ordered.map((p, i) => {
+            if (p.value == null) return null;
+            if (!showEveryValue && !keep(i)) return null;
+            const vy = padT + innerH - ((p.value - lo) / span) * innerH;
+            const negative = p.value < 0;
+            const cx = i * slot + slot / 2;
+            return (
+              <SvgText
+                key={`v-${p.period}`}
+                x={cx}
+                y={negative ? Math.max(vy, zeroY) + 11 : Math.min(vy, zeroY) - 5}
+                fill={palette.textMuted}
+                fontSize={9}
+                fontWeight={i === ordered.length - 1 ? '600' : '400'}
+                textAnchor="middle"
+              >
+                {compactNumber(p.value)}
+              </SvgText>
+            );
+          })}
+
+          {/* Every quarter across the bottom, not just the two on the ends. */}
+          {ordered.map((p, i) => {
+            if (!showEveryPeriod && !keep(i)) return null;
+            return (
+              <SvgText
+                key={`p-${p.period}`}
+                x={i * slot + slot / 2}
+                y={height - 6}
+                fill={palette.textFaint}
+                fontSize={9}
+                textAnchor="middle"
+              >
+                {p.label}
+              </SvgText>
+            );
+          })}
         </Svg>
       ) : (
         <View style={{ height }} />
       )}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs }}>
-        <Text variant="caption" faint>
-          {format(values[0]!)}
-        </Text>
-        <Text variant="caption" faint>
-          latest {format(values[values.length - 1]!)}
-        </Text>
-      </View>
+      {/* The unit lives here so it is stated once rather than on every bar. */}
+      <Text variant="caption" faint style={{ marginTop: spacing.xs }}>
+        {ordered.length} quarters · figures in {unitOf(values)} · latest{' '}
+        {format(values[values.length - 1]!)}
+      </Text>
     </View>
   );
+}
+
+/** What the on-bar figures are denominated in, given the range on show. */
+function unitOf(values: number[]): string {
+  const max = Math.max(...values.map((v) => Math.abs(v)));
+  if (max >= 1e12) return 'trillions';
+  if (max >= 1e9) return 'billions';
+  if (max >= 1e6) return 'millions';
+  if (max >= 1e3) return 'thousands';
+  return 'units';
 }
 
 /**
