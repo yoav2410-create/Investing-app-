@@ -4,6 +4,7 @@ import type {
   FundamentalsSeries,
   Momentum,
   QualityMetrics,
+  Sentiment,
   MultipleHistory,
   Narrative,
   OptionsPositioning,
@@ -68,7 +69,7 @@ export interface StockSpec {
   peHistory: (number | null)[];
   evEbitdaHistory: (number | null)[];
   psHistory: (number | null)[];
-  earnings: EarningsCall;
+  earnings: Partial<EarningsCall>;
   narrative: Narrative;
   nextEarningsDate: string | null;
   /** Per-block provenance. Anything absent falls back to `seed`. */
@@ -133,7 +134,10 @@ export function buildStock(spec: StockSpec, seedAsOf: string): Stock {
       ? stamped(spec.momentum, seedAsOf, 'seed')
       : stamped(deriveMomentum(spec), seedAsOf, 'computed'),
     options: stamped(spec.options, asOfFor('options'), pick('options')),
-    earnings: stamped(spec.earnings, asOfFor('earnings'), pick('earnings')),
+    earnings: stamped({ ...EMPTY_EARNINGS, ...spec.earnings }, asOfFor('earnings'), pick('earnings')),
+    // Sentiment is coverage-based and has no offline equivalent, so it stays
+    // empty until a research pass fills it rather than being seeded.
+    sentiment: stamped<Sentiment>(null, null, 'unavailable'),
     fundamentals: stamped(
       spec.revenue.length ? fundamentals : null,
       spec.revenue.length ? asOfFor('fundamentals') : null,
@@ -231,7 +235,10 @@ export const EMPTY_EARNINGS: EarningsCall = {
   estimatedEps: null,
   surprisePct: null,
   revenue: null,
+  callSummary: null,
   managementSaid: null,
   guidance: null,
   watchNext: null,
+  reactionPct: null,
+  quotes: [],
 };

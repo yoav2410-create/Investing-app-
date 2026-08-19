@@ -25,7 +25,6 @@ export default function SyncScreen() {
   const toggleSkip = useApp((s) => s.toggleImportSkip);
   const applyImport = useApp((s) => s.applyPendingImport);
   const discard = useApp((s) => s.discardPendingImport);
-  const researchTicker = useApp((s) => s.researchTicker);
 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
@@ -83,15 +82,11 @@ export default function SyncScreen() {
       message:
         applied === 0
           ? 'Nothing changed — the book already matched.'
-          : `${applied} position${applied === 1 ? '' : 's'} updated.`,
+          : `${applied} position${applied === 1 ? '' : 's'} updated.` +
+            (needResearch.length
+              ? ` Researching ${needResearch.join(', ')} in the background.`
+              : ''),
     });
-    for (const t of needResearch) void researchTicker(t);
-    if (needResearch.length) {
-      setStatus({
-        ok: true,
-        message: `${applied} updated. Researching ${needResearch.join(', ')} in the background.`,
-      });
-    }
     router.back();
   };
 
@@ -106,6 +101,12 @@ export default function SyncScreen() {
               rows, shows you exactly what it thinks changed, and only writes to the book once you
               approve. Nothing is fetched from a market-data feed — the marks come from your own
               statement.
+            </Text>
+            <Text variant="body" muted>
+              Once you apply, every position that moved goes into a research queue: Claude searches
+              for the latest on each one — what was said on the most recent earnings call, current
+              analyst targets and revisions, and news from the last month — and rewrites that stock's
+              page.
             </Text>
             <Text variant="caption" faint>
               A full-width screenshot with the ticker, quantity, last price and P&L columns visible

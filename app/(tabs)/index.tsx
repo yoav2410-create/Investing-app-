@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Pill, Screen, Section, Stat, Text } from '@/components/ui';
 import { ConcentrationBar, Sparkline } from '@/components/charts';
 import { StockRow } from '@/components/StockRow';
+import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
 import { FX_TO_USD } from '@/data/seed';
 import {
@@ -27,6 +28,8 @@ export default function PortfolioScreen() {
   const plan = useApp((s) => s.plan);
   const snapshots = useApp((s) => s.snapshots);
   const staleNarratives = useApp((s) => s.staleNarratives);
+  const researching = useApp((s) => s.researching);
+  const researchQueue = useApp((s) => s.researchQueue);
   const account = useApp((s) => s.account)();
   const cash = useApp((s) => s.cashUsd)();
 
@@ -63,9 +66,12 @@ export default function PortfolioScreen() {
   return (
     <Screen>
       <View style={{ gap: spacing.xs }}>
-        <Text variant="caption" muted>
-          Net liquidation value · marks as of {relativeAsOf(oldestQuote)}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Text variant="caption" muted>
+            Net liquidation value · marks as of {relativeAsOf(oldestQuote)}
+          </Text>
+          <InfoButton term="netLiquidationValue" size={13} />
+        </View>
         <Text variant="display" style={{ fontVariant: ['tabular-nums'] }}>
           {currency(account.netLiquidationValue, { decimals: 0 })}
         </Text>
@@ -82,11 +88,32 @@ export default function PortfolioScreen() {
         </View>
       </View>
 
-      <Button
-        label="Update from a screenshot"
-        onPress={() => router.push('/sync')}
-        accessibilityHint="Photograph your broker's positions screen and Claude will read it"
-      />
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Button
+          label="Update from a screenshot"
+          onPress={() => router.push('/sync')}
+          accessibilityHint="Photograph your broker's positions screen and Claude will read it"
+          style={{ flex: 1 }}
+        />
+        <Button
+          label="AI insights"
+          onPress={() => router.push('/insights')}
+          variant="quiet"
+          accessibilityHint="Claude's read across the whole portfolio"
+          style={{ flex: 1 }}
+        />
+      </View>
+
+      {researching.length || researchQueue.length ? (
+        <Card style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+          <ActivityIndicator color={palette.accent} />
+          <Text variant="caption" muted style={{ flex: 1 }}>
+            Claude is researching {researching[0] ?? researchQueue[0]}
+            {researchQueue.length ? ` · ${researchQueue.length} more queued` : ''} — latest results,
+            what management said, and current coverage.
+          </Text>
+        </Card>
+      ) : null}
 
       {staleNarratives.length > 0 ? (
         <Card style={{ borderColor: palette.warn, gap: spacing.xs }}>
@@ -107,31 +134,32 @@ export default function PortfolioScreen() {
       <Section title="Account">
         <Card>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
-            <Stat label="Market value" value={compactCurrency(account.marketValue)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat label="Market value" term="marketValue" value={compactCurrency(account.marketValue)} style={{ flexBasis: '30%', flexGrow: 1 }} />
             <Stat
-              label="Unrealised P&L"
+              label="Unrealised P&L" term="unrealizedPnl"
               value={compactCurrency(account.unrealizedPnl)}
               tone={tone(account.unrealizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
-              label="Realised P&L"
+              label="Realised P&L" term="realizedPnl"
               value={compactCurrency(account.realizedPnl)}
               tone={tone(account.realizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
               label="Cash"
+              term="cashFloor"
               value={compactCurrency(cash)}
               detail={`${cashPct.toFixed(1)}% of book`}
               tone={underFloor ? 'down' : 'up'}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
-            <Stat label="Excess liquidity" value={compactCurrency(account.excessLiquidity)} style={{ flexBasis: '30%', flexGrow: 1 }} />
-            <Stat label="Maint. margin" value={compactCurrency(account.maintenanceMargin)} style={{ flexBasis: '30%', flexGrow: 1 }} />
-            <Stat label="Buying power" value={compactCurrency(account.buyingPower)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat label="Excess liquidity" term="excessLiquidity" value={compactCurrency(account.excessLiquidity)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat label="Maint. margin" term="maintenanceMargin" value={compactCurrency(account.maintenanceMargin)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat label="Buying power" term="buyingPower" value={compactCurrency(account.buyingPower)} style={{ flexBasis: '30%', flexGrow: 1 }} />
             <Stat
-              label="Largest position"
+              label="Largest position" term="positionCap"
               value={conc.topTicker ?? '—'}
               detail={`${conc.topWeightPct.toFixed(1)}% · cap ${(plan.constraints.maxPositionPct * 100).toFixed(0)}%`}
               tone={conc.topWeightPct > plan.constraints.maxPositionPct * 100 ? 'down' : 'flat'}
@@ -172,7 +200,7 @@ export default function PortfolioScreen() {
         </Card>
       ) : null}
 
-      <Section title="Concentration" subtitle="Share of net liquidation value">
+      <Section title="Concentration" term="concentration" subtitle="Share of net liquidation value">
         <Card style={{ gap: spacing.md }}>
           <ConcentrationBar
             slices={buckets

@@ -34,11 +34,32 @@ price is market value over share count. Both are stated in the code.
 
 ## The analytical layer
 
-Researched per stock on demand (**Re-research with Claude**). The tool schema
-covers valuation multiples, ten quarters of reported figures and derived
-multiples, quality metrics, momentum, technicals, the latest earnings call, and
-the write-up. `web_search` is enabled so figures are current rather than
-recalled.
+Researched per stock with web search. The tool schema covers valuation
+multiples, ten quarters of reported figures and derived multiples, quality
+metrics, momentum, technicals, the latest earnings call, news sentiment, and the
+write-up.
+
+**Research is triggered automatically.** Applying a screenshot import queues
+every position whose size changed, plus anything new, and the queue drains one
+ticker at a time in the background. A position that moved is a position worth a
+fresh read: the reason it moved is usually news, and the write-up on file
+predates it. You can also run one by hand from any stock page.
+
+Sequential on purpose — each pass runs web search and adaptive thinking, so
+firing seventeen at once would burn the rate limit and give no useful progress
+signal.
+
+### News sentiment
+
+Separate from options positioning, which is what the market is *doing* with
+money; sentiment is what it is *saying*. Each pass returns a −1 to +1 score, a
+paragraph on what is driving the tone, analyst target and rating revisions, and
+up to six recent articles with source, date and a one-line "why a holder should
+care" that is not allowed to just restate the headline.
+
+The model is told to prefer coverage from the last 30 days and to say so
+explicitly when the most recent thing it can find is older — silence reads as
+"nothing happened", which is a different claim.
 
 **Narrative fields are curated, not synthesised from numbers.** `managementSaid`
 is only populated with what was actually said or reported. Where the figures are
@@ -81,6 +102,41 @@ Nobody publishes a P/E history series. These are reconstructed — quarter-end
 close over trailing-twelve-month EPS, and quarter-end enterprise value over
 trailing-twelve-month EBITDA. That is why they carry their own source stamp
 separate from the reported fundamentals: they are a calculation, not a filing.
+
+## Portfolio-level insights
+
+The **AI insights** screen is split deliberately. Every figure — concentration,
+the Herfindahl index, weighted beta, valuation percentile, trend and sentiment
+breadth, earnings clustering, sector drift — is computed in
+`src/domain/insights.ts` from the positions on file. That half always works and
+needs no API key.
+
+Claude's read sits on top of those numbers and is told not to recompute them.
+Its job is the part arithmetic cannot do: noticing that three positions in three
+sectors are one bet on the same underlying driver, or that the cheap half of the
+book is cheap for the same reason. If the model were also generating the
+figures, there would be no way to check its narrative against anything.
+
+Every weighted average carries a coverage figure — how many positions and what
+share of market value it could actually be computed for. Below 60% of the book,
+the screen says the average is thin rather than reasoning confidently from it.
+
+One correctness note: the Herfindahl index is computed across the equity sleeve
+renormalised to 100%, not across net liquidation value. Using NLV weights let
+cash dilute the index and reported *more* effective positions than the book
+actually held — 18 from 14 holdings, which is impossible. Caught by a test.
+
+## Explaining the metrics
+
+Every metric in the app carries a "?" that opens a plain-English explanation in
+three parts: what it is, how to read the number in front of you, and — where it
+applies — the specific way that metric misleads. The stock detail page carries
+33 of them.
+
+The third part is not decoration. A tooltip that explains P/E without mentioning
+that a collapsed-earnings company shows its highest multiple exactly when it is
+cheapest is worse than no tooltip. The glossary lives in
+`src/domain/glossary.ts`.
 
 ## Known gaps, stated rather than hidden
 

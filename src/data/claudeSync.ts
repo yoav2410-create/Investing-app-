@@ -138,6 +138,7 @@ export function blankStock(ticker: string, p: ParsedPosition, sector: SectorId):
     quality: { value: null, asOf: null, source: 'unavailable' },
     momentum: { value: null, asOf: null, source: 'unavailable' },
     options: { value: null, asOf: null, source: 'unavailable' },
+    sentiment: { value: null, asOf: null, source: 'unavailable' },
     earnings: { value: null, asOf: null, source: 'unavailable' },
     fundamentals: { value: null, asOf: null, source: 'unavailable' },
     multipleHistory: { value: null, asOf: null, source: 'unavailable' },
@@ -258,11 +259,30 @@ export function mergeResearch(existing: Stock | undefined, r: ResearchResult, ti
           estimatedEps: keep(e.estimatedEps, prevEarnings?.estimatedEps ?? null),
           surprisePct: keep(e.surprisePct, prevEarnings?.surprisePct ?? null),
           revenue: keep(e.revenue, prevEarnings?.revenue ?? null),
+          callSummary: keep(e.callSummary, prevEarnings?.callSummary ?? null),
           managementSaid: keep(e.managementSaid, prevEarnings?.managementSaid ?? null),
           guidance: keep(e.guidance, prevEarnings?.guidance ?? null),
           watchNext: keep(e.watchNext, prevEarnings?.watchNext ?? null),
+          reactionPct: keep(e.reactionPct, prevEarnings?.reactionPct ?? null),
+          // An empty quotes array means "found none this pass", which should not
+          // erase quotes captured on an earlier one.
+          quotes: e.quotes?.length ? e.quotes : (prevEarnings?.quotes ?? []),
         })
       : base.earnings,
+    sentiment: r.sentiment
+      ? stampClaude({
+          score: keep(r.sentiment.score, base.sentiment.value?.score ?? null),
+          label: keep(r.sentiment.label, base.sentiment.value?.label ?? null),
+          summary: keep(r.sentiment.summary, base.sentiment.value?.summary ?? null),
+          analystRevisions: keep(
+            r.sentiment.analystRevisions,
+            base.sentiment.value?.analystRevisions ?? null,
+          ),
+          headlines: r.sentiment.headlines?.length
+            ? r.sentiment.headlines
+            : (base.sentiment.value?.headlines ?? []),
+        })
+      : base.sentiment,
     narrative: r.narrative
       ? {
           thesis: keep(r.narrative.thesis, base.narrative.thesis),

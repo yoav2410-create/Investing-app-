@@ -202,6 +202,33 @@ export interface Technicals {
   minusDi: number | null;
 }
 
+/** A single piece of coverage Claude found while researching. */
+export interface NewsItem {
+  headline: string;
+  source: string | null;
+  date: IsoDate | null;
+  url: string | null;
+  /** -1 (clearly negative) to +1 (clearly positive). */
+  sentiment: number | null;
+  /** Why it matters to a holder, in one line. */
+  soWhat: string | null;
+}
+
+/**
+ * How the market is currently talking about this name. Distinct from options
+ * positioning, which is what the market is *doing* with money.
+ */
+export interface Sentiment {
+  /** -1 to +1, weighted across recent coverage. */
+  score: number | null;
+  label: 'very negative' | 'negative' | 'mixed' | 'positive' | 'very positive' | null;
+  /** One paragraph on what is driving the tone right now. */
+  summary: string | null;
+  /** Analyst target and rating movement since the last quarter. */
+  analystRevisions: string | null;
+  headlines: NewsItem[];
+}
+
 export interface OptionsPositioning {
   /** Whole-chain put/call ratio by volume. */
   putCallVolume: number | null;
@@ -223,6 +250,12 @@ export interface EarningsCall {
   guidance: string | null;
   /** What to listen for next quarter. */
   watchNext: string | null;
+  /** Two or three sentences summarising the call as a whole. */
+  callSummary: string | null;
+  /** Verbatim lines worth keeping, each attributed to a speaker. */
+  quotes: { speaker: string; text: string }[];
+  /** How the shares reacted on the day, in percent. */
+  reactionPct: number | null;
 }
 
 /**
@@ -266,6 +299,7 @@ export interface Stock {
   quality: Stamped<QualityMetrics>;
   momentum: Stamped<Momentum>;
   options: Stamped<OptionsPositioning>;
+  sentiment: Stamped<Sentiment>;
   earnings: Stamped<EarningsCall>;
   narrative: Narrative;
   narrativeAsOf: IsoDate | null;

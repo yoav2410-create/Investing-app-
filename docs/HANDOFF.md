@@ -36,8 +36,14 @@ everything else is built on, so:
 - Rows can be individually excluded before applying.
 - A `null` from the model never overwrites a value the app already has.
 
-New tickers that appear in a screenshot are added and automatically queued for
-research.
+**Applying an import kicks off research automatically.** Every position whose
+size changed — plus anything new — goes into a queue, and Claude works through
+it one at a time in the background: the latest earnings call and what was
+actually said on it, current analyst targets and revisions, and news coverage
+from the last month. The Portfolio screen shows what it is working on.
+
+A position that moved is a position worth a fresh read, because the reason it
+moved is usually news the write-up on file predates.
 
 ## What is on each stock page
 
@@ -52,7 +58,8 @@ Beyond what the brief specified, in the order the page presents them:
 | **Business quality** | ROE, ROIC, gross margin, FCF margin, net debt/EBITDA, revenue CAGR, revenue and EPS growth, share count change, ownership |
 | **Momentum** | 1M / 3M / 6M / 1Y / YTD, plus distance from the 52-week high and low |
 | Options | Put/call by volume and open interest with a bullish/neutral/bearish read |
-| Earnings call | Date, quarter, the hard numbers, what management said, guidance, what to watch next |
+| **What the market is saying** | Sentiment score and label, what is driving the tone, analyst revisions, and recent coverage with source, date and why a holder should care |
+| Earnings call | Date, quarter, the hard numbers, **the call in brief**, what management said, **verbatim quotes with attribution**, guidance, the share reaction, what to watch next |
 | **Fundamentals charts** | Revenue, operating income, **net income**, diluted EPS — eight quarters |
 | **Multiple history charts** | Trailing P/E, EV/EBITDA, P/S — ten quarters, with today marked on the line |
 | The case | Catalyst, key risk, bull case, bear case, and **what would change the verdict** |
@@ -61,9 +68,44 @@ Beyond what the brief specified, in the order the page presents them:
 
 Bold rows are things added beyond the original brief because they change what an
 investor can actually decide: net income alongside operating income, quality
-metrics that separate "good business" from "cheap stock", momentum windows, and
-a `whatWouldChangeMyMind` field that forces the verdict to name something
-observable rather than hedge.
+metrics that separate "good business" from "cheap stock", momentum windows, news
+sentiment with sourced coverage, and a `whatWouldChangeMyMind` field that forces
+the verdict to name something observable rather than hedge.
+
+### Every metric explains itself
+
+Each one carries a **"?"** that opens a plain-English explanation in three parts:
+what it is, how to read the number in front of you, and — where it applies — the
+specific way that metric misleads. The stock detail page carries 33 of them.
+
+That third part is the point. A tooltip that explains P/E without saying that a
+company whose earnings just collapsed shows its highest multiple exactly when it
+is cheapest is worse than no tooltip. Same for beta breaking down in the selloffs
+you wanted it for, EBITDA flattering businesses that must keep spending to stand
+still, and put/call ratios rising because holders are hedging rather than because
+anyone is bearish.
+
+## AI insights
+
+A portfolio-level page, split deliberately in two.
+
+**The computed half always works and needs no API key**: concentration including
+an effective-position count, weighted beta, weighted valuation percentile against
+each name's own history, weighted trend, drawdown, leverage, ROE and sentiment,
+breadth bars for trend/valuation/options flow, earnings clustering in the next 30
+days, sector drift, and what carries the book. Every weighted average shows how
+much of the book it actually covers, and says the average is thin below 60%
+rather than reasoning confidently from it.
+
+**Claude's read sits on top**, and is told not to recompute any of it. Its job is
+what arithmetic cannot do: naming what the book is actually betting on, spotting
+positions that would move together despite sitting in different sectors, calling
+the single biggest risk specifically rather than saying "market risk", and saying
+what it cannot know from the data on file.
+
+Seed book, computed offline: 14 holdings but an effective count of 10.9, weighted
+beta 1.30, 10 names in uptrend against 2 in downtrend, 3 bearish on options flow,
+Tech/AI +8.1pp over target and cash 11.7pp under.
 
 ## Everything else
 
@@ -101,10 +143,15 @@ scheduler.
 - **Every route rendered in both themes at 375pt and 440pt** (iPhone SE through
   16 Pro Max) with zero page errors and zero console errors. Screenshots in
   `docs/screenshots/`.
-- **Interaction check**: tranche projection recomputes, marking a leg done moves
-  the counter, five detail screens navigate in and back out correctly, search
-  and filters narrow the list, and the no-API-key path explains itself instead
-  of crashing.
+- **Interaction check** (`npm run verify:interaction`): tranche projection
+  recomputes (cash headroom −11.7pp → −0.1pp), marking a leg done moves the
+  counter, five detail screens navigate in and back out correctly, search and
+  filters narrow the list, and the no-API-key path explains itself instead of
+  crashing.
+- **Feature check** (`npm run verify:features`): the "?" sheet opens with all
+  three sections and dismisses on tap-away, the detail page carries 33
+  explainers, the insights page computes entirely offline, and the sentiment card
+  states it has no coverage yet rather than implying it has none to find.
 - **Edge cases exercised on real screens**: `SMH` (an ETF — no P/E, no earnings,
   no fundamentals; renders "An ETF does not report earnings" and "No revenue
   reported for this security"), `TSSI` (nulls inside the quarterly history),

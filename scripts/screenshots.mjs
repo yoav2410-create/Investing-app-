@@ -15,6 +15,7 @@ const ROUTES = [
   ['sectors', '/sectors'],
   ['plan', '/plan'],
   ['more', '/more'],
+  ['insights', '/insights'],
   ['stock-META', '/stock/META'],
   ['stock-SMH', '/stock/SMH'],
   ['stock-TSSI', '/stock/TSSI'],

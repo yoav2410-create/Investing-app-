@@ -29,14 +29,17 @@ import {
 import { INITIAL_REFRESH_STATE, runRefresh } from './refresh';
 import { getApiKey, getClaudeKey } from './keys';
 import {
+  analysePortfolio,
   createClaude,
   diffHoldings,
   readPositionsFromImage,
   researchStock,
   type HoldingDiff,
   type ParsedPosition,
+  type PortfolioReadResult,
   type PositionsReadResult,
 } from './provider/claude';
+import { buildInsights, summariseForModel } from '@/domain/insights';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
 
@@ -65,8 +68,15 @@ export interface AppState {
   staleNarratives: string[];
   unlocked: boolean;
   pendingImport: PendingImport | null;
-  /** Tickers currently being researched, so the UI can show a spinner. */
+  /** Ticker currently in flight, so the UI can show a spinner. */
   researching: string[];
+  /** Tickers waiting their turn. Research runs one at a time. */
+  researchQueue: string[];
+  /** Newest first: what the last few research passes did. */
+  researchLog: { ticker: string; at: string; ok: boolean; message: string }[];
+  /** The last portfolio-level read, with the timestamp it was written. */
+  portfolioRead: { at: string; result: PortfolioReadResult } | null;
+  analysingPortfolio: boolean;
 
   account: () => ReturnType<typeof deriveAccount>;
   cashUsd: () => number;
@@ -88,6 +98,10 @@ export interface AppState {
   applyPendingImport: () => { applied: number; needResearch: string[] };
   discardPendingImport: () => void;
   researchTicker: (ticker: string) => Promise<{ ok: boolean; message: string }>;
+  /** Queue names for research; they run sequentially in the background. */
+  enqueueResearch: (tickers: string[]) => void;
+  clearResearchQueue: () => void;
+  analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -118,6 +132,10 @@ export const useApp = create<AppState>()(
       unlocked: false,
       pendingImport: null,
       researching: [],
+      researchQueue: [],
+      researchLog: [],
+      portfolioRead: null,
+      analysingPortfolio: false,
 
       account: () => deriveAccount(get().holdings, get().stocks, get().cash, SEED_ACCOUNT.realizedPnl),
       cashUsd: () =>
@@ -263,13 +281,72 @@ export const useApp = create<AppState>()(
         // New marks can push a stock over a moving average or the book under
         // the cash floor, so the alert check belongs here rather than on a timer.
         void runAlertCheck(get());
-        const applied = pending.diffs.filter(
-          (d) => !skipped.has(d.ticker) && d.kind !== 'unchanged',
-        ).length;
-        return { applied, needResearch: result.needResearch };
+        const touched = pending.diffs
+          .filter((d) => !skipped.has(d.ticker) && (d.kind === 'added' || d.kind === 'changed'))
+          .map((d) => d.ticker);
+        // A position that moved is a position worth a fresh read: the reason it
+        // moved is usually news, and the write-up on file predates it.
+        const toResearch = [...new Set([...result.needResearch, ...touched])];
+        if (toResearch.length) get().enqueueResearch(toResearch);
+        return { applied: touched.length, needResearch: toResearch };
       },
 
       discardPendingImport: () => set({ pendingImport: null }),
+
+      enqueueResearch: (tickers) => {
+        const state = get();
+        const known = new Set(Object.keys(state.stocks));
+        const queued = new Set([...state.researchQueue, ...state.researching]);
+        const next = tickers.filter((t) => known.has(t) && !queued.has(t));
+        if (next.length === 0) return;
+        set({ researchQueue: [...state.researchQueue, ...next] });
+        void pumpResearchQueue();
+      },
+
+      clearResearchQueue: () => set({ researchQueue: [] }),
+
+      analysePortfolioNow: async () => {
+        const key = await getClaudeKey();
+        if (!key) {
+          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
+        }
+        if (get().analysingPortfolio) {
+          return { ok: false, message: 'Already running.' };
+        }
+        set({ analysingPortfolio: true });
+        try {
+          const state = get();
+          const insights = buildInsights(
+            state.holdings,
+            state.stocks,
+            state.plan,
+            state.cashUsd(),
+            state.account().netLiquidationValue,
+          );
+          const verdicts = Object.values(state.stocks)
+            .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
+            .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
+            .join('\n');
+          const planText = [
+            state.plan.summary,
+            ...state.plan.legs
+              .filter((l) => l.action !== 'hold')
+              .map((l) => `Tranche ${l.tranche}: ${l.action} ${l.ticker}${l.shares ? ` ${l.shares}sh` : ''}${l.done ? ' [done]' : ''}`),
+          ].join('\n');
+
+          const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
+          const result = await analysePortfolio(client, summariseForModel(insights), {
+            verdicts,
+            plan: planText,
+          });
+          set({ portfolioRead: { at: nowIso(), result } });
+          return { ok: true, message: 'Portfolio read updated.' };
+        } catch (e) {
+          return { ok: false, message: describeError(e) };
+        } finally {
+          set({ analysingPortfolio: false });
+        }
+      },
 
       researchTicker: async (ticker) => {
         const key = await getClaudeKey();
@@ -295,9 +372,20 @@ export const useApp = create<AppState>()(
             stocks: { ...s.stocks, [ticker]: mergeResearch(s.stocks[ticker], result, ticker) },
             staleNarratives: s.staleNarratives.filter((t) => t !== ticker),
           }));
-          return { ok: true, message: `${ticker} updated.` };
+          const headlines = result.sentiment?.headlines?.length ?? 0;
+          const message = `${ticker} updated${
+            headlines ? ` · ${headlines} recent article${headlines === 1 ? '' : 's'}` : ''
+          }.`;
+          set((s) => ({
+            researchLog: [{ ticker, at: nowIso(), ok: true, message }, ...s.researchLog].slice(0, 40),
+          }));
+          return { ok: true, message };
         } catch (e) {
-          return { ok: false, message: describeError(e) };
+          const message = describeError(e);
+          set((s) => ({
+            researchLog: [{ ticker, at: nowIso(), ok: false, message }, ...s.researchLog].slice(0, 40),
+          }));
+          return { ok: false, message };
         } finally {
           set((s) => ({ researching: s.researching.filter((t) => t !== ticker) }));
         }
@@ -324,6 +412,9 @@ export const useApp = create<AppState>()(
           snapshots: [],
           staleNarratives: [],
           pendingImport: null,
+          portfolioRead: null,
+          researchQueue: [],
+          researchLog: [],
         }),
     }),
     {
@@ -342,6 +433,8 @@ export const useApp = create<AppState>()(
         snapshots: s.snapshots,
         staleNarratives: s.staleNarratives,
         pendingImport: s.pendingImport,
+        researchLog: s.researchLog,
+        portfolioRead: s.portfolioRead,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setUnlocked(false);
@@ -350,6 +443,32 @@ export const useApp = create<AppState>()(
     },
   ),
 );
+
+/**
+ * Drain the research queue one ticker at a time.
+ *
+ * Sequential on purpose: each pass runs web search and adaptive thinking, so
+ * firing seventeen at once would burn the rate limit and give the owner no
+ * useful progress signal. One at a time is slower in wall-clock and much easier
+ * to reason about when one of them fails.
+ */
+let pumping = false;
+
+async function pumpResearchQueue(): Promise<void> {
+  if (pumping) return;
+  pumping = true;
+  try {
+    for (;;) {
+      const state = useApp.getState();
+      const next = state.researchQueue[0];
+      if (!next) break;
+      useApp.setState({ researchQueue: state.researchQueue.slice(1) });
+      await state.researchTicker(next);
+    }
+  } finally {
+    pumping = false;
+  }
+}
 
 /** Seed the first snapshot so the history chart is never empty on day one. */
 export function ensureFirstSnapshot() {

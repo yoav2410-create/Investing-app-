@@ -42,20 +42,28 @@ the rows → you review a diff of exactly what it thinks changed → apply.
 Nothing is written to the book until you approve it, and any row Claude was
 unsure about is flagged before you do.
 
-The analytical layer — multiples, reported figures, quality metrics, the
-write-up — is researched per stock on demand: open a stock, tap **Re-research
-with Claude**. That call uses web search, so the figures are current rather than
-recalled.
+**Applying an import starts the research automatically.** Every position that
+moved goes into a queue, and Claude works through it one at a time: the latest
+earnings call and what was said on it, analyst targets and revisions, and news
+from the last month. You can also run one by hand from any stock page.
+
+Every metric in the app carries a **"?"** explaining what it is, how to read it,
+and where it misleads.
+
+**More → AI insights** reads across the whole book: concentration, what the
+positions have in common regardless of sector, and where the risk actually sits.
+The figures there are computed locally and work without any API key.
 
 ## Verify it yourself
 
 ```bash
 npm run typecheck        # strict TypeScript, no errors
-npm test                 # 26 tests over the analytics and merge logic
+npm test                 # 32 tests over the analytics, insights and merge logic
 npm run build:web        # produces dist/
 npx serve dist -l 8080 -s
 npm run verify:screenshots   # every route, both themes, two iPhone widths
 npm run verify:interaction   # projection, leg toggling, navigation, no-key path
+npm run verify:features      # metric explainers, insights, sentiment card
 ```
 
 ## Layout
@@ -65,12 +73,15 @@ app/                  expo-router routes (screens)
   (tabs)/             Portfolio · Stocks · Sectors · Plan · More
   stock/[ticker]      the deep per-stock page
   sync                screenshot import
+  insights            portfolio-level read
 src/
   domain/             pure analytics — no React, fully unit tested
     technicals.ts     RSI, moving averages, +DI/−DI, the 0–5 trend score
     valuation.ts      cheap / fair / expensive against a stock's own history
     portfolio.ts      positions, sector buckets, attribution, concentration
     plan.ts           tranche projection against the cash floor and position cap
+    insights.ts       portfolio-level metrics: concentration, breadth, event risk
+    glossary.ts       plain-English explanation behind every "?" 
   data/
     provider/claude.ts   screenshot reading + per-stock research
     claudeSync.ts        merge rules (a null never overwrites a known value)

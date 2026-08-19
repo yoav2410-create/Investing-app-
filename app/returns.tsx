@@ -41,20 +41,20 @@ export default function ReturnsScreen() {
         <Card>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
             <Stat
-              label="Unrealised P&L"
+              label="Unrealised P&L" term="unrealizedPnl"
               value={compactCurrency(account.unrealizedPnl)}
               detail={totalReturnPct == null ? undefined : `${percent(totalReturnPct)} on cost`}
               tone={tone(account.unrealizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
-              label="Realised P&L"
+              label="Realised P&L" term="realizedPnl"
               value={compactCurrency(account.realizedPnl)}
               tone={tone(account.realizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
-              label="Day P&L"
+              label="Day P&L" term="dayPnl"
               value={compactCurrency(account.dayPnl)}
               detail={percent(account.dayPnlPct)}
               tone={tone(account.dayPnl)}

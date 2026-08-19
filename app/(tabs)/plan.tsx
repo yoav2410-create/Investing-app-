@@ -71,6 +71,7 @@ export default function PlanScreen() {
             />
             <Stat
               label={`Headroom over ${floorPct.toFixed(0)}% floor`}
+              term="cashFloor"
               value={`${shown.cashFloorHeadroomPct >= 0 ? '+' : '−'}${Math.abs(shown.cashFloorHeadroomPct).toFixed(1)}pp`}
               tone={shown.cashFloorHeadroomPct >= 0 ? 'up' : 'down'}
               style={{ flexBasis: '30%', flexGrow: 1 }}
@@ -238,8 +239,9 @@ export default function PlanScreen() {
 
       <Section title="Constraints">
         <Card>
-          <Row label="Cash floor" value={`${floorPct.toFixed(0)}% of NLV`} />
+          <Row term="cashFloor" label="Cash floor" value={`${floorPct.toFixed(0)}% of NLV`} />
           <Row
+            term="positionCap"
             label="Max single position"
             value={`${(plan.constraints.maxPositionPct * 100).toFixed(0)}% of NLV`}
           />

@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
+import { InfoProvider } from '@/components/InfoButton';
 import { Button, Screen, Text } from '@/components/ui';
 import { useApp, ensureFirstSnapshot } from '@/data/store';
 
@@ -112,6 +113,7 @@ function Root() {
         <Stack.Screen name="returns" options={{ title: 'Returns' }} />
         <Stack.Screen name="watchlist" options={{ title: 'Watchlist' }} />
         <Stack.Screen name="history" options={{ title: 'History' }} />
+        <Stack.Screen name="insights" options={{ title: 'AI insights' }} />
         <Stack.Screen name="sources" options={{ title: 'Data sources' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
@@ -123,7 +125,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <Root />
+        <InfoProvider>
+          <Root />
+        </InfoProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

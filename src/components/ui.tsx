@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { toneColors, type Tone } from '@/theme/tokens';
+import { InfoButton } from './InfoButton';
+import type { GlossaryKey } from '@/domain/glossary';
 
 type TypeKey = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'mono';
 
@@ -96,12 +98,15 @@ export function Section({
   action,
   children,
   style,
+  term,
 }: {
   title?: string;
   subtitle?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Adds a "?" beside the section heading. */
+  term?: GlossaryKey;
 }) {
   const { spacing } = useTheme();
   return (
@@ -118,9 +123,12 @@ export function Section({
         >
           <View style={{ flexShrink: 1 }}>
             {title ? (
-              <Text variant="heading" accessibilityRole="header">
-                {title}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text variant="heading" accessibilityRole="header" style={{ flexShrink: 1 }}>
+                  {title}
+                </Text>
+                {term ? <InfoButton term={term} size={16} /> : null}
+              </View>
             ) : null}
             {subtitle ? (
               <Text variant="caption" muted>
@@ -176,6 +184,7 @@ export function Stat({
   tone,
   style,
   accessibilityLabel,
+  term,
 }: {
   label: string;
   value: string;
@@ -183,22 +192,42 @@ export function Stat({
   tone?: Tone;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
+  /** Adds a "?" that explains the metric in plain English. */
+  term?: GlossaryKey;
 }) {
   const { spacing } = useTheme();
   return (
-    <View
-      style={[{ gap: 2, minWidth: 0 }, style]}
-      accessible
-      accessibilityLabel={accessibilityLabel ?? `${label}: ${value}${detail ? `, ${detail}` : ''}`}
-    >
-      <Text variant="caption" muted numberOfLines={2}>
-        {label}
-      </Text>
-      <Text variant="mono" tone={tone} style={{ fontSize: 17 }} numberOfLines={1} adjustsFontSizeToFit>
+    <View style={[{ gap: 2, minWidth: 0 }, style]}>
+      <View
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+        accessible
+        accessibilityLabel={accessibilityLabel ?? `${label}: ${value}${detail ? `, ${detail}` : ''}`}
+      >
+        <Text variant="caption" muted numberOfLines={2} style={{ flexShrink: 1 }}>
+          {label}
+        </Text>
+        {term ? <InfoButton term={term} size={13} /> : null}
+      </View>
+      <Text
+        variant="mono"
+        tone={tone}
+        style={{ fontSize: 17 }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
         {value}
       </Text>
       {detail ? (
-        <Text variant="caption" faint numberOfLines={1} style={{ marginTop: spacing.xs - 2 }}>
+        <Text
+          variant="caption"
+          faint
+          numberOfLines={1}
+          style={{ marginTop: spacing.xs - 2 }}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
           {detail}
         </Text>
       ) : null}
@@ -213,12 +242,15 @@ export function Row({
   tone,
   hint,
   onPress,
+  term,
 }: {
   label: string;
   value: string;
   tone?: Tone;
   hint?: string;
   onPress?: () => void;
+  /** Adds a "?" that explains the metric in plain English. */
+  term?: GlossaryKey;
 }) {
   const { spacing, palette } = useTheme();
   const body = (
@@ -230,13 +262,20 @@ export function Row({
         gap: spacing.md,
         paddingVertical: spacing.sm - 2,
       }}
-      accessible
-      accessibilityLabel={`${label}: ${value}${hint ? `. ${hint}` : ''}`}
+      accessible={!term}
+      accessibilityLabel={term ? undefined : `${label}: ${value}${hint ? `. ${hint}` : ''}`}
     >
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text variant="body" muted>
-          {label}
-        </Text>
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+          accessible={!!term}
+          accessibilityLabel={term ? `${label}: ${value}${hint ? `. ${hint}` : ''}` : undefined}
+        >
+          <Text variant="body" muted style={{ flexShrink: 1 }}>
+            {label}
+          </Text>
+          {term ? <InfoButton term={term} size={14} /> : null}
+        </View>
         {hint ? (
           <Text variant="caption" faint>
             {hint}

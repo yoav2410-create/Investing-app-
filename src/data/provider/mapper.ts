@@ -294,9 +294,12 @@ export function earningsFrom(
     estimatedEps: num(q.estimatedEPS),
     surprisePct: num(q.surprisePercentage),
     revenue: num(revenueRow?.totalRevenue),
+    callSummary: null,
     managementSaid: null,
     guidance: null,
     watchNext: null,
+    reactionPct: null,
+    quotes: [],
   };
 }
 

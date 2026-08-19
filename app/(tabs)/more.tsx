@@ -25,6 +25,12 @@ export default function MoreScreen() {
 
   const items: Item[] = [
     {
+      href: '/insights',
+      icon: 'sparkles-outline',
+      title: 'AI insights',
+      detail: 'What the book is actually betting on, concentration, and where the risk sits',
+    },
+    {
       href: '/sync',
       icon: 'camera-outline',
       title: 'Update from screenshot',

@@ -7,6 +7,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Empty, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
 import { BarChart, LineChart, MaDistanceChart, RangeMeter } from '@/components/charts';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
+import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
 import {
   compactCurrency,
@@ -113,7 +114,7 @@ export default function StockDetailScreen() {
             <Stat label="Shares" value={fmtShares(holding.shares)} style={{ flexBasis: '28%', flexGrow: 1 }} />
             <Stat label="Market value" value={compactCurrency(marketValue)} style={{ flexBasis: '28%', flexGrow: 1 }} />
             <Stat
-              label="Unrealised"
+              label="Unrealised" term="unrealizedPnl"
               value={compactCurrency(unrealized)}
               detail={
                 unrealized != null && holding.costBasis > 0
@@ -125,7 +126,7 @@ export default function StockDetailScreen() {
             />
             <Stat label="Avg cost" value={currency(holding.costBasis)} style={{ flexBasis: '28%', flexGrow: 1 }} />
             <Stat
-              label="Weight"
+              label="Weight" term="weight"
               value={weightPct == null ? '—' : `${weightPct.toFixed(1)}%`}
               detail={`cap ${(plan.constraints.maxPositionPct * 100).toFixed(0)}%`}
               tone={weightPct != null && weightPct > plan.constraints.maxPositionPct * 100 ? 'down' : 'flat'}
@@ -162,7 +163,7 @@ export default function StockDetailScreen() {
       </Card>
 
       {/* ------------------------------------------------------- valuation */}
-      <Section title="Valuation" subtitle={val.rationale}>
+      <Section title="Valuation" subtitle={val.rationale} term="valuationBand">
         <Card style={{ gap: spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
             <Text variant="title" style={{ fontVariant: ['tabular-nums'] }}>
@@ -195,20 +196,23 @@ export default function StockDetailScreen() {
           <Divider />
 
           <View style={{ gap: 0 }}>
-            <Row label="Trailing P/E" value={ratio(stock.valuation.value?.trailingPe, 1)} />
-            <Row label="Forward P/E" value={ratio(stock.valuation.value?.forwardPe, 1)} />
-            <Row label="EV / EBITDA" value={ratio(stock.valuation.value?.evToEbitda, 1)} />
-            <Row label="Price / sales" value={ratio(stock.valuation.value?.priceToSales, 1)} />
-            <Row label="PEG" value={ratio(stock.valuation.value?.peg, 2)} />
+            <Row term="trailingPe" label="Trailing P/E" value={ratio(stock.valuation.value?.trailingPe, 1)} />
+            <Row term="forwardPe" label="Forward P/E" value={ratio(stock.valuation.value?.forwardPe, 1)} />
+            <Row term="evEbitda" label="EV / EBITDA" value={ratio(stock.valuation.value?.evToEbitda, 1)} />
+            <Row term="priceToSales" label="Price / sales" value={ratio(stock.valuation.value?.priceToSales, 1)} />
+            <Row term="peg" label="PEG" value={ratio(stock.valuation.value?.peg, 2)} />
             <Row
+              term="profitMargin"
               label="Profit margin"
               value={percent(stock.valuation.value?.profitMargin, { sign: false, decimals: 1 })}
             />
             <Row
+              term="operatingMargin"
               label="Operating margin"
               value={percent(stock.valuation.value?.operatingMargin, { sign: false, decimals: 1 })}
             />
             <Row
+              term="debtToEquity"
               label="Debt / equity"
               value={ratio(stock.valuation.value?.debtToEquity, 2)}
               hint={
@@ -217,17 +221,20 @@ export default function StockDetailScreen() {
                   : undefined
               }
             />
-            <Row label="Beta" value={ratio(stock.valuation.value?.beta, 2)} />
+            <Row term="beta" label="Beta" value={ratio(stock.valuation.value?.beta, 2)} />
             <Row
+              term="shortInterest"
               label="Short interest"
               value={percent(stock.valuation.value?.shortInterestPct, { sign: false, decimals: 1 })}
               hint={stock.valuation.value?.shortInterestPct == null ? 'No source wired up for this field' : undefined}
             />
             <Row
+              term="dividendYield"
               label="Dividend yield"
               value={percent(stock.valuation.value?.dividendYield, { sign: false, decimals: 2 })}
             />
             <Row
+              term="analystTarget"
               label="Analyst target"
               value={currency(stock.valuation.value?.analystTargetPrice)}
               hint={stock.valuation.value?.analystRating ?? undefined}
@@ -240,6 +247,7 @@ export default function StockDetailScreen() {
               }
             />
             <Row
+              term="week52Range"
               label="52-week range"
               value={`${currency(stock.valuation.value?.week52Low)} – ${currency(stock.valuation.value?.week52High)}`}
             />
@@ -253,7 +261,7 @@ export default function StockDetailScreen() {
       </Section>
 
       {/* ----------------------------------------------------------- trend */}
-      <Section title="Trend" subtitle={`${trend.available} of 6 checks measurable`}>
+      <Section title="Trend" subtitle={`${trend.available} of 6 checks measurable`} term="trendScore">
         <Card style={{ gap: spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <Text variant="title" style={{ fontVariant: ['tabular-nums'] }}>
@@ -294,31 +302,31 @@ export default function StockDetailScreen() {
 
       {/* --------------------------------------------------------- quality */}
       {stock.quality.value ? (
-        <Section title="Business quality" subtitle="Is this a good business, separate from its price">
+        <Section title="Business quality" subtitle="Is this a good business, separate from its price" term="roic">
           <Card>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
-              <Stat label="Return on equity" value={percent(stock.quality.value.returnOnEquity, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="ROIC" value={percent(stock.quality.value.returnOnInvestedCapital, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="Gross margin" value={percent(stock.quality.value.grossMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="FCF margin" value={percent(stock.quality.value.freeCashFlowMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="Return on equity" term="returnOnEquity" value={percent(stock.quality.value.returnOnEquity, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="ROIC" term="roic" value={percent(stock.quality.value.returnOnInvestedCapital, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="Gross margin" term="grossMargin" value={percent(stock.quality.value.grossMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="FCF margin" term="fcfMargin" value={percent(stock.quality.value.freeCashFlowMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat
-                label="Net debt / EBITDA"
+                label="Net debt / EBITDA" term="netDebtToEbitda"
                 value={ratio(stock.quality.value.netDebtToEbitda, 2)}
                 detail={(stock.quality.value.netDebtToEbitda ?? 0) < 0 ? 'net cash' : undefined}
                 tone={(stock.quality.value.netDebtToEbitda ?? 0) > 3 ? 'down' : 'flat'}
                 style={{ flexBasis: '28%', flexGrow: 1 }}
               />
-              <Stat label="Revenue CAGR 3y" value={percent(stock.quality.value.revenueCagr3y, { decimals: 1 })} tone={tone(stock.quality.value.revenueCagr3y)} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="Revenue CAGR 3y" term="revenueCagr" value={percent(stock.quality.value.revenueCagr3y, { decimals: 1 })} tone={tone(stock.quality.value.revenueCagr3y)} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat label="Revenue YoY" value={percent(stock.quality.value.revenueGrowthYoY, { decimals: 1 })} tone={tone(stock.quality.value.revenueGrowthYoY)} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat label="EPS YoY" value={percent(stock.quality.value.epsGrowthYoY, { decimals: 1 })} tone={tone(stock.quality.value.epsGrowthYoY)} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat
-                label="Share count YoY"
+                label="Share count YoY" term="shareCountChange"
                 value={percent(stock.quality.value.shareCountChangePct, { decimals: 1 })}
                 detail={(stock.quality.value.shareCountChangePct ?? 0) < 0 ? 'buying back' : 'diluting'}
                 tone={(stock.quality.value.shareCountChangePct ?? 0) < 0 ? 'up' : 'down'}
                 style={{ flexBasis: '28%', flexGrow: 1 }}
               />
-              <Stat label="Institutional" value={percent(stock.quality.value.institutionalOwnershipPct, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
+              <Stat label="Institutional" term="ownership" value={percent(stock.quality.value.institutionalOwnershipPct, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat label="Insider" value={percent(stock.quality.value.insiderOwnershipPct, { sign: false, decimals: 2 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
             </View>
           </Card>
@@ -327,7 +335,7 @@ export default function StockDetailScreen() {
 
       {/* -------------------------------------------------------- momentum */}
       {stock.momentum.value ? (
-        <Section title="Momentum">
+        <Section title="Momentum" term="momentum">
           <Card>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
               <Stat label="1 month" value={percent(stock.momentum.value.oneMonth)} tone={tone(stock.momentum.value.oneMonth)} style={{ flexBasis: '28%', flexGrow: 1 }} />
@@ -336,7 +344,7 @@ export default function StockDetailScreen() {
               <Stat label="1 year" value={percent(stock.momentum.value.oneYear)} tone={tone(stock.momentum.value.oneYear)} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat label="Year to date" value={percent(stock.momentum.value.yearToDate)} tone={tone(stock.momentum.value.yearToDate)} style={{ flexBasis: '28%', flexGrow: 1 }} />
               <Stat
-                label="From 52w high"
+                label="From 52w high" term="fromHigh"
                 value={percent(stock.momentum.value.fromHighPct)}
                 tone={tone(stock.momentum.value.fromHighPct)}
                 style={{ flexBasis: '28%', flexGrow: 1 }}
@@ -353,7 +361,7 @@ export default function StockDetailScreen() {
       ) : null}
 
       {/* --------------------------------------------------------- options */}
-      <Section title="Options positioning">
+      <Section title="Options positioning" term="putCall">
         <Card style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <Pill
@@ -367,12 +375,82 @@ export default function StockDetailScreen() {
             </Text>
           </View>
           <Text variant="body">{optionsSentence(stock.options.value)}</Text>
-          <Row label="Put/call by volume" value={ratio(stock.options.value?.putCallVolume)} />
-          <Row label="Put/call by open interest" value={ratio(stock.options.value?.putCallOpenInterest)} />
+          <Row term="putCall" label="Put/call by volume" value={ratio(stock.options.value?.putCallVolume)} />
+          <Row term="openInterest" label="Put/call by open interest" value={ratio(stock.options.value?.putCallOpenInterest)} />
           <Text variant="caption" faint>
             Reading the source's own convention: at or below 0.70 is bullish, at or above 1.00 is
             bearish.
           </Text>
+        </Card>
+      </Section>
+
+      {/* -------------------------------------------------------- sentiment */}
+      <Section
+        title="What the market is saying"
+        term="sentiment"
+        subtitle={
+          stock.sentiment.value ? `Coverage read ${relativeAsOf(stock.sentiment.asOf)}` : undefined
+        }
+      >
+        <Card style={{ gap: spacing.sm }}>
+          {stock.sentiment.value ? (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+                {stock.sentiment.value.label ? (
+                  <Pill
+                    label={stock.sentiment.value.label.toUpperCase()}
+                    tone={sentimentTone(stock.sentiment.value.score)}
+                  />
+                ) : null}
+                {stock.sentiment.value.score != null ? (
+                  <Text variant="mono" tone={sentimentTone(stock.sentiment.value.score)}>
+                    {stock.sentiment.value.score >= 0 ? '+' : '−'}
+                    {Math.abs(stock.sentiment.value.score).toFixed(2)}
+                  </Text>
+                ) : null}
+              </View>
+              {stock.sentiment.value.summary ? (
+                <Text variant="body">{stock.sentiment.value.summary}</Text>
+              ) : null}
+              {stock.sentiment.value.analystRevisions ? (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Text variant="label" muted>
+                      Analyst revisions
+                    </Text>
+                    <InfoButton term="analystRevisions" size={14} />
+                  </View>
+                  <Text variant="body">{stock.sentiment.value.analystRevisions}</Text>
+                </>
+              ) : null}
+              {stock.sentiment.value.headlines.length ? (
+                <>
+                  <Divider />
+                  <Text variant="label" muted>
+                    Recent coverage
+                  </Text>
+                  {stock.sentiment.value.headlines.map((h, n) => (
+                    <View key={n} style={{ gap: 2, paddingVertical: spacing.xs }}>
+                      <Text variant="body">{h.headline}</Text>
+                      <Text variant="caption" faint>
+                        {[h.source, h.date ? longDate(h.date) : null].filter(Boolean).join(' · ')}
+                      </Text>
+                      {h.soWhat ? (
+                        <Text variant="caption" tone={sentimentTone(h.sentiment)}>
+                          {h.soWhat}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </>
+              ) : null}
+            </>
+          ) : (
+            <Empty
+              title="No coverage read yet."
+              detail="Tap Re-research below — Claude searches for the latest news, analyst revisions and what was said on the most recent call."
+            />
+          )}
         </Card>
       </Section>
 
@@ -403,12 +481,26 @@ export default function StockDetailScreen() {
                 <Stat label="EPS" value={currency(stock.earnings.value.reportedEps)} style={{ flexBasis: '28%', flexGrow: 1 }} />
                 <Stat label="Consensus" value={currency(stock.earnings.value.estimatedEps)} style={{ flexBasis: '28%', flexGrow: 1 }} />
                 <Stat
-                  label="Surprise"
+                  label="Surprise" term="earningsSurprise"
                   value={percent(stock.earnings.value.surprisePct, { decimals: 1 })}
                   tone={tone(stock.earnings.value.surprisePct)}
                   style={{ flexBasis: '28%', flexGrow: 1 }}
                 />
               </View>
+              {stock.earnings.value.reactionPct != null ? (
+                <Text variant="caption" tone={tone(stock.earnings.value.reactionPct)}>
+                  Shares moved {percent(stock.earnings.value.reactionPct)} on the day.
+                </Text>
+              ) : null}
+              {stock.earnings.value.callSummary ? (
+                <>
+                  <Divider />
+                  <Text variant="label" muted>
+                    The call in brief
+                  </Text>
+                  <Text variant="body">{stock.earnings.value.callSummary}</Text>
+                </>
+              ) : null}
               {stock.earnings.value.managementSaid ? (
                 <>
                   <Divider />
@@ -417,6 +509,28 @@ export default function StockDetailScreen() {
                   </Text>
                   <Text variant="body">{stock.earnings.value.managementSaid}</Text>
                 </>
+              ) : null}
+              {stock.earnings.value.quotes.length ? (
+                <View style={{ gap: spacing.sm }}>
+                  {stock.earnings.value.quotes.map((q, n) => (
+                    <View
+                      key={n}
+                      style={{
+                        borderLeftWidth: 3,
+                        borderLeftColor: palette.borderStrong,
+                        paddingLeft: spacing.md,
+                        gap: 2,
+                      }}
+                    >
+                      <Text variant="body" style={{ fontStyle: 'italic' }}>
+                        “{q.text}”
+                      </Text>
+                      <Text variant="caption" faint>
+                        {q.speaker}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               ) : null}
               {stock.earnings.value.guidance ? (
                 <>
@@ -593,6 +707,7 @@ export default function StockDetailScreen() {
           <Row label="Valuation" value={sourceLabel(stock, 'valuation')} hint={relativeAsOf(stock.valuation.asOf)} />
           <Row label="Technicals" value={sourceLabel(stock, 'technicals')} hint={relativeAsOf(stock.technicals.asOf)} />
           <Row label="Options" value={sourceLabel(stock, 'options')} hint={relativeAsOf(stock.options.asOf)} />
+          <Row label="Sentiment" value={sourceLabel(stock, 'sentiment')} hint={relativeAsOf(stock.sentiment.asOf)} />
           <Row label="Reported figures" value={sourceLabel(stock, 'fundamentals')} hint={relativeAsOf(stock.fundamentals.asOf)} />
           <Row label="Multiple history" value={sourceLabel(stock, 'multipleHistory')} hint={relativeAsOf(stock.multipleHistory.asOf)} />
           <Row label="Earnings" value={sourceLabel(stock, 'earnings')} hint={relativeAsOf(stock.earnings.asOf)} />
@@ -618,6 +733,14 @@ export default function StockDetailScreen() {
   );
 }
 
+/** Score is −1 to +1; the midband is genuinely mixed rather than mildly good. */
+function sentimentTone(score: number | null | undefined): 'up' | 'down' | 'flat' {
+  if (score == null) return 'flat';
+  if (score >= 0.2) return 'up';
+  if (score <= -0.2) return 'down';
+  return 'flat';
+}
+
 function Field({ label, tone, text }: { label: string; tone: 'up' | 'down' | 'accent'; text: string }) {
   const { spacing } = useTheme();
   return (
@@ -638,7 +761,15 @@ const SOURCE_LABEL: Record<string, string> = {
 
 function sourceLabel(
   stock: Stock,
-  key: 'quote' | 'valuation' | 'technicals' | 'options' | 'fundamentals' | 'multipleHistory' | 'earnings',
+  key:
+    | 'quote'
+    | 'valuation'
+    | 'technicals'
+    | 'options'
+    | 'sentiment'
+    | 'fundamentals'
+    | 'multipleHistory'
+    | 'earnings',
 ): string {
   return SOURCE_LABEL[stock[key].source] ?? stock[key].source;
 }

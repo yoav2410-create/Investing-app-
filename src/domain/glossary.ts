@@ -1,0 +1,343 @@
+/**
+ * Plain-English explanations for every metric the app shows.
+ *
+ * Each entry answers three questions in order, because that is the order a
+ * person actually asks them: what is this, how do I read the number in front of
+ * me, and what would make me wrong to trust it. The `caveat` field is not
+ * optional decoration — most of these metrics have a specific way of lying, and
+ * a tooltip that omits it is worse than no tooltip.
+ */
+
+export interface GlossaryEntry {
+  title: string;
+  /** What the metric is. */
+  what: string;
+  /** How to read a value. */
+  read: string;
+  /** The specific way this metric misleads. */
+  caveat?: string;
+}
+
+export type GlossaryKey = keyof typeof GLOSSARY;
+
+export const GLOSSARY = {
+  // ---------------------------------------------------------------- account
+  netLiquidationValue: {
+    title: 'Net liquidation value',
+    what: 'What the account would be worth if every position were closed at current marks and the cash settled.',
+    read: 'This is the headline number for the account — market value of the holdings plus cash.',
+    caveat: 'It uses the marks from your last screenshot, not a live feed, so it is as current as that picture.',
+  },
+  dayPnl: {
+    title: 'Day P&L',
+    what: 'How much the book has gained or lost today, in dollars and as a percentage of yesterday\'s close.',
+    read: 'Driven entirely by price moves in positions you already held — it does not include anything you bought or sold today.',
+  },
+  unrealizedPnl: {
+    title: 'Unrealised P&L',
+    what: 'The gain or loss on positions you still hold: current market value minus what you paid.',
+    read: 'Positive means the positions are worth more than their cost. Nothing has been banked yet.',
+    caveat: 'No tax is owed on an unrealised gain, which is exactly why staging an exit across tax years can matter.',
+  },
+  realizedPnl: {
+    title: 'Realised P&L',
+    what: 'Gains and losses that have actually been booked by closing positions.',
+    read: 'This is the number that creates a tax event.',
+  },
+  marketValue: {
+    title: 'Market value',
+    what: 'What the holdings are worth at current marks, excluding cash.',
+    read: 'Net liquidation value minus cash.',
+  },
+  excessLiquidity: {
+    title: 'Excess liquidity',
+    what: 'How much cushion the account has above the collateral the broker requires.',
+    read: 'The buffer before a margin call becomes possible. Higher is safer.',
+    caveat: 'Modelled here as net liquidation value less a 25% maintenance requirement — your broker\'s own figure is authoritative.',
+  },
+  maintenanceMargin: {
+    title: 'Maintenance margin',
+    what: 'The minimum equity a broker requires you to keep against the positions.',
+    read: 'If equity falls below this, the broker can force liquidation.',
+    caveat: 'Modelled at a flat 25% of long market value. Real requirements vary by security and can be raised without notice.',
+  },
+  buyingPower: {
+    title: 'Buying power',
+    what: 'How much you could deploy right now, including any margin the broker would extend.',
+    read: 'Roughly twice excess liquidity in a standard margin account.',
+    caveat: 'Spending it is borrowing. The cash floor in your plan exists partly to stop that.',
+  },
+  cashFloor: {
+    title: 'Cash floor',
+    what: 'The minimum share of the account you have decided to keep in cash.',
+    read: 'Below the floor, the plan\'s job is to raise cash before it does anything else.',
+    caveat: 'A floor only works if it is respected when opportunities look good — which is exactly when it feels most expensive.',
+  },
+  positionCap: {
+    title: 'Position cap',
+    what: 'The largest share of the account any single name is allowed to become.',
+    read: 'A position over the cap is a concentration decision you made by not deciding.',
+  },
+  weight: {
+    title: 'Position weight',
+    what: 'This holding as a percentage of net liquidation value.',
+    read: 'How much of your outcome depends on this one name.',
+  },
+
+  // -------------------------------------------------------------- valuation
+  trailingPe: {
+    title: 'Trailing P/E',
+    what: 'Share price divided by the last twelve months of earnings per share.',
+    read: 'How many years of current earnings you are paying for. Higher means the market expects growth.',
+    caveat: 'Backward-looking. A company whose earnings just collapsed will show a very high P/E precisely when it is cheapest, and vice versa.',
+  },
+  forwardPe: {
+    title: 'Forward P/E',
+    what: 'Share price divided by expected earnings per share over the next twelve months.',
+    read: 'What the market is paying for the earnings analysts expect, rather than the ones already reported.',
+    caveat: 'Rests on analyst estimates, which are systematically too optimistic at the start of a cycle and too pessimistic at the end.',
+  },
+  evEbitda: {
+    title: 'EV / EBITDA',
+    what: 'Enterprise value — market cap plus debt, minus cash — over earnings before interest, tax, depreciation and amortisation.',
+    read: 'The fair comparison for capital-intensive or leveraged businesses, because it prices the debt alongside the equity.',
+    caveat: 'EBITDA ignores the cost of maintaining the assets. For a business that must keep spending to stand still, it flatters.',
+  },
+  priceToSales: {
+    title: 'Price / sales',
+    what: 'Market capitalisation divided by twelve-month revenue.',
+    read: 'The yardstick when earnings are not yet meaningful, because revenue is harder to distort than profit.',
+    caveat: 'Says nothing about whether the revenue is profitable. Two companies on the same P/S can have opposite economics.',
+  },
+  peg: {
+    title: 'PEG ratio',
+    what: 'The P/E ratio divided by the expected earnings growth rate.',
+    read: 'Below 1.0 loosely suggests you are not paying full price for the growth. Above 2.0 suggests you are.',
+    caveat: 'Extremely sensitive to the growth estimate in the denominator, which is the least reliable input.',
+  },
+  valuationBand: {
+    title: 'Cheap / fair / expensive',
+    what: 'Where the current multiple sits inside this stock\'s own trading history: bottom third reads cheap, top third expensive.',
+    read: 'This is a relative statement about one company against its own past, not an absolute claim that it is good value.',
+    caveat: 'A business whose prospects have permanently worsened will look "cheap" against its own history all the way down.',
+  },
+  peerMedian: {
+    title: 'Peer median',
+    what: 'The middle multiple across a comparable group of companies.',
+    read: 'Trading above the peer median means the market thinks this business deserves a premium. Sometimes it does.',
+  },
+  profitMargin: {
+    title: 'Profit margin',
+    what: 'Net income as a percentage of revenue — what is left after every cost including tax and interest.',
+    read: 'How many cents of every dollar of sales reach the bottom line.',
+  },
+  operatingMargin: {
+    title: 'Operating margin',
+    what: 'Operating income as a percentage of revenue, before interest and tax.',
+    read: 'The cleanest read on whether the core business itself is profitable, stripped of financing decisions.',
+  },
+  debtToEquity: {
+    title: 'Debt / equity',
+    what: 'Total debt divided by shareholder equity.',
+    read: 'How much of the business is funded by borrowing rather than by owners. Above about 2.0 is meaningful leverage.',
+    caveat: 'Meaningless when equity is negative — which happens after years of buybacks, and does not by itself indicate distress.',
+  },
+  beta: {
+    title: 'Beta',
+    what: 'How much this stock has historically moved for a 1% move in the broad market.',
+    read: '1.0 moves with the market. 2.0 moves twice as hard in both directions. Below 1.0 dampens.',
+    caveat: 'Measured from past correlation, which breaks down in exactly the sharp selloffs you would want it to hold for.',
+  },
+  shortInterest: {
+    title: 'Short interest',
+    what: 'The percentage of tradable shares currently sold short.',
+    read: 'Above roughly 10% means a meaningful group is betting against the name.',
+    caveat: 'Cuts both ways: heavy shorting is a bearish signal and also the fuel for a squeeze.',
+  },
+  dividendYield: {
+    title: 'Dividend yield',
+    what: 'Annual dividend per share as a percentage of the share price.',
+    read: 'The cash return you receive for holding, before any price change.',
+    caveat: 'A yield that looks unusually high is often a falling price rather than a generous payout.',
+  },
+  analystTarget: {
+    title: 'Analyst price target',
+    what: 'The average twelve-month price target across covering analysts.',
+    read: 'Above the current price implies expected upside. A target below spot is an unusually direct warning.',
+    caveat: 'Targets cluster around the current price and get revised after moves, not before them.',
+  },
+  week52Range: {
+    title: '52-week range',
+    what: 'The lowest and highest price over the last year.',
+    read: 'Context for where the current price sits in its recent history.',
+  },
+
+  // -------------------------------------------------------------- technical
+  trendScore: {
+    title: 'Trend score',
+    what: 'Six checks scored out of five: price above each of the 20, 50, 100 and 200-day averages, RSI above 50, and +DI above −DI.',
+    read: '5 of 5 means every trend measure agrees the direction is up. Under 2 means they agree it is down.',
+    caveat: 'Trend describes what price has done, not what the business is worth. It is a timing input, not a thesis.',
+  },
+  movingAverage: {
+    title: 'Moving average',
+    what: 'The average closing price over a window — 20, 50, 100 or 200 trading days.',
+    read: 'Price above the average means recent buyers are ahead. The 50 and 200-day are the levels most traders actually watch.',
+    caveat: 'Self-fulfilling to a degree, and always late by construction: it is an average of the past.',
+  },
+  rsi: {
+    title: 'RSI',
+    what: 'Relative Strength Index — momentum on a 0 to 100 scale, comparing the size of recent gains to recent losses.',
+    read: 'Above 70 is conventionally overbought, below 30 oversold. Above 50 simply means upward momentum.',
+    caveat: 'A strong stock can stay above 70 for months. Treating it as a sell signal on its own is a way to exit winners early.',
+  },
+  directionalIndicators: {
+    title: '+DI and −DI',
+    what: 'Directional indicators: the strength of upward versus downward price movement over 14 days.',
+    read: '+DI above −DI means buyers have had the upper hand. The wider the gap, the more decisive.',
+  },
+  maDistance: {
+    title: 'Distance from moving averages',
+    what: 'How far the current price sits above or below each moving average, in percent.',
+    read: 'A long way above suggests an extended move; below all of them suggests a broken trend.',
+  },
+
+  // ----------------------------------------------------------------- quality
+  returnOnEquity: {
+    title: 'Return on equity',
+    what: 'Net income as a percentage of shareholder equity.',
+    read: 'How much profit the business generates on the capital owners have in it. Sustained figures above 15% are strong.',
+    caveat: 'Leverage inflates it. A heavily indebted company can post excellent ROE and still be fragile.',
+  },
+  roic: {
+    title: 'Return on invested capital',
+    what: 'Operating profit after tax as a percentage of all capital in the business, debt included.',
+    read: 'The cleanest single measure of business quality, because it is not flattered by borrowing.',
+  },
+  grossMargin: {
+    title: 'Gross margin',
+    what: 'Revenue less the direct cost of delivering it, as a percentage of revenue.',
+    read: 'High and stable gross margin usually indicates pricing power.',
+  },
+  fcfMargin: {
+    title: 'Free cash flow margin',
+    what: 'Cash left after operating costs and capital spending, as a percentage of revenue.',
+    read: 'Cash is harder to manipulate than earnings. A wide gap between profit margin and FCF margin is worth understanding.',
+  },
+  netDebtToEbitda: {
+    title: 'Net debt / EBITDA',
+    what: 'Debt minus cash, divided by annual EBITDA — roughly how many years of earnings it would take to repay borrowings.',
+    read: 'Under 2.0 is comfortable, over 4.0 is stretched. Negative means the company holds more cash than debt.',
+  },
+  revenueCagr: {
+    title: 'Revenue CAGR',
+    what: 'The compound annual growth rate of revenue over three years.',
+    read: 'Smooths out a single strong or weak quarter to show the underlying trajectory.',
+  },
+  shareCountChange: {
+    title: 'Share count change',
+    what: 'The year-on-year change in diluted shares outstanding.',
+    read: 'Negative means buybacks — your slice of the company grows without you doing anything. Positive means dilution.',
+  },
+  ownership: {
+    title: 'Ownership',
+    what: 'The share of the company held by institutions and by insiders.',
+    read: 'High institutional ownership means a well-followed name. Meaningful insider ownership aligns management with holders.',
+  },
+
+  // --------------------------------------------------------------- momentum
+  momentum: {
+    title: 'Momentum',
+    what: 'Total price return over each window: one month through one year, plus year to date.',
+    read: 'Consistent positive returns across windows indicate a durable trend rather than one good week.',
+  },
+  fromHigh: {
+    title: 'Distance from the 52-week high',
+    what: 'How far below its one-year peak the price currently sits.',
+    read: 'This is the drawdown you are living through. Deeper than about 20% is a genuine correction in that name.',
+  },
+
+  // ---------------------------------------------------------------- options
+  putCall: {
+    title: 'Put / call ratio',
+    what: 'Puts traded divided by calls traded across the whole option chain.',
+    read: 'At or below 0.70 reads bullish, at or above 1.00 bearish — the data source\'s own convention, kept deliberately.',
+    caveat: 'Puts are bought as insurance as often as they are bought as bets. A high ratio can mean hedging by holders, not conviction by sellers.',
+  },
+  openInterest: {
+    title: 'Open interest',
+    what: 'The number of option contracts currently outstanding, as opposed to traded today.',
+    read: 'Volume is today\'s opinion; open interest is the accumulated position. When they disagree, the signal is weak.',
+  },
+
+  // -------------------------------------------------------------- sentiment
+  sentiment: {
+    title: 'News sentiment',
+    what: 'The tone of recent coverage and analyst commentary, scored from −1 to +1.',
+    read: 'A measure of the story being told about the company right now, not of the company itself.',
+    caveat: 'Sentiment follows price at least as often as it leads it. Its use is as context for a move, not a prediction of one.',
+  },
+  analystRevisions: {
+    title: 'Analyst revisions',
+    what: 'Changes to price targets and ratings since the last quarter.',
+    read: 'The direction of revisions tends to carry more information than the level of the targets.',
+  },
+  earningsSurprise: {
+    title: 'Earnings surprise',
+    what: 'Reported earnings per share against what analysts expected, as a percentage.',
+    read: 'Positive means a beat. What usually moves the price more is the guidance given alongside it.',
+  },
+
+  // -------------------------------------------------------------- portfolio
+  concentration: {
+    title: 'Concentration',
+    what: 'How much of the account depends on its largest positions.',
+    read: 'A book where the top five names are most of the value has the return profile of five decisions, not fourteen.',
+  },
+  hhi: {
+    title: 'Effective number of positions',
+    what: 'Derived from the Herfindahl index: the number of equally sized positions that would give the same concentration as this book.',
+    read: 'Fourteen holdings with an effective count of eight means six of them barely matter to the outcome.',
+  },
+  portfolioBeta: {
+    title: 'Portfolio beta',
+    what: 'The weighted average beta of the holdings — how the book as a whole should move with the market.',
+    read: 'Above 1.0 means the account amplifies market moves in both directions.',
+    caveat: 'Weighted averages hide clustering: a book of high-beta names in one theme is riskier than its beta suggests.',
+  },
+  breadth: {
+    title: 'Breadth',
+    what: 'How many holdings share a condition — in an uptrend, cheap against their own history, bearish on options flow.',
+    read: 'Breadth tells you whether something is happening to one position or to the whole book.',
+  },
+  valuationDispersion: {
+    title: 'Valuation dispersion',
+    what: 'How spread out the holdings are between cheap and expensive against their own histories.',
+    read: 'A book clustered at the expensive end has less room for disappointment across the board.',
+  },
+  earningsClustering: {
+    title: 'Earnings clustering',
+    what: 'How many holdings report within the same short window.',
+    read: 'Several reports in one week means a concentrated block of event risk on specific dates.',
+  },
+  cashDrag: {
+    title: 'Cash position',
+    what: 'Cash as a share of the account, against the floor you set.',
+    read: 'Cash is optionality with a cost: it protects on the way down and lags on the way up.',
+  },
+  themeOverlap: {
+    title: 'Theme overlap',
+    what: 'Positions that would move together because they depend on the same underlying driver, regardless of their sector label.',
+    read: 'Sector buckets can hide this. Names spread across three sectors can still be one bet.',
+  },
+} as const satisfies Record<string, GlossaryEntry>;
+
+/**
+ * Accessor rather than direct indexing: `as const satisfies` keeps the keys
+ * exact but narrows each entry to its literal shape, so `caveat` disappears
+ * from the type for entries that do not have one. Widening here once means
+ * callers get a uniform `GlossaryEntry`.
+ */
+export function glossary(key: GlossaryKey): GlossaryEntry {
+  return GLOSSARY[key] as GlossaryEntry;
+}

@@ -358,9 +358,26 @@ export interface ResearchResult {
     estimatedEps: number | null;
     surprisePct: number | null;
     revenue: number | null;
+    callSummary: string | null;
     managementSaid: string | null;
     guidance: string | null;
     watchNext: string | null;
+    reactionPct: number | null;
+    quotes: { speaker: string; text: string }[];
+  };
+  sentiment: {
+    score: number | null;
+    label: 'very negative' | 'negative' | 'mixed' | 'positive' | 'very positive' | null;
+    summary: string | null;
+    analystRevisions: string | null;
+    headlines: {
+      headline: string;
+      source: string | null;
+      date: string | null;
+      url: string | null;
+      sentiment: number | null;
+      soWhat: string | null;
+    }[];
   };
   quality: {
     returnOnEquity: number | null;
@@ -431,6 +448,7 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       'momentum',
       'technicals',
       'earnings',
+      'sentiment',
       'narrative',
       'nextEarningsDate',
       'sources',
@@ -552,7 +570,10 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       earnings: {
         type: 'object',
         additionalProperties: false,
-        required: ['date', 'quarter', 'reportedEps', 'estimatedEps', 'surprisePct', 'revenue', 'managementSaid', 'guidance', 'watchNext'],
+        required: [
+          'date', 'quarter', 'reportedEps', 'estimatedEps', 'surprisePct', 'revenue',
+          'callSummary', 'managementSaid', 'guidance', 'watchNext', 'reactionPct', 'quotes',
+        ],
         properties: {
           date: { type: ['string', 'null'], description: 'YYYY-MM-DD.' },
           quarter: { type: ['string', 'null'] },
@@ -560,13 +581,80 @@ const RESEARCH_TOOL: Anthropic.Tool = {
           estimatedEps: numberOrNull,
           surprisePct: numberOrNull,
           revenue: { type: ['number', 'null'], description: 'Absolute USD for the quarter.' },
+          callSummary: {
+            type: ['string', 'null'],
+            description:
+              'Two or three sentences on the call as a whole: what the numbers showed, what management emphasised, and how the tone compared with the previous quarter.',
+          },
           managementSaid: {
             type: ['string', 'null'],
             description:
-              'What management actually said, with specific figures and direct quotes where you have them. Do not invent quotes.',
+              'What management actually said, with specific figures. Do not invent quotes — if you have the figures but not the words, give the figures and say the commentary is not sourced.',
           },
           guidance: { type: ['string', 'null'] },
           watchNext: { type: ['string', 'null'] },
+          reactionPct: {
+            type: ['number', 'null'],
+            description: 'How the shares moved on the day of the report, in percent.',
+          },
+          quotes: {
+            type: 'array',
+            description:
+              'Verbatim lines from the call worth keeping. Only include a quote you actually found; an empty array is correct when you did not.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['speaker', 'text'],
+              properties: {
+                speaker: { type: 'string', description: 'Name and role, e.g. "Susan Li, CFO".' },
+                text: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      sentiment: {
+        type: 'object',
+        description: 'How the market is currently talking about this name.',
+        additionalProperties: false,
+        required: ['score', 'label', 'summary', 'analystRevisions', 'headlines'],
+        properties: {
+          score: {
+            type: ['number', 'null'],
+            description: 'Weighted tone of recent coverage, -1 to +1.',
+          },
+          label: {
+            type: ['string', 'null'],
+            enum: ['very negative', 'negative', 'mixed', 'positive', 'very positive', null],
+          },
+          summary: {
+            type: ['string', 'null'],
+            description: 'One paragraph on what is driving the tone right now.',
+          },
+          analystRevisions: {
+            type: ['string', 'null'],
+            description: 'Target and rating changes since the last quarter, with the firms named.',
+          },
+          headlines: {
+            type: 'array',
+            description: 'Up to six recent pieces of coverage, newest first.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['headline', 'source', 'date', 'url', 'sentiment', 'soWhat'],
+              properties: {
+                headline: { type: 'string' },
+                source: { type: ['string', 'null'] },
+                date: { type: ['string', 'null'], description: 'YYYY-MM-DD.' },
+                url: { type: ['string', 'null'] },
+                sentiment: { type: ['number', 'null'], description: '-1 to +1.' },
+                soWhat: {
+                  type: ['string', 'null'],
+                  description: 'One line on why a holder should care. Not a restatement of the headline.',
+                },
+              },
+            },
+          },
         },
       },
       narrative: {
@@ -606,6 +694,8 @@ Standards:
 - Pick primaryMultiple honestly: EV/EBITDA where debt matters, forward P/E for a profitable grower, P/S where earnings are not yet meaningful. Say why in one sentence.
 - The verdict is a judgement and should read like one: state what would change your mind. Do not hedge into meaninglessness, and do not pretend to a confidence the evidence does not support.
 - For an ETF, most company fields are legitimately null. Say so rather than inventing a P/E.
+- Sentiment is about coverage and analyst behaviour, not your own opinion. Cite real pieces with their source and date, and make soWhat say why a holder cares rather than restating the headline.
+- Prefer coverage from the last 30 days. If the most recent thing you can find is months old, say that in the summary — silence reads as "nothing happened", which is a different claim.
 - whatWouldChangeMyMind must name something observable — a margin level, a guidance change, a moving-average break — not a feeling. If you cannot name one, your verdict is not well formed; go back and sharpen it.`;
 }
 
@@ -622,7 +712,11 @@ export async function researchStock(
     );
   }
   if (context?.planNote) lines.push(`Their current plan for this name: ${context.planNote}`);
-  lines.push('Report the full picture through the report_research tool.');
+  lines.push(
+    'Search for the most recent information available: the latest earnings call and what was',
+    'actually said on it, current analyst targets and any revisions, and news coverage from the',
+    'last month. Then report the full picture through the report_research tool.',
+  );
 
   const response = await client.messages.create({
     model: CLAUDE_MODEL,
@@ -648,4 +742,161 @@ export async function researchStock(
     );
   }
   return block.input as ResearchResult;
+}
+
+// ---------------------------------------------------------------------------
+// 3. Portfolio-level read
+// ---------------------------------------------------------------------------
+
+/**
+ * The model does not compute any of the figures here — they arrive already
+ * calculated from `src/domain/insights.ts`. Its job is the part arithmetic
+ * cannot do: noticing that three positions in three different sectors are one
+ * bet, or that the cheap half of the book is cheap for the same reason.
+ */
+export interface PortfolioReadResult {
+  headline: string;
+  /** What the book is actually betting on, in the owner's terms. */
+  whatThisBookIs: string;
+  observations: {
+    title: string;
+    detail: string;
+    severity: 'good' | 'watch' | 'risk';
+    /** Tickers this observation is about. */
+    tickers: string[];
+  }[];
+  /** Groups that would move together regardless of their sector labels. */
+  themeClusters: {
+    theme: string;
+    tickers: string[];
+    weightPct: number | null;
+    why: string;
+  }[];
+  /** The single biggest risk, named rather than hedged. */
+  biggestRisk: string;
+  /** The most useful thing to do next, and why. */
+  nextAction: string;
+  /** What is not knowable from the data on file. */
+  blindSpots: string[];
+}
+
+const PORTFOLIO_TOOL: Anthropic.Tool = {
+  name: 'report_portfolio_read',
+  description:
+    'Report the cross-cutting read on a portfolio, given figures that have already been computed.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'headline',
+      'whatThisBookIs',
+      'observations',
+      'themeClusters',
+      'biggestRisk',
+      'nextAction',
+      'blindSpots',
+    ],
+    properties: {
+      headline: {
+        type: 'string',
+        description: 'One sentence a person could read and immediately know where they stand.',
+      },
+      whatThisBookIs: {
+        type: 'string',
+        description:
+          'Two or three sentences on what this portfolio is actually betting on, stripped of sector labels.',
+      },
+      observations: {
+        type: 'array',
+        description: 'Four to seven things worth knowing, most important first.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['title', 'detail', 'severity', 'tickers'],
+          properties: {
+            title: { type: 'string', description: 'Under 60 characters.' },
+            detail: { type: 'string', description: 'Two sentences at most. Cite the figure you are reasoning from.' },
+            severity: { type: 'string', enum: ['good', 'watch', 'risk'] },
+            tickers: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+      themeClusters: {
+        type: 'array',
+        description:
+          'Groups of holdings that would move together for the same underlying reason, even when they sit in different sectors. Empty array if the book has none.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['theme', 'tickers', 'weightPct', 'why'],
+          properties: {
+            theme: { type: 'string', description: 'Short name, e.g. "AI infrastructure build-out".' },
+            tickers: { type: 'array', items: { type: 'string' } },
+            weightPct: { type: ['number', 'null'], description: 'Combined share of the book, if you can total it.' },
+            why: { type: 'string', description: 'The shared driver, in one sentence.' },
+          },
+        },
+      },
+      biggestRisk: {
+        type: 'string',
+        description: 'Name it specifically. "Market risk" is not an answer.',
+      },
+      nextAction: {
+        type: 'string',
+        description: 'The most useful next step and the reason, in two sentences.',
+      },
+      blindSpots: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'What the data on file cannot tell you. Be concrete.',
+      },
+    },
+  },
+};
+
+const PORTFOLIO_SYSTEM = `You are reading one investor's portfolio and telling them what they are actually holding.
+
+The figures you are given have already been computed from their positions. Do not recompute them, do not contradict them, and cite them when you reason from them.
+
+What is useful here is the part arithmetic cannot do:
+- Sector buckets hide correlated bets. Three positions in three sectors that all depend on data-centre capital expenditure are one bet, and saying so is the most valuable thing in this report.
+- Note when several holdings are cheap or expensive for the same underlying reason — that is a factor exposure, not diversification.
+- Concentration is not automatically bad. Say what the concentration is a bet on, and what would have to be true for it to be the right one.
+- When a coverage figure is low, say the average is thin rather than reasoning confidently from it.
+
+Tone: direct, specific, and willing to say something uncomfortable. Do not pad, do not hedge into meaninglessness, and do not recommend generic diversification. If the book looks sensible, say that plainly rather than manufacturing concerns.`;
+
+export async function analysePortfolio(
+  client: Anthropic,
+  summary: string,
+  extra?: { verdicts?: string; plan?: string },
+): Promise<PortfolioReadResult> {
+  const parts = ['Here is the computed picture of the portfolio.', '', summary];
+  if (extra?.plan) parts.push('', 'The owner\'s current rebalancing plan:', extra.plan);
+  if (extra?.verdicts) parts.push('', 'Per-stock verdicts on file:', extra.verdicts);
+  parts.push('', 'Report your read through the report_portfolio_read tool.');
+
+  const response = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 16000,
+    system: PORTFOLIO_SYSTEM,
+    thinking: { type: 'adaptive' },
+    output_config: { effort: 'high' },
+    tools: [PORTFOLIO_TOOL],
+    tool_choice: { type: 'tool', name: 'report_portfolio_read' },
+    messages: [{ role: 'user', content: parts.join('\n') }],
+  });
+
+  const block = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'report_portfolio_read',
+  );
+  if (!block) {
+    throw new Error(
+      response.stop_reason === 'refusal'
+        ? 'Claude declined this request.'
+        : 'Claude did not return a structured portfolio read.',
+    );
+  }
+  return block.input as PortfolioReadResult;
 }

@@ -30,7 +30,7 @@ export default function SectorsScreen() {
 
   return (
     <Screen>
-      <Section title="Concentration" subtitle="Share of net liquidation value">
+      <Section title="Concentration" term="concentration" subtitle="Share of net liquidation value">
         <Card style={{ gap: spacing.md }}>
           <ConcentrationBar
             height={26}

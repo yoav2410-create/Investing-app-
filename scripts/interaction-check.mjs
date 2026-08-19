@@ -14,15 +14,18 @@ const text = async () => (await page.locator('body').innerText()).replace(/\s+/g
 await page.goto('http://localhost:8080/plan', { waitUntil: 'networkidle' });
 await page.waitForTimeout(900);
 const before = await text();
-const beforeHeadroom = before.match(/Headroom over 30% floor ([+−]\d+\.\d)pp/)?.[1];
+const headroomOf = (t) => t.match(/Headroom over 30% floor\D{0,4}([+−-]?\d+\.\d)pp/)?.[1];
+const beforeHeadroom = headroomOf(before);
 console.log('as things stand, headroom =', beforeHeadroom);
 
 await page.getByText('A', { exact: true }).first().click();
 await page.waitForTimeout(600);
 const afterA = await text();
-const afterAHeadroom = afterA.match(/Headroom over 30% floor ([+−]\d+\.\d)pp/)?.[1];
+const afterAHeadroom = headroomOf(afterA);
 console.log('projecting tranche A, headroom =', afterAHeadroom);
 if (!afterA.includes('If tranche A is finished')) problems.push('tranche A projection header missing');
+if (!beforeHeadroom || !afterAHeadroom) problems.push('could not read the cash headroom figure');
+else if (beforeHeadroom === afterAHeadroom) problems.push('projecting tranche A did not move the cash headroom');
 await page.screenshot({ path: `${OUT}/interaction-plan-projection.png` });
 
 // ---- 2. Marking a leg done actually moves the counter ----------------------

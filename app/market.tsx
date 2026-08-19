@@ -80,6 +80,7 @@ export default function MarketScreen() {
       </Section>
 
       <Section
+        term="putCall"
         title="Options sentiment across the book"
         subtitle={`${bearish} bearish, ${bullish} bullish · most bearish first`}
       >
