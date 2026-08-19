@@ -17,6 +17,7 @@
     "verify:features": "node scripts/feature-check.mjs",
     "verify:simulation": "node scripts/simulation-check.mjs",
     "verify:pwa": "node scripts/pwa-check.mjs",
+    "verify:allocation": "node scripts/allocation-check.mjs",
     "verify:backup": "node scripts/backup-check.mjs",
     "verify:privacy": "node scripts/privacy-check.mjs",
     "ios:dev": "eas build --profile development --platform ios",

@@ -9,7 +9,9 @@ import { InfoButton } from '@/components/InfoButton';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { useApp } from '@/data/store';
 import { buildInsights, type BreadthInsight, type Coverage } from '@/domain/insights';
+import { stanceProblems } from '@/domain/allocation';
 import { compactCurrency, longDate, percent, ratio, relativeAsOf, tone } from '@/domain/format';
+import type { AllocationMove, AllocationStance } from '@/domain/types';
 import type { Tone } from '@/theme/tokens';
 
 /**
@@ -169,11 +171,22 @@ export default function InsightsScreen() {
           <Card>
             <Empty
               title="No portfolio read yet."
-              detail="Everything below is computed from your positions and is always available. Run the analysis to have Claude read across it — what the book is actually betting on, which positions move together, and where the risk sits."
+              detail="Everything below is computed from your positions and is always available. Run the analysis to have Claude read across it — what the book is actually betting on, which positions move together, where the risk sits, and what the sector targets should be."
             />
           </Card>
         ) : null}
       </Section>
+
+      {read?.result.allocation ? (
+        <AllocationSection
+          stance={read.result.allocation}
+          at={read.at}
+          inForce={{
+            cashFloorPct: plan.constraints.cashFloorPct * 100,
+            maxPositionPct: plan.constraints.maxPositionPct * 100,
+          }}
+        />
+      ) : null}
 
       {/* ------------------------------------------------------ computed --- */}
       <Section title="Concentration" term="concentration">
@@ -482,5 +495,129 @@ function BreadthRow<T extends string>({
         ))}
       </View>
     </View>
+  );
+}
+
+
+/**
+ * What the read says to do about the shape of the book.
+ *
+ * Kept separate from the observations above because it is a different kind of
+ * claim: those describe what is there, these propose changing it. Every move
+ * shows the figure it was reasoning from, and a move that arrived without one
+ * says so rather than being quietly dressed up as analysis.
+ */
+function AllocationSection({
+  stance,
+  at,
+  inForce,
+}: {
+  stance: AllocationStance;
+  at: string;
+  /** What the plan is still enforcing, so a proposal is never mistaken for it. */
+  inForce: { cashFloorPct: number; maxPositionPct: number };
+}) {
+  const { spacing } = useTheme();
+  const problems = useMemo(() => stanceProblems(stance), [stance]);
+
+  const KIND_TONE: Record<AllocationMove['kind'], Tone> = {
+    trim: 'warn',
+    exit: 'down',
+    add: 'up',
+    enter: 'accent',
+    'raise-cash': 'warn',
+    hold: 'flat',
+  };
+  const URGENCY_LABEL: Record<AllocationMove['urgency'], string> = {
+    now: 'Now',
+    soon: 'Soon',
+    watch: 'Watch',
+  };
+
+  return (
+    <Section title="What to change" subtitle={`Proposed ${relativeAsOf(at)} · targets, cash and positions`}>
+      <Card style={{ gap: spacing.md }}>
+        <Text variant="body">{stance.reasoning}</Text>
+
+        {(stance.cashFloorPct != null || stance.maxPositionPct != null) && (
+          <>
+            <Divider />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
+              {stance.cashFloorPct != null ? (
+                <Stat
+                  label="Cash floor"
+                  value={`${stance.cashFloorPct.toFixed(0)}%`}
+                  detail={`proposed · ${inForce.cashFloorPct.toFixed(0)}% in force`}
+                />
+              ) : null}
+              {stance.maxPositionPct != null ? (
+                <Stat
+                  label="Position cap"
+                  value={`${stance.maxPositionPct.toFixed(0)}%`}
+                  detail={`proposed · ${inForce.maxPositionPct.toFixed(0)}% in force`}
+                />
+              ) : null}
+            </View>
+          </>
+        )}
+
+        <Divider />
+        <Text variant="label" muted>
+          Moves
+        </Text>
+        {stance.moves.map((m, n) => (
+          <View key={n} style={{ gap: 2 }}>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Pill label={m.kind === 'raise-cash' ? 'raise cash' : m.kind} tone={KIND_TONE[m.kind]} compact />
+              {m.ticker ? <Text variant="body">{m.ticker}</Text> : null}
+              {m.sizePctOfNlv != null ? (
+                <Text variant="caption" muted>
+                  {m.sizePctOfNlv.toFixed(1)}% of the book
+                </Text>
+              ) : null}
+              <Text variant="caption" faint>
+                {URGENCY_LABEL[m.urgency]}
+              </Text>
+            </View>
+            <Text variant="body">{m.action}</Text>
+            <Text variant="caption" muted>
+              {m.basis.trim() ? m.basis : 'No figure was cited for this one.'}
+            </Text>
+          </View>
+        ))}
+
+        {stance.caveats.length ? (
+          <>
+            <Divider />
+            <Text variant="label" muted>
+              What this stance could not be based on
+            </Text>
+            {stance.caveats.map((c, n) => (
+              <Text key={n} variant="caption" faint>
+                • {c}
+              </Text>
+            ))}
+          </>
+        ) : null}
+
+        {problems.length ? (
+          <>
+            <Divider />
+            <Pill label="Check these targets" tone="down" compact />
+            {problems.map((p, n) => (
+              <Text key={n} variant="caption" muted>
+                • {p}
+              </Text>
+            ))}
+          </>
+        ) : null}
+
+        <Text variant="caption" faint>
+          The sector targets above are live — the Sectors screen measures drift against them. The
+          cash floor and position cap are proposals: the plan still enforces what it enforced, and
+          changes only when you ask it to.
+        </Text>
+      </Card>
+    </Section>
   );
 }

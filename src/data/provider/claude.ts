@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { Holding, SectorId, Verdict } from '@/domain/types';
+import type { AllocationStance, Holding, SectorId, Verdict } from '@/domain/types';
+import { SECTORS } from '@/domain/types';
 
 /**
  * Claude integration.
@@ -819,6 +820,14 @@ export interface PortfolioReadResult {
   nextAction: string;
   /** What is not knowable from the data on file. */
   blindSpots: string[];
+  /**
+   * The recommended shape of the book, and the moves that would get there.
+   *
+   * Optional in the type, not in the schema: reads written before this existed
+   * are still on file in the owner's storage, and a stored read with no stance
+   * has to keep rendering rather than crash the Insights screen.
+   */
+  allocation?: AllocationStance;
 }
 
 const PORTFOLIO_TOOL: Anthropic.Tool = {
@@ -837,6 +846,7 @@ const PORTFOLIO_TOOL: Anthropic.Tool = {
       'biggestRisk',
       'nextAction',
       'blindSpots',
+      'allocation',
     ],
     properties: {
       headline: {
@@ -892,6 +902,91 @@ const PORTFOLIO_TOOL: Anthropic.Tool = {
         items: { type: 'string' },
         description: 'What the data on file cannot tell you. Be concrete.',
       },
+      allocation: {
+        type: 'object',
+        additionalProperties: false,
+        description:
+          'The shape you think this book should have, and the moves that would get there. This replaces the targets the app ships with, so give a full mix rather than only the sectors you want to change.',
+        required: ['targetMix', 'cashFloorPct', 'maxPositionPct', 'reasoning', 'moves', 'caveats'],
+        properties: {
+          targetMix: {
+            type: 'array',
+            description:
+              'A target for every sector that should carry weight, including cash. The percentages must total 100. Omit a sector only if it should genuinely hold nothing.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['sector', 'targetPct', 'previousPct', 'why'],
+              properties: {
+                sector: { type: 'string', enum: SECTORS.map((s) => s.id) },
+                targetPct: { type: 'number', description: 'Share of net liquidation value, in percent.' },
+                previousPct: {
+                  type: ['number', 'null'],
+                  description: 'The target this replaces, if one was given to you.',
+                },
+                why: {
+                  type: 'string',
+                  description:
+                    'One sentence. Why this number rather than the previous one, citing the figure that drove it.',
+                },
+              },
+            },
+          },
+          cashFloorPct: {
+            type: ['number', 'null'],
+            description:
+              'Recommended minimum cash as a percent of NLV. Null to leave the existing floor alone. Reason from the downside percentiles, not from a rule of thumb.',
+          },
+          maxPositionPct: {
+            type: ['number', 'null'],
+            description: 'Recommended cap on any single position, as a percent of NLV. Null to leave it alone.',
+          },
+          reasoning: {
+            type: 'string',
+            description:
+              'Two or three sentences on what this stance is and what specifically it is reacting to.',
+          },
+          moves: {
+            type: 'array',
+            description:
+              'Concrete moves, most important first. Four to eight. If the right answer is to do nothing, say so with a single hold move rather than inventing activity.',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'ticker', 'sector', 'sizePctOfNlv', 'action', 'basis', 'urgency'],
+              properties: {
+                kind: { type: 'string', enum: ['trim', 'exit', 'add', 'enter', 'raise-cash', 'hold'] },
+                ticker: {
+                  type: ['string', 'null'],
+                  description: 'The name this is about, or null when it is about a whole sleeve.',
+                },
+                sector: {
+                  type: ['string', 'null'],
+                  enum: [...SECTORS.map((s) => s.id), null],
+                  description: 'The sleeve this is about, or null when it is about one name.',
+                },
+                sizePctOfNlv: {
+                  type: ['number', 'null'],
+                  description: 'How much of the book this would shift. Null if you cannot size it honestly.',
+                },
+                action: { type: 'string', description: 'What to do, in one sentence.' },
+                basis: {
+                  type: 'string',
+                  description:
+                    'The figure you are reasoning from, quoted. A move with no number behind it is an opinion and will be shown as one.',
+                },
+                urgency: { type: 'string', enum: ['now', 'soon', 'watch'] },
+              },
+            },
+          },
+          caveats: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'What this stance could not be based on — coverage gaps, missing betas, stale marks. Empty array if none.',
+          },
+        },
+      },
     },
   },
 };
@@ -906,14 +1001,27 @@ What is useful here is the part arithmetic cannot do:
 - Concentration is not automatically bad. Say what the concentration is a bet on, and what would have to be true for it to be the right one.
 - When a coverage figure is low, say the average is thin rather than reasoning confidently from it.
 
-Tone: direct, specific, and willing to say something uncomfortable. Do not pad, do not hedge into meaninglessness, and do not recommend generic diversification. If the book looks sensible, say that plainly rather than manufacturing concerns.`;
+Tone: direct, specific, and willing to say something uncomfortable. Do not pad, do not hedge into meaninglessness, and do not recommend generic diversification. If the book looks sensible, say that plainly rather than manufacturing concerns.
+
+You also set the targets. The sector targets this app shipped with are a placeholder, and the owner has asked for targets that come from analysis instead. So:
+
+- Give a full mix that totals 100, including cash. A partial mix would leave the app measuring drift against a mixture of your numbers and the placeholder's.
+- Every target says why it is that number, citing the figure that drove it. "Reduce tech" is not a reason; "tech is 34% while the downside percentile shows the book losing a third in the worst 5% of paths, and eight of those points sit in two names that move together" is.
+- Set the cash floor from the projection's downside, not from a convention. The simulation tells you what this specific book does when the market falls; a 25% floor that nothing justifies is the same placeholder in a different place.
+- Moves are concrete: which name, which direction, how much of the book, and the number behind it. Size them when you honestly can and say null when you cannot — a made-up size is worse than an unsized instruction.
+- If the right answer is that the book is already shaped correctly, return the current weights as the targets and a single hold move. Manufacturing activity to look useful is the specific failure to avoid here.
+
+Never propose entering a name you have no data on without saying that is what you are doing, and put it in the caveats.`;
 
 export async function analysePortfolio(
   client: Anthropic,
   summary: string,
-  extra?: { verdicts?: string; plan?: string },
+  extra?: { verdicts?: string; plan?: string; simulation?: string },
 ): Promise<PortfolioReadResult> {
   const parts = ['Here is the computed picture of the portfolio.', '', summary];
+  if (extra?.simulation) {
+    parts.push('', 'The projection already run on this book:', extra.simulation);
+  }
   if (extra?.plan) parts.push('', 'The owner\'s current rebalancing plan:', extra.plan);
   if (extra?.verdicts) parts.push('', 'Per-stock verdicts on file:', extra.verdicts);
   parts.push('', 'Report your read through the report_portfolio_read tool.');

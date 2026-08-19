@@ -391,6 +391,66 @@ export interface RebalancePlan {
 }
 
 // ---------------------------------------------------------------------------
+// The allocation stance
+// ---------------------------------------------------------------------------
+
+/**
+ * What the analysis says the shape of the book *should* be, as distinct from
+ * what it is.
+ *
+ * This exists because a sector target baked into the bundled data is somebody
+ * else's opinion wearing the owner's clothes. `PlanConstraints.targetMix` is
+ * still there and still works — it is the fallback, and it is labelled as one —
+ * but when a portfolio read is on file, the targets come from it, carry the
+ * timestamp of the read that produced them, and can be argued with because each
+ * one says why it moved.
+ *
+ * Nothing here is applied automatically. It changes what the Sectors screen
+ * measures drift against and what the moves list proposes; the plan is only
+ * rewritten when the owner asks for it.
+ */
+export interface SectorTarget {
+  sector: SectorId;
+  /** Recommended share of NLV, in percent. */
+  targetPct: number;
+  /** The target this replaces, in percent, when there was one to compare to. */
+  previousPct: number | null;
+  /** One sentence. Why this number, not the old one. */
+  why: string;
+}
+
+export type AllocationMoveKind = 'trim' | 'exit' | 'add' | 'enter' | 'raise-cash' | 'hold';
+
+export interface AllocationMove {
+  kind: AllocationMoveKind;
+  /** Ticker for a position-level move; `null` for a sleeve-level one. */
+  ticker: string | null;
+  /** Sector for a sleeve-level move; `null` when it is about one name. */
+  sector: SectorId | null;
+  /** Share of NLV this would shift, when it could be sized. `null` when not. */
+  sizePctOfNlv: number | null;
+  /** What to do, in one sentence. */
+  action: string;
+  /** The figure being reasoned from. A move with no basis is an opinion. */
+  basis: string;
+  urgency: 'now' | 'soon' | 'watch';
+}
+
+export interface AllocationStance {
+  targetMix: SectorTarget[];
+  /** Recommended minimum cash as a percentage of NLV. `null` = leave as is. */
+  cashFloorPct: number | null;
+  /** Recommended maximum single position as a percentage of NLV. */
+  maxPositionPct: number | null;
+  /** Two or three sentences on what the stance is and what it is reacting to. */
+  reasoning: string;
+  /** Concrete moves, most important first. */
+  moves: AllocationMove[];
+  /** What this stance could not be based on. */
+  caveats: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Snapshots (history)
 // ---------------------------------------------------------------------------
 

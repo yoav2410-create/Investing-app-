@@ -40,6 +40,8 @@ import {
   type PositionsReadResult,
 } from './provider/claude';
 import { buildInsights, summariseForModel } from '@/domain/insights';
+import { stanceProblems, summariseSimulation } from '@/domain/allocation';
+import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
 
@@ -334,13 +336,44 @@ export const useApp = create<AppState>()(
               .map((l) => `Tranche ${l.tranche}: ${l.action} ${l.ticker}${l.shares ? ` ${l.shares}sh` : ''}${l.done ? ' [done]' : ''}`),
           ].join('\n');
 
+          // The projection is handed over rather than described. The stance is
+          // supposed to set the cash floor from what this book actually does in
+          // a drawdown, and it cannot do that from sector weights alone.
+          const simulation = summariseSimulation(
+            runSimulation(
+              state.holdings,
+              state.stocks,
+              state.cashUsd(),
+              state.account().netLiquidationValue,
+              {
+                ...DEFAULT_ASSUMPTIONS,
+                // The same 10-year yield the Market screen discounts against,
+                // so the stance and the chart cannot disagree about the rate.
+                riskFreePct:
+                  state.market.instruments.find((i) => i.symbol === 'US10Y')?.last ??
+                  DEFAULT_ASSUMPTIONS.riskFreePct,
+              },
+            ),
+          );
+
           const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
           const result = await analysePortfolio(client, summariseForModel(insights), {
             verdicts,
             plan: planText,
+            simulation,
           });
+
+          // A stance whose arithmetic does not hold would quietly make every
+          // sector look underweight, so it is checked before it is stored and
+          // the problems are surfaced rather than swallowed.
+          const problems = result.allocation ? stanceProblems(result.allocation) : [];
           set({ portfolioRead: { at: nowIso(), result } });
-          return { ok: true, message: 'Portfolio read updated.' };
+          return {
+            ok: true,
+            message: problems.length
+              ? `Portfolio read updated, but the targets need a look: ${problems.join(' ')}`
+              : 'Portfolio read updated.',
+          };
         } catch (e) {
           return { ok: false, message: describeError(e) };
         } finally {

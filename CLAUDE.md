@@ -31,6 +31,23 @@ measured, and a weighted average carries the share of the book it covers and
 says it is thin below 60%. Filling a gap with zero is the specific failure mode
 this codebase is built to avoid.
 
+**Targets come from analysis, not from the bundle.** The sector mix in
+`PlanConstraints.targetMix` was a placeholder — a number nobody in this app can
+defend, sitting where figures with a source and a date sit. The portfolio read
+now returns an `AllocationStance` (`src/domain/types.ts`): a full sector mix
+where each target says why it is that number, a proposed cash floor and position
+cap, and concrete moves that each cite the figure behind them.
+`resolveTargets()` in `src/domain/allocation.ts` picks the stance when one is on
+file and the bundled mix otherwise, and the Sectors screen says which is in
+force. The bundled mix is the fallback, never the answer.
+
+Two boundaries worth keeping. The sector targets are *live* — drift is measured
+against them. The cash floor and position cap are *proposals*; the plan keeps
+enforcing its own until the owner says otherwise, and the screen shows both
+numbers so one is never mistaken for the other. And `stanceProblems()` checks
+the arithmetic before any of it is drawn, because a mix totalling 80% would make
+every sector look underweight and the drift list would be confidently wrong.
+
 **Every metric explains itself.** 95 glossary entries in `src/domain/glossary.ts`,
 each `{title, what, read, caveat}`. The `caveat` is the point — a tooltip
 explaining P/E without saying that a collapsed-earnings company shows its highest
@@ -90,6 +107,25 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   fail, it is not an assertion — check that a check fails before trusting it.
 - **A hard-coded container Chromium path** in every script, which broke every
   verification pass on any other machine. Now `scripts/browser.mjs`.
+- **Container-absolute *output* paths**, fixed later than the Chromium one and
+  worse for it: `page.screenshot()` creates its parent directory, so on Windows
+  the PNGs went to `C:\home\user\…`, `docs/screenshots` stayed empty, and the
+  run still printed "no page errors". Paths are resolved from `import.meta.url`
+  now — via `fileURLToPath`, not `.pathname`, which keeps the leading slash and
+  yields `C:\C:\…`.
+- **`serve.mjs` comparing `import.meta.url` to a hand-built `file://` + argv[1]**,
+  which never matches on Windows, so the server exited 0 without listening and
+  every check failed to connect for reasons nothing explained.
+- **The tab bar clipping its own labels.** A 48pt bar, 10pt of padding, a 28pt
+  icon that cannot shrink and a 14pt label that can — so the label got a 10pt
+  box with `overflow: hidden` and every glyph lost its bottom quarter, at every
+  width, in both themes. `getBoundingClientRect` reported the box as fitting,
+  because it did; the glyphs painted outside it. Found by opening a PNG.
+- **`node:fs` inside `@anthropic-ai/sdk` failing the whole native bundle.** Expo
+  Go could not start the app at all, and nothing caught it because the whole
+  verification suite drives the web build. `metro.config.js` stubs Node built-ins
+  for native only. A green suite says nothing about whether the app starts on a
+  phone.
 
 ## Verifying
 
@@ -106,7 +142,18 @@ npm run verify:screenshots   # every route, both themes, 375pt and 440pt
 npm run verify:interaction   # tranche projection, navigation, the no-key path
 npm run verify:features      # explainers, insights offline, sentiment card
 npm run verify:simulation    # Monte Carlo horizons and basis, the FCF bridge
+npm run verify:allocation    # targets come from the read, not the bundle
+npm run verify:backup        # export, wipe, restore returns the book
 ```
+
+`verify:allocation` plants a stance rather than paying for a real read, and the
+assertion is the *change*: it reads the bundled target first, plants a different
+one, and requires the screen to show the new number. "A target renders" would
+pass with the placeholder still in force, which is the thing being fixed.
+
+`verify:backup` clears storage mid-run and asserts the book really was lost
+before restoring it. Without that, "it restored" is true regardless of what the
+file held.
 
 Playwright needs a browser once: `npx playwright install chromium`. The scripts
 find it themselves, or take `CHROME_PATH`.
@@ -169,6 +216,17 @@ produce.
 Verified clean across the full history: no API keys, tokens or credentials have
 ever been committed. Anything imported from a screenshot lives only in the
 phone's storage and is never part of a build.
+
+**Which is why the storage had to be made durable.** The positions were read
+out of a photograph and approved row by row; there is no feed to replay them
+from. On the deployed site `navigator.storage.persisted()` returned false,
+meaning the browser could evict the whole book to reclaim space, silently.
+`src/data/persistence.ts` asks for persistent storage once the store has
+hydrated — browsers weigh the request against how used the app looks — and
+reports the answer on Settings rather than implying a safety the browser never
+gave. `src/data/backup.ts` writes the book to a file the owner keeps. The API
+keys are deliberately excluded from it: they live outside the store precisely so
+they are not part of anything the app writes out.
 
 One thing sanitising cannot reach: **the owner's email is in the commit
 history**, so a public repository exposes it. Fixing that means publishing from
