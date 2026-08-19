@@ -1,6 +1,16 @@
 import { launch } from './browser.mjs';
+import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const OUT = '/home/user/Investing-app-/docs/screenshots';
+// Resolved from this file's own location, not an absolute container path. The
+// absolute path did not fail on another machine — it silently succeeded, because
+// page.screenshot() creates its parent directory. The PNGs landed somewhere
+// nobody looks, docs/screenshots stayed empty, and the script still printed
+// "no page errors". A check whose output can go missing without saying so is the
+// same failure as an assertion that cannot fail.
+const OUT = fileURLToPath(new URL('../docs/screenshots', import.meta.url));
+mkdirSync(OUT, { recursive: true });
+
 const BASE = 'http://localhost:8080';
 
 // iPhone SE (smallest current) and iPhone 16 Pro Max (largest).

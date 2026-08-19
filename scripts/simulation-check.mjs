@@ -8,8 +8,15 @@
 //   node scripts/simulation-check.mjs
 
 import { launch } from './browser.mjs';
+import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const OUT = new URL('../docs/screenshots/', import.meta.url).pathname;
+// fileURLToPath rather than .pathname: a file URL's pathname keeps the leading
+// slash the URL spec requires, so on Windows it reads `/C:/...` and every
+// screenshot path resolved to `C:\C:\...` and threw ENOENT.
+const OUT = fileURLToPath(new URL('../docs/screenshots/', import.meta.url));
+mkdirSync(OUT, { recursive: true });
+
 const BASE = process.env.APP_URL ?? 'http://localhost:8080';
 
 const browser = await launch();

@@ -13,6 +13,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const DIR = process.argv[2] ?? 'dist';
 const PORT = Number(process.argv[3] ?? 8080);
@@ -66,7 +67,13 @@ export function createStaticServer({ dir = DIR, base = BASE } = {}) {
 
 // Only listen when run directly, so the checks can import the server rather
 // than shelling out to it.
-if (import.meta.url === `file://${process.argv[1]}`) {
+//
+// pathToFileURL rather than string-concatenating `file://`, because a Windows
+// argv[1] is `C:\dir\serve.mjs` and concatenation yields `file://C:\dir\...`
+// while import.meta.url is `file:///C:/dir/...`. Those never match, so the
+// server started, listened to nothing, and exited 0 — every verification pass
+// then failed to connect, with nothing in the output pointing here.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!existsSync(DIR)) {
     console.error(`No ${DIR}/ — run \`npm run build:web\` first.`);
     process.exit(1);

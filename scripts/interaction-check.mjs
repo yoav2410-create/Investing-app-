@@ -1,5 +1,13 @@
 import { launch } from './browser.mjs';
-const OUT = '/home/user/Investing-app-/docs/screenshots';
+import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// See the note in screenshots.mjs: an absolute path here writes the PNGs
+// outside the repository instead of failing, so the check passes and its
+// evidence disappears.
+const OUT = fileURLToPath(new URL('../docs/screenshots', import.meta.url));
+mkdirSync(OUT, { recursive: true });
+
 const browser = await launch();
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'light', isMobile: true, hasTouch: true,
