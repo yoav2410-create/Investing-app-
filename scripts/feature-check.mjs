@@ -1,6 +1,6 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 const OUT = '/home/user/Investing-app-/docs/screenshots';
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const b = await launch();
 const problems = [];
 
 async function open(route, scheme='light') {

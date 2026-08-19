@@ -99,6 +99,12 @@ npm run build:pages          # the GitHub Pages build, base path and PWA shell
 npm run verify:pwa           # installable, routable, remembers the key
 ```
 
+The browser-driven checks need Playwright's Chromium once
+(`npx playwright install chromium`); they find it themselves after that, or take
+`CHROME_PATH`. `npm run serve:web` is a dependency-free static server with the
+same deep-link fallback the deployed site has — a plain static server answers
+`/stock/META` with an empty 404 and every check dies on it.
+
 `verify:simulation` presses the controls rather than just photographing them: it
 switches horizon and return basis and asserts the median outcome actually moves,
 expands the per-holding input table, and checks that a fund with no cash-flow
@@ -107,6 +113,7 @@ statement hides the bridge instead of rendering an empty one.
 ## Layout
 
 ```
+CLAUDE.md             context for anyone (or anything) picking this up cold
 app/                  expo-router routes (screens)
   (tabs)/             Portfolio · Stocks · Sectors · Plan · More
   stock/[ticker]      the deep per-stock page

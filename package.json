@@ -11,6 +11,7 @@
     "test": "jest",
     "build:web": "expo export --platform web --output-dir dist --clear",
     "build:pages": "EXPO_PUBLIC_BASE_URL=Investing-app- expo export --platform web --output-dir dist --clear && EXPO_PUBLIC_BASE_URL=Investing-app- node scripts/pwa-shell.mjs dist",
+    "serve:web": "node scripts/serve.mjs dist 8080",
     "verify:screenshots": "node scripts/screenshots.mjs",
     "verify:interaction": "node scripts/interaction-check.mjs",
     "verify:features": "node scripts/feature-check.mjs",

@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 const OUT = '/home/user/Investing-app-/docs/screenshots';
 const BASE = 'http://localhost:8080';
@@ -30,7 +30,7 @@ const ROUTES = [
 
 const errors = [];
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await launch();
 for (const scheme of ['light', 'dark']) {
   for (const device of DEVICES) {
     const ctx = await browser.newContext({

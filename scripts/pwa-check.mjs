@@ -15,7 +15,7 @@
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 const OUT = process.argv[2] ?? 'dist';
 const REPO = process.env.EXPO_PUBLIC_BASE_URL ?? 'Investing-app-';
@@ -51,9 +51,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(PORT, r));
 
 const problems = [];
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-});
+const browser = await launch();
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, deviceScaleFactor: 2,
   isMobile: true, hasTouch: true, colorScheme: 'dark',

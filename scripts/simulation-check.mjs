@@ -7,13 +7,12 @@
 //   npx expo export --platform web && npx http-server dist -p 8080
 //   node scripts/simulation-check.mjs
 
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 
 const OUT = new URL('../docs/screenshots/', import.meta.url).pathname;
 const BASE = process.env.APP_URL ?? 'http://localhost:8080';
-const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const problems = [];
 const note = (m) => problems.push(m);
 

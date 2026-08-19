@@ -1,6 +1,6 @@
-import { chromium } from 'playwright';
+import { launch } from './browser.mjs';
 const OUT = '/home/user/Investing-app-/docs/screenshots';
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await launch();
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'light', isMobile: true, hasTouch: true,
 });
