@@ -1,0 +1,366 @@
+import React from 'react';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text as RNText,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
+import { useTheme } from '@/theme/ThemeProvider';
+import { toneColors, type Tone } from '@/theme/tokens';
+
+type TypeKey = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'mono';
+
+export function Text({
+  variant = 'body',
+  tone,
+  muted,
+  faint,
+  style,
+  children,
+  ...rest
+}: React.ComponentProps<typeof RNText> & {
+  variant?: TypeKey;
+  tone?: Tone;
+  muted?: boolean;
+  faint?: boolean;
+}) {
+  const { palette, type } = useTheme();
+  const t = type[variant];
+  const color = tone
+    ? toneColors(palette, tone).fg
+    : faint
+      ? palette.textFaint
+      : muted
+        ? palette.textMuted
+        : palette.text;
+  return (
+    <RNText
+      // Dynamic Type is honoured everywhere; the cap stops the largest
+      // accessibility sizes from breaking table layouts outright.
+      maxFontSizeMultiplier={variant === 'display' || variant === 'title' ? 1.6 : 2}
+      style={[
+        {
+          color,
+          fontSize: t.size,
+          fontWeight: t.weight,
+          letterSpacing: t.spacing,
+          fontVariant: variant === 'mono' ? ['tabular-nums'] : undefined,
+        },
+        style,
+      ]}
+      {...rest}
+    >
+      {children}
+    </RNText>
+  );
+}
+
+export function Card({
+  children,
+  style,
+  muted,
+  padded = true,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  muted?: boolean;
+  padded?: boolean;
+}) {
+  const { palette, radius, spacing } = useTheme();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: muted ? palette.cardMuted : palette.card,
+          borderColor: palette.border,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderRadius: radius.lg,
+          padding: padded ? spacing.lg : 0,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
+export function Section({
+  title,
+  subtitle,
+  action,
+  children,
+  style,
+}: {
+  title?: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { spacing } = useTheme();
+  return (
+    <View style={[{ gap: spacing.sm }, style]}>
+      {(title || action) && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: spacing.sm,
+            flexWrap: 'wrap',
+          }}
+        >
+          <View style={{ flexShrink: 1 }}>
+            {title ? (
+              <Text variant="heading" accessibilityRole="header">
+                {title}
+              </Text>
+            ) : null}
+            {subtitle ? (
+              <Text variant="caption" muted>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+          {action}
+        </View>
+      )}
+      {children}
+    </View>
+  );
+}
+
+export function Pill({
+  label,
+  tone = 'flat',
+  style,
+  compact,
+}: {
+  label: string;
+  tone?: Tone;
+  style?: StyleProp<ViewStyle>;
+  compact?: boolean;
+}) {
+  const { palette, radius, spacing } = useTheme();
+  const c = toneColors(palette, tone);
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: c.bg,
+          borderRadius: radius.pill,
+          paddingHorizontal: compact ? spacing.sm : spacing.md,
+          paddingVertical: compact ? 2 : 4,
+          alignSelf: 'flex-start',
+        },
+        style,
+      ]}
+    >
+      <Text variant="caption" style={{ color: c.fg, fontWeight: '600' }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+export function Stat({
+  label,
+  value,
+  detail,
+  tone,
+  style,
+  accessibilityLabel,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  tone?: Tone;
+  style?: StyleProp<ViewStyle>;
+  accessibilityLabel?: string;
+}) {
+  const { spacing } = useTheme();
+  return (
+    <View
+      style={[{ gap: 2, minWidth: 0 }, style]}
+      accessible
+      accessibilityLabel={accessibilityLabel ?? `${label}: ${value}${detail ? `, ${detail}` : ''}`}
+    >
+      <Text variant="caption" muted numberOfLines={2}>
+        {label}
+      </Text>
+      <Text variant="mono" tone={tone} style={{ fontSize: 17 }} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      {detail ? (
+        <Text variant="caption" faint numberOfLines={1} style={{ marginTop: spacing.xs - 2 }}>
+          {detail}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Two-column key/value line used throughout the detail screens. */
+export function Row({
+  label,
+  value,
+  tone,
+  hint,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  tone?: Tone;
+  hint?: string;
+  onPress?: () => void;
+}) {
+  const { spacing, palette } = useTheme();
+  const body = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: spacing.md,
+        paddingVertical: spacing.sm - 2,
+      }}
+      accessible
+      accessibilityLabel={`${label}: ${value}${hint ? `. ${hint}` : ''}`}
+    >
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text variant="body" muted>
+          {label}
+        </Text>
+        {hint ? (
+          <Text variant="caption" faint>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
+      <Text variant="mono" tone={tone} style={{ textAlign: 'right', flexShrink: 0 }}>
+        {value}
+      </Text>
+    </View>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, backgroundColor: palette.card })}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+export function Divider() {
+  const { palette } = useTheme();
+  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border }} />;
+}
+
+export function Screen({
+  children,
+  scroll = true,
+  refreshControl,
+  contentStyle,
+}: {
+  children: React.ReactNode;
+  scroll?: boolean;
+  refreshControl?: React.ReactElement<React.ComponentProps<typeof RefreshControl>>;
+  contentStyle?: StyleProp<ViewStyle>;
+}) {
+  const { palette, spacing } = useTheme();
+  if (!scroll) {
+    return <View style={{ flex: 1, backgroundColor: palette.bg }}>{children}</View>;
+  }
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: palette.bg }}
+      contentContainerStyle={[
+        { padding: spacing.lg, paddingBottom: spacing.xxl * 2, gap: spacing.lg },
+        contentStyle,
+      ]}
+      refreshControl={refreshControl}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+export function Button({
+  label,
+  onPress,
+  tone = 'accent',
+  variant = 'solid',
+  disabled,
+  style,
+  accessibilityHint,
+}: {
+  label: string;
+  onPress: () => void;
+  tone?: Tone;
+  variant?: 'solid' | 'quiet';
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  accessibilityHint?: string;
+}) {
+  const { palette, radius, spacing } = useTheme();
+  const c = toneColors(palette, tone);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      accessibilityHint={accessibilityHint}
+      style={({ pressed }) => [
+        {
+          backgroundColor: variant === 'solid' ? c.bg : 'transparent',
+          borderColor: variant === 'quiet' ? palette.border : 'transparent',
+          borderWidth: variant === 'quiet' ? StyleSheet.hairlineWidth : 0,
+          borderRadius: radius.md,
+          paddingVertical: spacing.md - 2,
+          paddingHorizontal: spacing.lg,
+          opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
+          // 44pt is the iOS minimum touch target.
+          minHeight: 44,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        style,
+      ]}
+    >
+      <Text variant="label" style={{ color: variant === 'solid' ? c.fg : palette.text, fontWeight: '600' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** Shown wherever a block has no data rather than leaving a hole. */
+export function Empty({ title, detail }: { title: string; detail?: string }) {
+  const { spacing } = useTheme();
+  return (
+    <View style={{ paddingVertical: spacing.lg, gap: spacing.xs }}>
+      <Text variant="body" muted>
+        {title}
+      </Text>
+      {detail ? (
+        <Text variant="caption" faint>
+          {detail}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+export function textStyle(style: StyleProp<TextStyle>): StyleProp<TextStyle> {
+  return style;
+}
