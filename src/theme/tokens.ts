@@ -104,9 +104,14 @@ export const radius = {
  * so nothing here is a fixed pixel promise.
  */
 export const type = {
-  display: { size: 34, weight: '700' as const, spacing: -0.5 },
-  title: { size: 22, weight: '700' as const, spacing: -0.2 },
-  heading: { size: 17, weight: '600' as const, spacing: 0 },
+  // A financial app earns its look mostly through hierarchy: the headline
+  // number is unmistakably the headline, headings are clearly headings, and
+  // everything else stays quiet. Sizes stepped up after the owner asked for a
+  // professional pass; negative tracking on the large sizes is what keeps big
+  // tabular numerals from looking loose.
+  display: { size: 40, weight: '800' as const, spacing: -1 },
+  title: { size: 24, weight: '700' as const, spacing: -0.4 },
+  heading: { size: 18, weight: '600' as const, spacing: -0.2 },
   body: { size: 15, weight: '400' as const, spacing: 0 },
   label: { size: 13, weight: '500' as const, spacing: 0 },
   caption: { size: 12, weight: '400' as const, spacing: 0.1 },

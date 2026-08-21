@@ -374,7 +374,7 @@ export interface DonutSlice {
  */
 export function DonutChart({
   slices,
-  size = 190,
+  size,
   style,
 }: {
   slices: DonutSlice[];
@@ -382,6 +382,11 @@ export function DonutChart({
   style?: StyleProp<ViewStyle>;
 }) {
   const { palette, spacing } = useTheme();
+  const [width, onLayout] = useWidth();
+  // The ring takes half the row and the legend the rest. A fixed diameter left
+  // the legend ~120pt on an iPhone SE, where "Consumer" truncated — and a
+  // legend that cannot spell its labels is failing at its one job.
+  const diameter = size ?? Math.max(132, Math.min(190, Math.round(width * 0.46)));
   const shown = slices.filter((s) => s.pct > 0.05).sort((a, b) => b.pct - a.pct);
   const total = shown.reduce((s, x) => s + x.pct, 0) || 1;
 
@@ -390,9 +395,9 @@ export function DonutChart({
       ? 'Allocation: nothing priced yet.'
       : `Allocation: ${shown.map((s) => `${s.label} ${s.pct.toFixed(1)} percent`).join(', ')}.`;
 
-  const cx = size / 2;
-  const cy = size / 2;
-  const rOuter = size / 2 - 2;
+  const cx = diameter / 2;
+  const cy = diameter / 2;
+  const rOuter = diameter / 2 - 2;
   const rInner = rOuter * 0.62;
   const rLabel = (rOuter + rInner) / 2;
   // The 2pt gap between slices, expressed as the angle it subtends mid-ring.
@@ -421,12 +426,13 @@ export function DonutChart({
 
   return (
     <View
+      onLayout={onLayout}
       style={[{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }, style]}
       accessible
       accessibilityRole="image"
       accessibilityLabel={summary}
     >
-      <Svg width={size} height={size}>
+      <Svg width={diameter} height={diameter}>
         {arcs.map((a) => (
           <Path key={a.s.sector} d={a.d} fill={a.color} />
         ))}

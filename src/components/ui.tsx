@@ -73,7 +73,7 @@ export function Card({
   muted?: boolean;
   padded?: boolean;
 }) {
-  const { palette, radius, spacing } = useTheme();
+  const { palette, radius, spacing, scheme } = useTheme();
   return (
     <View
       style={[
@@ -83,6 +83,15 @@ export function Card({
           borderWidth: StyleSheet.hairlineWidth,
           borderRadius: radius.lg,
           padding: padded ? spacing.lg : 0,
+          // Depth instead of outline-only: a soft ambient shadow separates the
+          // card from the page the way iOS surfaces do. Kept faint in dark
+          // mode, where a shadow on a dark ground reads as mud and the border
+          // is doing the separating.
+          shadowColor: '#0B1526',
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 8,
+          shadowOpacity: scheme === 'dark' ? 0.35 : 0.07,
+          elevation: 2,
         },
         style,
       ]}
@@ -352,6 +361,12 @@ export function Button({
 }) {
   const { palette, radius, spacing } = useTheme();
   const c = toneColors(palette, tone);
+  // A solid button is now genuinely solid — filled with the tone colour, label
+  // in the page background colour, which is what keeps the contrast right in
+  // both themes (near-white text on the light palette's saturated accent, near-
+  // black on the dark palette's pale one). The quiet variant takes over the old
+  // tinted look, so the two read as primary and secondary instead of as two
+  // ways of drawing the same button.
   return (
     <Pressable
       onPress={onPress}
@@ -361,9 +376,7 @@ export function Button({
       accessibilityHint={accessibilityHint}
       style={({ pressed }) => [
         {
-          backgroundColor: variant === 'solid' ? c.bg : 'transparent',
-          borderColor: variant === 'quiet' ? palette.border : 'transparent',
-          borderWidth: variant === 'quiet' ? StyleSheet.hairlineWidth : 0,
+          backgroundColor: variant === 'solid' ? c.fg : c.bg,
           borderRadius: radius.md,
           paddingVertical: spacing.md - 2,
           paddingHorizontal: spacing.lg,
@@ -376,7 +389,10 @@ export function Button({
         style,
       ]}
     >
-      <Text variant="label" style={{ color: variant === 'solid' ? c.fg : palette.text, fontWeight: '600' }}>
+      <Text
+        variant="label"
+        style={{ color: variant === 'solid' ? palette.bg : c.fg, fontWeight: '600' }}
+      >
         {label}
       </Text>
     </Pressable>

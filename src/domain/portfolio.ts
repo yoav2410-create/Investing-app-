@@ -173,3 +173,95 @@ export function concentration(positions: PositionView[]): {
     top5WeightPct: sorted.slice(0, 5).reduce((s, p) => s + (p.weightPct ?? 0), 0),
   };
 }
+
+
+// ---------------------------------------------------------------------------
+// The capital split, and growth over time
+// ---------------------------------------------------------------------------
+
+/**
+ * Tickers that are cash wearing an ETF wrapper. Held SGOV is not an equity
+ * bet, and counting it as one overstates how much of the book is at risk.
+ * The list is deliberately narrow - T-bill and floating-rate funds only.
+ * A short-duration bond fund still moves with rates and does not belong here.
+ */
+const CASH_LIKE = new Set(['SGOV', 'BIL', 'SHV', 'USFR', 'TFLO', 'SGOV.L']);
+
+export interface CapitalSplit {
+  /** Equity at risk, as a percent of net liquidation value. */
+  equityPct: number;
+  /** Broker cash, percent of NLV. */
+  cashPct: number;
+  /** T-bill / floating-rate ETFs, percent of NLV. Zero when none are held. */
+  cashLikePct: number;
+  /** The cash-like tickers actually held, for the caption. */
+  cashLikeTickers: string[];
+}
+
+/** How the book's capital is actually deployed, from the priced positions. */
+export function capitalSplit(
+  positions: PositionView[],
+  cashUsd: number,
+  nlv: number,
+): CapitalSplit {
+  if (nlv <= 0) return { equityPct: 0, cashPct: 0, cashLikePct: 0, cashLikeTickers: [] };
+  const cashLike = positions.filter((p) => CASH_LIKE.has(p.ticker) && p.marketValue != null);
+  const cashLikeMv = cashLike.reduce((s, p) => s + (p.marketValue ?? 0), 0);
+  const equityMv = positions.reduce((s, p) => s + (p.marketValue ?? 0), 0) - cashLikeMv;
+  return {
+    equityPct: (equityMv / nlv) * 100,
+    cashPct: (cashUsd / nlv) * 100,
+    cashLikePct: (cashLikeMv / nlv) * 100,
+    cashLikeTickers: cashLike.map((p) => p.ticker),
+  };
+}
+
+export interface YearGrowthRow {
+  /** "2025", or "2026 YTD" for the running year. */
+  label: string;
+  /** Percent change over the year, from the last snapshot of the prior year. */
+  changePct: number;
+  endValue: number;
+}
+
+/**
+ * Year-over-year growth, from the daily snapshots.
+ *
+ * Honest by construction: a year appears only when there is a snapshot to
+ * measure it from, so a book imported this year shows a single year-to-date
+ * row - measured from the EARLIEST snapshot of the year, which understates a
+ * full year rather than inventing one. Nothing extrapolates.
+ */
+export function yearGrowth(
+  snapshots: { date: string; netLiquidationValue: number }[],
+): YearGrowthRow[] {
+  if (snapshots.length < 2) return [];
+  const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const byYear = new Map<string, { first: number; last: number }>();
+  for (const s of sorted) {
+    const year = s.date.slice(0, 4);
+    const entry = byYear.get(year);
+    if (!entry) byYear.set(year, { first: s.netLiquidationValue, last: s.netLiquidationValue });
+    else entry.last = s.netLiquidationValue;
+  }
+  const years = [...byYear.keys()].sort();
+  const out: YearGrowthRow[] = [];
+  const currentYear = sorted[sorted.length - 1]!.date.slice(0, 4);
+  let prevEnd: number | null = null;
+  for (const year of years) {
+    const { first, last } = byYear.get(year)!;
+    // A completed year is measured against the previous year end; the first
+    // year on record, and the running year with nothing before it, can only be
+    // measured within themselves.
+    const base: number = prevEnd ?? first;
+    if (base > 0 && !(base === last && prevEnd == null && first === last)) {
+      out.push({
+        label: year === currentYear ? `${year} YTD` : year,
+        changePct: ((last - base) / base) * 100,
+        endValue: last,
+      });
+    }
+    prevEnd = last;
+  }
+  return out;
+}

@@ -4,7 +4,7 @@ import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
-import { Button, Card, Pill, Screen, Section, Stat, Text } from '@/components/ui';
+import { Button, Card, Empty, Pill, Screen, Section, Stat, Text } from '@/components/ui';
 import { DonutChart, Sparkline } from '@/components/charts';
 import { MonteCarloBlock } from '@/components/MonteCarloBlock';
 import { StockRow } from '@/components/StockRow';
@@ -18,7 +18,14 @@ import {
   relativeAsOf,
   tone,
 } from '@/domain/format';
-import { concentration, positionViews, sectorBuckets, topMovers } from '@/domain/portfolio';
+import {
+  capitalSplit,
+  concentration,
+  positionViews,
+  sectorBuckets,
+  topMovers,
+  yearGrowth,
+} from '@/domain/portfolio';
 import { resolveTargets } from '@/domain/allocation';
 import { trendRead } from '@/domain/technicals';
 
@@ -62,6 +69,11 @@ export default function PortfolioScreen() {
   );
   const movers = useMemo(() => topMovers(positions), [positions]);
   const conc = useMemo(() => concentration(positions), [positions]);
+  const split = useMemo(
+    () => capitalSplit(positions, cash, account.netLiquidationValue),
+    [positions, cash, account.netLiquidationValue],
+  );
+  const growth = useMemo(() => yearGrowth(snapshots), [snapshots]);
 
   const cashPct = account.netLiquidationValue === 0 ? 0 : (cash / account.netLiquidationValue) * 100;
   const floorPct = plan.constraints.cashFloorPct * 100;
@@ -211,10 +223,40 @@ export default function PortfolioScreen() {
         </Card>
       </Section>
 
-      <Section title="Account">
+      <Section title="The book" subtitle="Where the capital sits, and what it has done">
         <Card>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
-            <Stat label="Market value" term="marketValue" value={compactCurrency(account.marketValue)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat
+              label="Total value"
+              term="netLiquidationValue"
+              value={currency(account.netLiquidationValue, { decimals: 0 })}
+              style={{ flexBasis: '30%', flexGrow: 1 }}
+            />
+            <Stat
+              label="In equities"
+              term="weight"
+              value={`${split.equityPct.toFixed(1)}%`}
+              detail={compactCurrency(account.marketValue)}
+              style={{ flexBasis: '30%', flexGrow: 1 }}
+            />
+            <Stat
+              label="In cash"
+              term="cashFloor"
+              value={`${split.cashPct.toFixed(1)}%`}
+              detail={compactCurrency(cash)}
+              tone={underFloor ? 'down' : 'up'}
+              style={{ flexBasis: '30%', flexGrow: 1 }}
+            />
+            <Stat
+              label="T-bill ETFs"
+              value={split.cashLikePct > 0 ? `${split.cashLikePct.toFixed(1)}%` : '—'}
+              detail={
+                split.cashLikeTickers.length
+                  ? split.cashLikeTickers.join(', ')
+                  : 'none held (SGOV, BIL…)'
+              }
+              style={{ flexBasis: '30%', flexGrow: 1 }}
+            />
             <Stat
               label="Unrealised P&L" term="unrealizedPnl"
               value={compactCurrency(account.unrealizedPnl)}
@@ -227,17 +269,6 @@ export default function PortfolioScreen() {
               tone={tone(account.realizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
-            <Stat
-              label="Cash"
-              term="cashFloor"
-              value={compactCurrency(cash)}
-              detail={`${cashPct.toFixed(1)}% of book`}
-              tone={underFloor ? 'down' : 'up'}
-              style={{ flexBasis: '30%', flexGrow: 1 }}
-            />
-            <Stat label="Excess liquidity" term="excessLiquidity" value={compactCurrency(account.excessLiquidity)} style={{ flexBasis: '30%', flexGrow: 1 }} />
-            <Stat label="Maint. margin" term="maintenanceMargin" value={compactCurrency(account.maintenanceMargin)} style={{ flexBasis: '30%', flexGrow: 1 }} />
-            <Stat label="Buying power" term="buyingPower" value={compactCurrency(account.buyingPower)} style={{ flexBasis: '30%', flexGrow: 1 }} />
             <Stat
               label="Largest position" term="positionCap"
               value={conc.topTicker ?? '—'}
@@ -259,6 +290,54 @@ export default function PortfolioScreen() {
                 .join(', ')}
             </Text>
           ) : null}
+        </Card>
+      </Section>
+
+      <Section
+        title="Growth"
+        term="snapshot"
+        subtitle="Year over year, from the daily snapshots"
+      >
+        <Card style={{ gap: spacing.sm }}>
+          {growth.length === 0 ? (
+            <Empty
+              title="Not enough history yet."
+              detail="A snapshot is taken every day the app prices the book. The first year-over-year bar appears once two snapshots exist; a completed year is measured end to end."
+            />
+          ) : (
+            <>
+              {growth.map((g) => (
+                <View
+                  key={g.label}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+                  accessible
+                  accessibilityLabel={`${g.label}: ${g.changePct >= 0 ? 'up' : 'down'} ${Math.abs(g.changePct).toFixed(1)} percent, ending at ${compactCurrency(g.endValue)}.`}
+                >
+                  <Text variant="label" muted style={{ width: 74 }}>
+                    {g.label}
+                  </Text>
+                  <View style={{ flex: 1, height: 18, justifyContent: 'center' }}>
+                    <View
+                      style={{
+                        height: 18,
+                        borderRadius: 5,
+                        width: `${Math.min(100, Math.max(4, Math.abs(g.changePct) * 2.2))}%`,
+                        backgroundColor: g.changePct >= 0 ? palette.up : palette.down,
+                        alignSelf: 'flex-start',
+                      }}
+                    />
+                  </View>
+                  <Text variant="mono" tone={g.changePct >= 0 ? 'up' : 'down'} style={{ width: 62, textAlign: 'right' }}>
+                    {percent(g.changePct, { decimals: 1 })}
+                  </Text>
+                </View>
+              ))}
+              <Text variant="caption" faint>
+                Each bar is the change in net liquidation value over that year; the running year is
+                measured from its earliest snapshot, so it understates rather than extrapolates.
+              </Text>
+            </>
+          )}
         </Card>
       </Section>
 
