@@ -15,6 +15,26 @@ on:
       - main
       - claude/iphone-investment-app-frn8sy
   workflow_dispatch:
+  # Marks go stale on their own, so something has to run when nobody is
+  # looking. Through the US session (13:30-20:00 UTC, with a margin either side
+  # for daylight saving), weekdays only — outside those hours the prices have
+  # not moved and the run would be noise.
+  #
+  # Every fifteen minutes, matching the timer the app runs on while it is open.
+  # The sweep is ~517 symbols paced just under Finnhub's sixty-a-minute
+  # allowance, so it takes about nine minutes, and the build adds two: eleven
+  # inside a fifteen-minute window, which is why the list has a documented
+  # ceiling rather than being grown freely. GitHub delays scheduled runs under
+  # load, which is why the app shows the age of a mark instead of implying it
+  # is live.
+  #
+  # GitHub registers schedule triggers ONLY from this file's copy on the
+  # default branch. A cron declared on a feature branch never fires — which is
+  # exactly what happened here for a day while every "scheduled" refresh was
+  # actually a push. Keep main's copy of this file in sync, and keep the
+  # checkout step below pointing scheduled runs at the working branch.
+  schedule:
+    - cron: '*/15 13-21 * * 1-5'
 
 # Pages needs these; the defaults are not enough.
 permissions:
@@ -31,7 +51,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # A scheduled run fires from main's copy of this file and would check out
+      # main — the old app — unless told otherwise. Pushes keep their own ref.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'claude/iphone-investment-app-frn8sy' || '' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -49,21 +73,44 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build the web app
+      # Fetched here rather than in the app so the key never ships. The phone
+      # reads the result from its own origin, holds no secret, and does not
+      # have to be open for the numbers to be current.
+      #
+      # continue-on-error: a bad minute at Finnhub should not stop a deploy.
+      # The script already refuses to overwrite good marks with an empty file,
+      # so the worst case is the site republishes with the previous quotes.json
+      # and the app says how old it is.
+      - name: Fetch live marks
+        continue-on-error: true
         env:
-          # GitHub Pages serves a project site under /<repo>/, so every asset
-          # path needs that prefix baked in.
-          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: node scripts/fetch-quotes.mjs public
+
+      # GitHub Pages serves a project site under /<repo>/, so every asset path
+      # needs that prefix baked in. Derived from GITHUB_REPOSITORY rather than
+      # github.event.repository.name, because scheduled runs carry no
+      # repository object in their event payload — the old expression resolved
+      # to an empty string there, and every cron deploy would have published a
+      # site whose assets all pointed at the wrong root: a white screen.
+      - name: Resolve the Pages base path
+        run: echo "EXPO_PUBLIC_BASE_URL=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+
+      - name: Build the web app
         run: npx expo export --platform web --output-dir dist --clear
 
       # Adds the head tags that make Safari install this as an app rather
       # than bookmark it, plus the 404 fallback Pages needs for deep links and
       # the .nojekyll that stops Pages eating the _expo directory. Exits
-      # non-zero if any of it fails to apply.
+      # non-zero if any of it fails to apply. EXPO_PUBLIC_BASE_URL comes from
+      # the resolve step above, for the same scheduled-run reason.
       - name: Apply the PWA shell
-        env:
-          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
         run: node scripts/pwa-shell.mjs dist
+
+      # The bundle is what the public actually sees. Fail the build rather than
+      # publish credentials or owner-specific data by accident.
+      - name: Check nothing personal is in the build
+        run: node scripts/privacy-check.mjs dist
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -76,5 +123,33 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Without this, a repository that has never had Pages switched on fails
+      # with a 404 and an octokit stack trace, which tells the owner nothing.
+      # The build has already succeeded by this point, so the only thing left
+      # to get wrong is the setting — say so in words.
+      - name: Check Pages is switched on
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages")
+          if [ "$status" = "404" ]; then
+            echo "::error title=GitHub Pages is not enabled::The app built fine — only publishing is blocked."
+            echo ""
+            echo "Fix it once, from a phone or a computer:"
+            echo "  1. Open https://github.com/${{ github.repository }}/settings/pages"
+            echo "  2. Under 'Build and deployment', set Source to 'GitHub Actions'"
+            echo "  3. Re-run this workflow"
+            echo ""
+            echo "If that page says Pages is unavailable, the repository is private on a"
+            echo "free plan. Pages needs either a public repository (free) or GitHub Pro."
+            echo "Note that a Pages site is publicly reachable either way — paying does"
+            echo "not make the published app private."
+            exit 1
+          fi
+          echo "Pages is enabled (HTTP $status). Publishing."
+
       - id: deployment
         uses: actions/deploy-pages@v4
