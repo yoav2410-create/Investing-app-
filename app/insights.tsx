@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Empty, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
-import { ConcentrationBar } from '@/components/charts';
+import { ConcentrationBar, sectorColor } from '@/components/charts';
 import { InfoButton } from '@/components/InfoButton';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { useApp } from '@/data/store';
@@ -383,10 +383,12 @@ export default function InsightsScreen() {
           <ConcentrationBar
             slices={i.sectors
               .filter((s) => s.weightPct > 0)
-              .map((s, n) => ({
+              .map((s) => ({
                 label: s.short,
                 pct: s.weightPct,
-                color: s.sector === 'cash' ? palette.flat : palette.series[n % palette.series.length]!,
+                // Identity, not rank: the same mapping as the donut and the
+                // Sectors tab, so a sector never changes colour between tabs.
+                color: sectorColor(palette, s.sector),
               }))}
           />
           {i.drift.length === 0 ? (

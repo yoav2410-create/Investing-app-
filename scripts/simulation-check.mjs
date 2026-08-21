@@ -86,7 +86,8 @@ function needs(text, label, phrases) {
   else console.log(`Monte Carlo: median outcome ${median}, beats the S&P in ${beat}% of paths`);
 
   // The horizon chips must re-run the simulation, not just relabel it.
-  await m.page.getByText('1y', { exact: true }).click();
+  // By role, not by text: the fan chart's own axis now says "1y" too.
+  await m.page.getByRole('button', { name: '1y' }).click();
   await m.page.waitForTimeout(600);
   const oneYear = await m.text();
   const median1 = oneYear.match(/Median outcome\D{0,6}([$\d.KMB]+)/)?.[1];
@@ -96,7 +97,7 @@ function needs(text, label, phrases) {
   if (!oneYear.includes('over 1 year,')) note('subtitle did not follow the 1y horizon');
 
   // Back to five years, then swap the return basis.
-  await m.page.getByText('5y', { exact: true }).click();
+  await m.page.getByRole('button', { name: '5y' }).click();
   await m.page.waitForTimeout(600);
   await m.page.getByText('Analyst targets', { exact: true }).click();
   await m.page.waitForTimeout(600);

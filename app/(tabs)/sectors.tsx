@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Card, Pill, Row, Screen, Section, Text } from '@/components/ui';
-import { ConcentrationBar, TargetBars } from '@/components/charts';
+import { ConcentrationBar, TargetBars, sectorColor } from '@/components/charts';
 import { useApp } from '@/data/store';
 import { compactCurrency, percent } from '@/domain/format';
 import { positionViews, sectorBuckets } from '@/domain/portfolio';
@@ -59,10 +59,13 @@ export default function SectorsScreen() {
             height={26}
             slices={buckets
               .filter((b) => b.weightPct > 0)
-              .map((b, i) => ({
+              .map((b) => ({
                 label: b.short,
                 pct: b.weightPct,
-                color: b.sector === 'cash' ? palette.flat : palette.series[i % palette.series.length]!,
+                // By identity, never by position in the visible list — the
+                // same stable mapping the Portfolio donut uses, so one sector
+                // is one colour on every tab.
+                color: sectorColor(palette, b.sector),
               }))}
           />
           <Text variant="caption" muted>

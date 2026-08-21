@@ -27,12 +27,9 @@ export default function SettingsScreen() {
   const update = useApp((s) => s.updateSettings);
   const holdings = useApp((s) => s.holdings);
   const stocks = useApp((s) => s.stocks);
-  const refreshNow = useApp((s) => s.refreshNow);
   const resetToSeed = useApp((s) => s.resetToSeed);
-  const refresh = useApp((s) => s.refresh);
 
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   return (
     <Screen>
@@ -142,48 +139,6 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <Section
-        title="Alpha Vantage"
-        subtitle="Optional — precise daily technicals. Skip this unless you have a key."
-      >
-        <KeyField
-          name="alphavantage"
-          label="Alpha Vantage API key"
-          placeholder="Optional"
-          help="A free key allows 25 requests a day, which is fewer than one per tracked ticker. The scheduler spends that budget in priority order and rotates the rest across days."
-        />
-        <Card style={{ gap: spacing.sm }}>
-          <Row
-            label="Daily call budget"
-            value={String(settings.dailyCallBudget)}
-            hint={`${refresh.callsUsedToday} used today`}
-          />
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            {[25, 75, 500].map((n) => (
-              <Button
-                key={n}
-                label={String(n)}
-                onPress={() => update({ dailyCallBudget: n })}
-                variant={settings.dailyCallBudget === n ? 'solid' : 'quiet'}
-                style={{ flex: 1 }}
-              />
-            ))}
-          </View>
-          <Button
-            label={busy ? 'Refreshing…' : 'Refresh technicals now'}
-            onPress={async () => {
-              setBusy(true);
-              const res = await refreshNow();
-              setBusy(false);
-              setStatus(res.message);
-            }}
-            variant="quiet"
-            disabled={busy}
-          />
-          {busy ? <ActivityIndicator color={palette.accent} /> : null}
-        </Card>
-      </Section>
-
       <Section title="Reset">
         <Card style={{ gap: spacing.sm }}>
           <Text variant="caption" muted>
@@ -221,25 +176,21 @@ export default function SettingsScreen() {
  * and a settings screen that offers two ways to do one thing is how the owner
  * ends up doing neither.
  */
-function PricesSection({ onStatus }: { onStatus: (s: string) => void }) {
+function PricesSection(_props: { onStatus: (s: string) => void }) {
   const { spacing } = useTheme();
-  const refreshLive = useApp((s) => s.refreshLiveQuotes);
   const refreshingQuotes = useApp((s) => s.refreshingQuotes);
   const quotesFetchedAt = useApp((s) => s.quotesFetchedAt);
 
   return (
-    <Section title="Prices" subtitle="Refreshed every 15 minutes on their own">
+    <Section title="Prices" subtitle="Automatic — nothing here to operate">
       <Card style={{ gap: spacing.sm }}>
         <Text variant="caption" muted>
-          Marks come from a published feed the app reads automatically — on open, every fifteen
-          minutes while open, and after every screenshot import.
+          Marks refresh on their own: on open, every fifteen minutes while open, when the app
+          returns to the foreground, and after every screenshot import. A scheduled feed keeps
+          them current even while the app is closed.
           {quotesFetchedAt ? ` Feed last fetched ${relativeAsOf(quotesFetchedAt)}.` : ''}
+          {refreshingQuotes ? ' Refreshing now…' : ''}
         </Text>
-        <Button
-          label={refreshingQuotes ? 'Refreshing…' : 'Refresh prices now'}
-          onPress={async () => onStatus((await refreshLive()).message)}
-          disabled={refreshingQuotes}
-        />
         <Divider />
         <KeyField
           name="finnhub"

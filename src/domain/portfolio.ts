@@ -117,9 +117,13 @@ export function topMovers(positions: PositionView[], count = 3): {
       dayPnl: p.dayPnl,
     }));
   const sorted = [...withChange].sort((a, b) => b.changePct - a.changePct);
+  // Sign-filtered on both sides. Slicing three off each end of one sorted list
+  // let the same ticker appear as both "gainer" and "loser" whenever fewer
+  // than six positions were priced — which rendered it twice, with duplicate
+  // React keys, on the front page.
   return {
-    gainers: sorted.slice(0, count),
-    losers: sorted.slice(-count).reverse().filter((m) => m.changePct < 0),
+    gainers: sorted.filter((m) => m.changePct > 0).slice(0, count),
+    losers: sorted.filter((m) => m.changePct < 0).slice(-count).reverse(),
   };
 }
 

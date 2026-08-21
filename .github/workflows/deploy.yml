@@ -27,6 +27,12 @@ on:
   # ceiling rather than being grown freely. GitHub delays scheduled runs under
   # load, which is why the app shows the age of a mark instead of implying it
   # is live.
+  #
+  # GitHub registers schedule triggers ONLY from this file's copy on the
+  # default branch. A cron declared on a feature branch never fires — which is
+  # exactly what happened here for a day while every "scheduled" refresh was
+  # actually a push. Keep main's copy of this file in sync, and keep the
+  # checkout step below pointing scheduled runs at the working branch.
   schedule:
     - cron: '*/15 13-21 * * 1-5'
 
@@ -45,7 +51,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # A scheduled run fires from main's copy of this file and would check out
+      # main — the old app — unless told otherwise. Pushes keep their own ref.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'claude/iphone-investment-app-frn8sy' || '' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -77,20 +87,24 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: node scripts/fetch-quotes.mjs public
 
+      # GitHub Pages serves a project site under /<repo>/, so every asset path
+      # needs that prefix baked in. Derived from GITHUB_REPOSITORY rather than
+      # github.event.repository.name, because scheduled runs carry no
+      # repository object in their event payload — the old expression resolved
+      # to an empty string there, and every cron deploy would have published a
+      # site whose assets all pointed at the wrong root: a white screen.
+      - name: Resolve the Pages base path
+        run: echo "EXPO_PUBLIC_BASE_URL=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+
       - name: Build the web app
-        env:
-          # GitHub Pages serves a project site under /<repo>/, so every asset
-          # path needs that prefix baked in.
-          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
         run: npx expo export --platform web --output-dir dist --clear
 
       # Adds the head tags that make Safari install this as an app rather
       # than bookmark it, plus the 404 fallback Pages needs for deep links and
       # the .nojekyll that stops Pages eating the _expo directory. Exits
-      # non-zero if any of it fails to apply.
+      # non-zero if any of it fails to apply. EXPO_PUBLIC_BASE_URL comes from
+      # the resolve step above, for the same scheduled-run reason.
       - name: Apply the PWA shell
-        env:
-          EXPO_PUBLIC_BASE_URL: ${{ github.event.repository.name }}
         run: node scripts/pwa-shell.mjs dist
 
       # The bundle is what the public actually sees. Fail the build rather than

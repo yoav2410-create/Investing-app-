@@ -168,12 +168,33 @@ export function LineChart({
           {lastIndex >= 0 ? (
             <Circle cx={x(lastIndex)} cy={y(ordered[lastIndex]!.value!)} r={3.5} fill={c.fg} />
           ) : null}
-          <SvgText fontFamily={CHART_FONT} x={padL} y={height - 4} fill={palette.textFaint} fontSize={10}>
-            {ordered[0]?.label ?? ''}
-          </SvgText>
-          <SvgText fontFamily={CHART_FONT} x={w - padR} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
-            {ordered[ordered.length - 1]?.label ?? ''}
-          </SvgText>
+          {/* Every period along the axis, not just the two ends — the reader
+              should never have to interpolate which quarter a bend belongs to.
+              Labels thin to every other one when the slots get too narrow to
+              keep them apart, ends always kept. */}
+          {ordered.map((p, i) => {
+            const slot = innerW / Math.max(ordered.length - 1, 1);
+            const keepLabel =
+              slot >= 34 || i === 0 || i === ordered.length - 1 || i % 2 === (ordered.length - 1) % 2;
+            if (!keepLabel) return null;
+            // The end labels are anchored outward, which walks them into their
+            // immediate neighbours — "Q1 24Q2 24" run together. The neighbour
+            // yields; the end label is the one a reader needs.
+            if ((i === 1 || i === ordered.length - 2) && slot < 48) return null;
+            return (
+              <SvgText
+                fontFamily={CHART_FONT}
+                key={`x-${p.period}`}
+                x={x(i)}
+                y={height - 4}
+                fill={palette.textFaint}
+                fontSize={9}
+                textAnchor={i === 0 ? 'start' : i === ordered.length - 1 ? 'end' : 'middle'}
+              >
+                {p.label}
+              </SvgText>
+            );
+          })}
         </Svg>
       ) : (
         <View style={{ height }} />
@@ -1109,12 +1130,26 @@ export function FanChart({
             />
           ) : null}
           <Circle cx={x(bands.length - 1)} cy={y(last.p50)} r={3.5} fill={palette.accent} />
-          <SvgText fontFamily={CHART_FONT} x={2} y={height - 4} fill={palette.textFaint} fontSize={10}>
-            now
-          </SvgText>
-          <SvgText fontFamily={CHART_FONT} x={w - 2} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
-            {bands.length - 1}y
-          </SvgText>
+          {/* Every year along the axis, thinned to every other on the long
+              horizons, so a bend in the path can be dated without guessing. */}
+          {bands.map((_, i) => {
+            const slot = w / Math.max(bands.length - 1, 1);
+            const keepLabel = slot >= 34 || i === 0 || i === bands.length - 1 || i % 2 === (bands.length - 1) % 2;
+            if (!keepLabel) return null;
+            return (
+              <SvgText
+                fontFamily={CHART_FONT}
+                key={`yr-${i}`}
+                x={x(i)}
+                y={height - 4}
+                fill={palette.textFaint}
+                fontSize={9}
+                textAnchor={i === 0 ? 'start' : i === bands.length - 1 ? 'end' : 'middle'}
+              >
+                {i === 0 ? 'now' : `${i}y`}
+              </SvgText>
+            );
+          })}
         </Svg>
       ) : (
         <View style={{ height }} />

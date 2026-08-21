@@ -30,17 +30,14 @@ export default function MoreScreen() {
       title: 'AI insights',
       detail: 'What the book is actually betting on, concentration, and where the risk sits',
     },
-    {
-      href: '/sync',
-      icon: 'camera-outline',
-      title: 'Update from screenshot',
-      detail: 'Claude reads your broker screen and updates the book',
-    },
+    // "Update from a screenshot" is deliberately absent: it is the primary
+    // button on the Portfolio page, and a second door to the same flow just
+    // makes the list longer.
     {
       href: '/market',
       icon: 'globe-outline',
       title: 'Market overview',
-      detail: `${market.instruments.length} instruments · book-wide options sentiment`,
+      detail: `${market.instruments.length} instruments · indices, ETFs and yields`,
     },
     {
       href: '/returns',

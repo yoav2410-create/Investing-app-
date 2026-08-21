@@ -302,7 +302,7 @@ export const GLOSSARY = {
   },
   breadth: {
     title: 'Breadth',
-    what: 'How many holdings share a condition — in an uptrend, cheap against their own history, bearish on options flow.',
+    what: 'How many holdings share a condition — in an uptrend, cheap against their own history, insiders buying or selling.',
     read: 'Breadth tells you whether something is happening to one position or to the whole book.',
   },
   valuationDispersion: {
@@ -521,7 +521,7 @@ export const GLOSSARY = {
   },
   needsAttention: {
     title: 'Needs attention',
-    what: 'Constraint breaches, broken trends and bearish options flow, gathered in one place.',
+    what: 'Constraint breaches, broken trends and insider selling, gathered in one place.',
     read: 'Everything here is derived from thresholds you set. An empty list means nothing crossed one.',
   },
   snapshot: {

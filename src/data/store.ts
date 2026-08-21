@@ -40,7 +40,7 @@ import {
   type PositionsReadResult,
 } from './provider/claude';
 import { buildInsights, summariseForModel } from '@/domain/insights';
-import { stanceMoveKey, stanceProblems, summariseSimulation } from '@/domain/allocation';
+import { resolveTargets, stanceMoveKey, stanceProblems, summariseSimulation } from '@/domain/allocation';
 import { fetchQuotes } from './provider/finnhub';
 import { fetchPublishedQuotes, toQuote as toPublishedQuote } from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
@@ -121,6 +121,44 @@ export interface AppState {
   quotesFetchedAt: string | null;
   takeSnapshot: () => void;
   resetToSeed: () => void;
+}
+
+/**
+ * Bring a persisted state — from an old install or a restored backup file —
+ * up to what this build expects. One function for both paths, so an upgrade
+ * and a restore cannot disagree about what "old" means.
+ *
+ * Three repairs, each earned by a real failure:
+ * - Settings are re-based on the defaults, so a key added after the state was
+ *   written gets its default instead of `undefined` (which reads as "off" for
+ *   every toggle). The renamed insider alert also inherits the old options
+ *   toggle's choice rather than resetting it.
+ * - `refresh.status` is forced back to idle. iOS kills a home-screen app
+ *   whenever it likes; one killed mid-refresh persisted 'running' forever and
+ *   the refresh button answered "already running" until a reset-to-seed.
+ * - `stanceDone` gets its default for states that predate the dynamic plan.
+ */
+export function normalisePersisted<T extends Record<string, unknown>>(persisted: T): T {
+  const p = persisted as T & {
+    settings?: Partial<Settings> & { alertOnOptionsFlip?: boolean };
+    refresh?: RefreshState;
+    stanceDone?: string[];
+  };
+  const old = p.settings ?? {};
+  const settings: Settings = {
+    ...DEFAULT_SETTINGS,
+    ...old,
+    alertOnInsiderSelling:
+      old.alertOnInsiderSelling ?? old.alertOnOptionsFlip ?? DEFAULT_SETTINGS.alertOnInsiderSelling,
+  };
+  return {
+    ...p,
+    settings,
+    refresh: p.refresh
+      ? { ...p.refresh, status: p.refresh.status === 'running' ? 'idle' : p.refresh.status }
+      : p.refresh,
+    stanceDone: p.stanceDone ?? [],
+  };
 }
 
 function snapshotFrom(stocks: Record<string, Stock>, nlv: number, dayPnl: number): PortfolioSnapshot {
@@ -339,7 +377,16 @@ export const useApp = create<AppState>()(
       clearResearchQueue: () => set({ researchQueue: [] }),
 
       refreshLiveQuotes: async (opts) => {
-        if (get().refreshingQuotes) return { ok: false, message: 'Already refreshing.' };
+        if (get().refreshingQuotes) {
+          // Not dropped — queued. A screenshot import fires this the moment it
+          // applies, and the 15-minute timer or a foreground refresh is often
+          // already mid-sweep with a symbol list fixed before the import
+          // landed. Losing the request meant the new names kept the
+          // screenshot's mark for up to a quarter of an hour, which is the
+          // exact staleness the immediate refresh exists to remove.
+          queuedQuoteRefresh = true;
+          return { ok: false, message: 'A refresh is running; another will follow it.' };
+        }
         set({ refreshingQuotes: true });
         try {
           // The published feed first. It needs no key, no setup and no decision
@@ -435,6 +482,12 @@ export const useApp = create<AppState>()(
           return { ok: false, message: e instanceof Error ? e.message : 'Could not refresh quotes.' };
         } finally {
           set({ refreshingQuotes: false });
+          if (queuedQuoteRefresh) {
+            queuedQuoteRefresh = false;
+            // The follow-up reads `holdings` and `stocks` fresh, so it prices
+            // whatever the import that queued it actually added.
+            void get().refreshLiveQuotes(opts);
+          }
         }
       },
 
@@ -449,10 +502,29 @@ export const useApp = create<AppState>()(
         set({ analysingPortfolio: true });
         try {
           const state = get();
+          // The summary's drift figures must be measured against the targets
+          // actually in force — the previous stance when one exists — or the
+          // model is told the book drifted from a placeholder it already
+          // replaced, and re-litigates a mix it set itself.
+          const targets = resolveTargets(
+            state.plan,
+            state.portfolioRead
+              ? { at: state.portfolioRead.at, stance: state.portfolioRead.result.allocation ?? null }
+              : null,
+          );
+          const planInForce = {
+            ...state.plan,
+            constraints: {
+              ...state.plan.constraints,
+              targetMix: Object.fromEntries(
+                Object.entries(targets.mix).map(([k, v]) => [k, v / 100]),
+              ) as RebalancePlan['constraints']['targetMix'],
+            },
+          };
           const insights = buildInsights(
             state.holdings,
             state.stocks,
-            state.plan,
+            planInForce,
             state.cashUsd(),
             state.account().netLiquidationValue,
           );
@@ -591,6 +663,11 @@ export const useApp = create<AppState>()(
           staleNarratives: [],
           pendingImport: null,
           portfolioRead: null,
+          // With the read gone its checklist and feed stamp go too — a tick
+          // that survived into a fresh seed book would describe a move from a
+          // book that no longer exists.
+          stanceDone: [],
+          quotesFetchedAt: null,
           researchQueue: [],
           researchLog: [],
         }),
@@ -598,6 +675,14 @@ export const useApp = create<AppState>()(
     {
       name: 'portfolio-brief-v1',
       storage: createJSONStorage(() => AsyncStorage),
+      // Bumped when a persisted shape changes meaning. Without a version, an
+      // upgraded install rehydrates the OLD object wholesale — which is how
+      // the renamed insider-selling alert came back as `undefined` and
+      // silently never fired for anyone who had used the app before the
+      // rename, while fresh installs had it on. A silently-off alert is the
+      // worst kind of regression: nothing on screen says it happened.
+      version: 2,
+      migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.
       partialize: (s) => ({
@@ -632,6 +717,8 @@ export const useApp = create<AppState>()(
  * to reason about when one of them fails.
  */
 let pumping = false;
+/** A refresh asked for while one was running; honoured when it finishes. */
+let queuedQuoteRefresh = false;
 
 async function pumpResearchQueue(): Promise<void> {
   if (pumping) return;

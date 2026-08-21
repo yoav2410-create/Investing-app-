@@ -11,7 +11,7 @@ import type {
   Stock,
 } from '@/domain/types';
 import { nowIso } from '@/domain/format';
-import { useApp, type PendingImport } from './store';
+import { normalisePersisted, useApp, type PendingImport } from './store';
 
 /**
  * A file the owner can keep, holding the whole book.
@@ -203,7 +203,10 @@ export function parseBackup(text: string): BackupPayload {
 
 /** Replaces the book on this device. Caller confirms first. */
 export function restoreBackup(payload: BackupPayload): void {
-  const s = payload.state;
+  // A backup written by an older build is an old persisted state by another
+  // door, so it goes through the same repairs an upgrade does — renamed
+  // settings mapped, a stuck refresh status cleared, missing slices defaulted.
+  const s = normalisePersisted(payload.state as unknown as Record<string, unknown>) as unknown as PersistedSlice;
   useApp.setState({
     holdings: s.holdings,
     stocks: s.stocks,

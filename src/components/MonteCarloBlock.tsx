@@ -7,8 +7,9 @@ import { useApp } from '@/data/store';
 import { compactCurrency, percent, ratio, tone } from '@/domain/format';
 import {
   DEFAULT_ASSUMPTIONS,
+  buildInputs,
   histogram,
-  runSimulation,
+  simulate,
   type ReturnBasis,
 } from '@/domain/montecarlo';
 
@@ -39,15 +40,31 @@ export function MonteCarloBlock() {
   const riskFreePct =
     market.instruments.find((i) => i.symbol === 'US10Y')?.last ?? DEFAULT_ASSUMPTIONS.riskFreePct;
 
+  // Keyed on what the simulation actually consumes, not on the stocks object
+  // itself. This block sits on the always-mounted first tab, and the store
+  // replaces `stocks` wholesale on every quote refresh — every fifteen
+  // minutes, on foreground, after imports. Re-running five thousand paths
+  // because a feed pass rewrote identical prices is wasted main-thread time;
+  // when a price genuinely moves, the inputs change and the memo misses as it
+  // should.
+  const inputs = useMemo(
+    () => buildInputs(holdings, stocks, nlv, { ...DEFAULT_ASSUMPTIONS, riskFreePct, years, basis }),
+    [holdings, stocks, nlv, riskFreePct, years, basis],
+  );
+  const inputsKey = useMemo(
+    () => JSON.stringify(inputs) + `|${cash}|${nlv}|${riskFreePct}|${years}|${basis}`,
+    [inputs, cash, nlv, riskFreePct, years, basis],
+  );
   const sim = useMemo(
     () =>
-      runSimulation(holdings, stocks, cash, nlv, {
+      simulate(inputs, nlv === 0 ? 0 : cash / nlv, nlv, {
         ...DEFAULT_ASSUMPTIONS,
         riskFreePct,
         years,
         basis,
       }),
-    [holdings, stocks, cash, nlv, riskFreePct, years, basis],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputsKey stands in for its parts
+    [inputsKey],
   );
 
   const dist = useMemo(() => histogram(sim.terminal, 26), [sim.terminal]);
@@ -306,7 +323,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 }
 
 /** A plain reading of the simulation, stated without hedging into nothing. */
-function readSimulation(sim: ReturnType<typeof runSimulation>): string {
+function readSimulation(sim: ReturnType<typeof simulate>): string {
   const median = sim.portfolioBands[sim.years]!.p50;
   const ahead = median >= sim.benchmarkMedian;
   const edge = Math.abs(median / sim.benchmarkMedian - 1) * 100;

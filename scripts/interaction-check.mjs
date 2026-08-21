@@ -130,3 +130,6 @@ await page.screenshot({ path: `${OUT}/interaction-no-key.png` });
 
 await browser.close();
 console.log(problems.length ? 'PROBLEMS:\n' + problems.join('\n') : 'All interaction checks passed.');
+// A check that prints its failures and exits 0 is invisible to CI and to `&&`
+// chains — it found the problem and then vouched for the build anyway.
+process.exit(problems.length ? 1 : 0);
