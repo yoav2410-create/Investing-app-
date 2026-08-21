@@ -143,6 +143,24 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   verification suite drives the web build. `metro.config.js` stubs Node built-ins
   for native only. A green suite says nothing about whether the app starts on a
   phone.
+- **A screen check that inspected zero screens on Windows.** The glossary test
+  filtered paths with `includes('/app/')`; Windows paths use `\`, so locally it
+  matched nothing and passed while CI failed. The vacuous pass again, split
+  across operating systems. Paths are normalised to `/` at collection now.
+- **A cron that never fired, and would have shipped a white screen if it had.**
+  GitHub registers `schedule:` only from the default branch, so the
+  fifteen-minute quote refresh silently never ran while it lived on the feature
+  branch. And `github.event.repository.name` is empty on schedule events, so
+  the Pages base path would have resolved to nothing. The workflow lives on
+  main too now, scheduled runs check out the working branch explicitly, and the
+  base path derives from `GITHUB_REPOSITORY`. Verify automation by watching it
+  fire, not by reading its YAML.
+- **A renamed persisted key with no migration.** `alertOnOptionsFlip` became
+  `alertOnInsiderSelling` and every upgraded install rehydrated `undefined` —
+  the alert silently off, while fresh installs had it on. The store persists
+  with a version and `normalisePersisted()` now; backup restore runs through
+  the same function. Renaming anything persisted means writing the migration
+  in the same commit.
 
 ## Verifying
 
