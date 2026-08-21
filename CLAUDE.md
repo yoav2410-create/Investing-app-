@@ -48,7 +48,22 @@ numbers so one is never mistaken for the other. And `stanceProblems()` checks
 the arithmetic before any of it is drawn, because a mix totalling 80% would make
 every sector look underweight and the drift list would be confidently wrong.
 
-**Every metric explains itself.** 95 glossary entries in `src/domain/glossary.ts`,
+**The plan is dynamic, not standing.** There is no plan document and no Plan
+tab. The owner asks for a portfolio read; the stance's moves are pinned on the
+insights screen as a checklist (`stanceDone` in the store — persisted, backed
+up, reset when a fresh read replaces the moves); the previous read and which of
+it was executed feeds the next one. The bundled `RebalancePlan` survives only
+for its constraints (cash floor, position cap, the fallback target mix).
+
+**Options positioning is gone; insider filings replace it.** A whole-chain
+put/call ratio blurs hedging with conviction and needed a chain nothing free
+supplies reliably. The research pass reads insider filings instead —
+`Sentiment.insiderActivity` / `insiderDetail` — rendered on the stock page,
+counted across the book in the insights breadth, and behind the net-selling
+alert. Do not reintroduce an `options` block; old persisted stores may still
+carry one as a dead key, which is harmless.
+
+**Every metric explains itself.** ~94 glossary entries in `src/domain/glossary.ts`,
 each `{title, what, read, caveat}`. The `caveat` is the point — a tooltip
 explaining P/E without saying that a collapsed-earnings company shows its highest
 multiple exactly when it is cheapest is worse than none. New metric ⇒ new entry
@@ -58,10 +73,12 @@ multiple exactly when it is cheapest is worse than none. New metric ⇒ new entr
 
 ```
 app/                     expo-router screens
-  (tabs)/                Portfolio · Stocks · Sectors · Plan · More
+  (tabs)/                Portfolio · Stocks · Sectors · More
+  (tabs)/index.tsx       hero, allocation donut, the Monte Carlo block
   stock/[ticker].tsx     the deep per-stock page (the biggest screen)
-  market.tsx             indices, yields, Monte Carlo, book-wide put/call
-  insights.tsx           portfolio-level read — Claude's on top, computed below
+  market.tsx             indices, ETFs, yields — the backdrop, nothing else
+  insights.tsx           Claude's read, the pinned move checklist, computed below
+  plan.tsx               a redirect to /insights; the Plan tab is gone
   sync.tsx               screenshot import and the review diff
 src/domain/              pure analytics, no React, unit tested on their own
   technicals.ts          Wilder RSI/±DI, moving averages, the 0–5 trend score

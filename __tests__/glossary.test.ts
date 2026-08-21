@@ -21,7 +21,12 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const sources = [...walk(join(ROOT, 'app')), ...walk(join(ROOT, 'src'))].map((path) => ({
-  path,
+  // Normalised to forward slashes, because a filter written as
+  // `includes('/app/')` matched nothing on Windows and the screen check below
+  // passed while inspecting zero screens — the vacuous pass again, this time
+  // split across operating systems: green on the machine that wrote the code,
+  // red on CI.
+  path: path.replace(/\\/g, '/'),
   text: readFileSync(path, 'utf8'),
 }));
 
@@ -103,8 +108,12 @@ describe('every metric explainer resolves', () => {
     const screens = sources.filter((s) => s.path.includes('/app/') && s.path.endsWith('.tsx'));
     const without = screens
       .filter((s) => !s.path.endsWith('_layout.tsx'))
+      // A pure redirect renders no UI at all, so there is nothing on it to
+      // explain. Matched by what the file does rather than by its name, so the
+      // exemption cannot quietly grow to cover a real screen.
+      .filter((s) => !s.text.includes('<Redirect'))
       .filter((s) => termsIn(s.text).length === 0)
-      .map((s) => s.path.replace(ROOT, '.'));
+      .map((s) => s.path.replace(ROOT.replace(/\\/g, '/'), '.'));
     // Sync, settings and the More hub carry instructions and navigation rather
     // than metrics, so there is nothing on them to explain.
     expect(without.filter((p) => !/sync|settings|more/.test(p))).toEqual([]);
