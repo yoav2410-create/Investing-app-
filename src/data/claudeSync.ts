@@ -139,7 +139,6 @@ export function blankStock(ticker: string, p: ParsedPosition, sector: SectorId):
     quality: { value: null, asOf: null, source: 'unavailable' },
     cashFlow: { value: null, asOf: null, source: 'unavailable' },
     momentum: { value: null, asOf: null, source: 'unavailable' },
-    options: { value: null, asOf: null, source: 'unavailable' },
     sentiment: { value: null, asOf: null, source: 'unavailable' },
     earnings: { value: null, asOf: null, source: 'unavailable' },
     fundamentals: { value: null, asOf: null, source: 'unavailable' },
@@ -282,6 +281,14 @@ export function mergeResearch(existing: Stock | undefined, r: ResearchResult, ti
           analystRevisions: keep(
             r.sentiment.analystRevisions,
             base.sentiment.value?.analystRevisions ?? null,
+          ),
+          insiderActivity: keep(
+            r.sentiment.insiderActivity,
+            base.sentiment.value?.insiderActivity ?? null,
+          ),
+          insiderDetail: keep(
+            r.sentiment.insiderDetail,
+            base.sentiment.value?.insiderDetail ?? null,
           ),
           headlines: r.sentiment.headlines?.length
             ? r.sentiment.headlines

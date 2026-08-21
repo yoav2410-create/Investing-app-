@@ -53,7 +53,9 @@ export const lightPalette: Palette = {
   warnMuted: '#FDF0DC',
   overlay: 'rgba(14, 22, 32, 0.45)',
   chartGrid: '#E4E8EF',
-  series: ['#2D5BD7', '#0F7B4F', '#B26A00', '#7A3FBF', '#C0392B', '#0E7490'],
+  // The teal used to be #0E7490, which sits under the chroma floor a
+  // categorical colour needs — against the others it read as gray.
+  series: ['#2D5BD7', '#0F7B4F', '#B26A00', '#7A3FBF', '#C0392B', '#0E86A8'],
 };
 
 export const darkPalette: Palette = {

@@ -23,7 +23,6 @@ const ROUTES = [
   ['portfolio', '/'],
   ['stocks', '/stocks'],
   ['sectors', '/sectors'],
-  ['plan', '/plan'],
   ['more', '/more'],
   ['insights', '/insights'],
   ['stock-META', '/stock/META'],

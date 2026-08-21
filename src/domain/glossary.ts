@@ -257,17 +257,12 @@ export const GLOSSARY = {
     read: 'This is the drawdown you are living through. Deeper than about 20% is a genuine correction in that name.',
   },
 
-  // ---------------------------------------------------------------- options
-  putCall: {
-    title: 'Put / call ratio',
-    what: 'Puts traded divided by calls traded across the whole option chain.',
-    read: 'At or below 0.70 reads bullish, at or above 1.00 bearish — the data source\'s own convention, kept deliberately.',
-    caveat: 'Puts are bought as insurance as often as they are bought as bets. A high ratio can mean hedging by holders, not conviction by sellers.',
-  },
-  openInterest: {
-    title: 'Open interest',
-    what: 'The number of option contracts currently outstanding, as opposed to traded today.',
-    read: 'Volume is today\'s opinion; open interest is the accumulated position. When they disagree, the signal is weak.',
+  // ---------------------------------------------------------------- insiders
+  insiderActivity: {
+    title: 'Insider activity',
+    what: 'The net direction of recent open-market filings by the company\'s own officers and directors — buying, selling, or quiet.',
+    read: 'Purchases carry more signal than sales: an insider buys for one reason, but sells for many — tax, diversification, a house. A cluster of buys after a fall is the pattern worth noticing.',
+    caveat: 'Scheduled 10b5-1 sales and option exercises are routine and say little. The detail line names the filings so you can judge whether the read rests on conviction or on payroll.',
   },
 
   // -------------------------------------------------------------- sentiment

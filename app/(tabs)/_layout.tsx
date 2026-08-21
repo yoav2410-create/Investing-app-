@@ -55,10 +55,6 @@ export default function TabsLayout() {
         options={{ title: 'Sectors', tabBarIcon: icon('layers-outline', 'layers') }}
       />
       <Tabs.Screen
-        name="plan"
-        options={{ title: 'Plan', tabBarIcon: icon('checkbox-outline', 'checkbox') }}
-      />
-      <Tabs.Screen
         name="more"
         options={{ title: 'More', tabBarIcon: icon('ellipsis-horizontal', 'ellipsis-horizontal') }}
       />

@@ -159,7 +159,7 @@ describe('merging research', () => {
         surprisePct: null, revenue: null, callSummary: null, managementSaid: null,
         guidance: null, watchNext: null, reactionPct: null, quotes: [],
       },
-      sentiment: { score: null, label: null, summary: null, analystRevisions: null, headlines: [] },
+      sentiment: { score: null, label: null, summary: null, analystRevisions: null, insiderActivity: null, insiderDetail: null, headlines: [] },
       narrative: {
         thesis: 'x', catalyst: 'y', risk: 'z', bullCase: 'b', bearCase: 'c',
         whatWouldChangeMyMind: 'd', verdict: 'hold', verdictReasoning: 'r',

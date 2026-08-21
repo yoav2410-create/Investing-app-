@@ -35,30 +35,49 @@ const page = await ctx.newPage();
 page.on('pageerror', (e) => problems.push('pageerror: ' + e.message));
 
 const body = async () => (await page.locator('body').innerText()).replace(/\s+/g, ' ');
-const doneCount = async () => (await body()).match(/(\d)\/8 done/)?.[1];
+const doneCount = async () => (await body()).match(/(\d)\/2 done/)?.[1];
 
-async function openPlanAndScroll() {
-  await page.goto(`${BASE}/plan`, { waitUntil: 'networkidle' });
+// The plan is dynamic now: a read proposes moves and the app pins them as a
+// checklist on the insights screen. A tick on that checklist is the owner's
+// execution record — exactly the kind of edit a backup exists to not lose.
+async function openInsights() {
+  await page.goto(`${BASE}/insights`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  await page.evaluate(() => {
-    const el = [...document.querySelectorAll('div')]
-      .filter((d) => d.scrollHeight > d.clientHeight + 50)
-      .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
-    if (el) {
-      el.setAttribute('data-scroller', '1');
-      el.scrollTop = 1200;
-    }
-  });
-  await page.waitForTimeout(400);
 }
 
-// 1. An edit worth losing.
-await openPlanAndScroll();
-await page.getByRole('checkbox', { name: /Exit VST/i }).first().click();
+// 1. An edit worth losing: plant a stance the way a real read stores one,
+//    then tick a move.
+await openInsights();
+await page.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('portfolio-brief-v1'));
+  raw.state.portfolioRead = {
+    at: '2026-08-20T09:00:00.000Z',
+    result: {
+      headline: 'Planted.', whatThisBookIs: 'Planted.', observations: [], themeClusters: [],
+      biggestRisk: 'Planted.', nextAction: 'Planted.', blindSpots: [],
+      allocation: {
+        targetMix: [
+          { sector: 'tech', targetPct: 60, previousPct: null, why: 'w' },
+          { sector: 'cash', targetPct: 40, previousPct: null, why: 'w' },
+        ],
+        cashFloorPct: null, maxPositionPct: null, reasoning: 'Planted stance.',
+        moves: [
+          { kind: 'trim', ticker: 'PLTR', sector: null, sizePctOfNlv: 3, action: 'Trim PLTR.', basis: 'weight', urgency: 'now' },
+          { kind: 'raise-cash', ticker: null, sector: 'cash', sizePctOfNlv: null, action: 'Hold the proceeds.', basis: 'floor', urgency: 'soon' },
+        ],
+        caveats: [],
+      },
+    },
+  };
+  raw.state.stanceDone = [];
+  localStorage.setItem('portfolio-brief-v1', JSON.stringify(raw));
+});
+await openInsights();
+await page.getByRole('checkbox', { name: /trim PLTR/i }).first().click();
 await page.waitForTimeout(900);
 const marked = await doneCount();
-if (marked !== '1') problems.push(`expected 1/8 after ticking a leg, got ${marked}/8`);
-console.log(`edit made: tranche A ${marked}/8 done`);
+if (marked !== '1') problems.push(`expected 1/2 after ticking a move, got ${marked}/2`);
+console.log(`edit made: plan checklist ${marked}/2 done`);
 
 // 2. Settings states where the book lives rather than implying it is safe.
 await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
@@ -100,13 +119,15 @@ if (readFileSync(`${TMP}/with-key.json`, 'utf8').includes(SENTINEL)) {
 }
 
 // 5. Wipe. If this does not reset the book, nothing below proves anything.
+// With storage gone the planted read is gone too, so the checklist should not
+// render at all — the absent counter is the proof of a real wipe.
 await page.evaluate(() => localStorage.clear());
-await openPlanAndScroll();
+await openInsights();
 const wiped = await doneCount();
-if (wiped !== '0') {
-  problems.push(`clearing storage left the book at ${wiped}/8 — the restore check would be vacuous`);
+if (wiped !== undefined) {
+  problems.push(`clearing storage left the checklist at ${wiped}/2 — the restore check would be vacuous`);
 }
-console.log(`storage cleared: back to ${wiped}/8 done`);
+console.log(`storage cleared: the pinned plan is gone`);
 
 // 6. Restore, via the picker the screen actually uses.
 await page.goto(`${BASE}/settings`, { waitUntil: 'networkidle' });
@@ -139,12 +160,12 @@ if (!el) {
   await page.waitForTimeout(1200);
 }
 
-await openPlanAndScroll();
+await openInsights();
 const restored = await doneCount();
 if (restored !== marked) {
-  problems.push(`restore did not bring the edit back (${marked}/8 before, ${restored}/8 after)`);
+  problems.push(`restore did not bring the edit back (${marked}/2 before, ${restored}/2 after)`);
 }
-console.log(`restored: tranche A ${restored}/8 done`);
+console.log(`restored: plan checklist ${restored}/2 done`);
 
 await browser.close();
 rmSync(TMP, { recursive: true, force: true });

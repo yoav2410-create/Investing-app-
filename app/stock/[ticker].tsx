@@ -23,8 +23,7 @@ import {
 } from '@/domain/format';
 import { trendLabelTone, trendRead } from '@/domain/technicals';
 import { bandLabel, bandTone, valuationRead } from '@/domain/valuation';
-import { optionsRead, optionsSentence, readTone } from '@/domain/options';
-import { legsForTicker, actionLabel, actionTone } from '@/domain/plan';
+import { stanceMoveKey } from '@/domain/allocation';
 import { buildBridge, conversionTone, fcfYield } from '@/domain/cashflow';
 import type { Stock } from '@/domain/types';
 import type { GlossaryKey } from '@/domain/glossary';
@@ -56,6 +55,11 @@ export default function StockDetailScreen() {
   const stock = useApp((s) => s.stocks[ticker]);
   const holding = useApp((s) => s.holdings.find((h) => h.ticker === ticker));
   const plan = useApp((s) => s.plan);
+  const portfolioRead = useApp((s) => s.portfolioRead);
+  const stanceDone = useApp((s) => s.stanceDone);
+  const stanceMoves = (portfolioRead?.result.allocation?.moves ?? []).filter(
+    (m) => m.ticker === ticker,
+  );
   const nlv = useApp((s) => s.account)().netLiquidationValue;
   const researching = useApp((s) => s.researching.includes(ticker));
   const researchTicker = useApp((s) => s.researchTicker);
@@ -74,7 +78,6 @@ export default function StockDetailScreen() {
   const quote = stock.quote.value;
   const val = valuationRead(stock);
   const trend = trendRead(quote?.price ?? null, stock.technicals.value);
-  const legs = legsForTicker(plan, ticker);
   const bridge = buildBridge(stock.cashFlow.value);
   // Share count is not stored as its own field, so back it out of price-to-sales
   // against trailing revenue: market cap = P/S x revenue, shares = cap / price.
@@ -497,30 +500,6 @@ export default function StockDetailScreen() {
         </Section>
       ) : null}
 
-      {/* --------------------------------------------------------- options */}
-      <Section title="Options positioning" term="putCall">
-        <Card style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <Pill
-              label={
-                optionsRead(stock.options.value?.putCallVolume ?? null)?.toUpperCase() ?? 'NO DATA'
-              }
-              tone={readTone(optionsRead(stock.options.value?.putCallVolume ?? null))}
-            />
-            <Text variant="caption" faint style={{ flex: 1 }}>
-              as of {relativeAsOf(stock.options.asOf)}
-            </Text>
-          </View>
-          <Text variant="body">{optionsSentence(stock.options.value)}</Text>
-          <Row term="putCall" label="Put/call by volume" value={ratio(stock.options.value?.putCallVolume)} />
-          <Row term="openInterest" label="Put/call by open interest" value={ratio(stock.options.value?.putCallOpenInterest)} />
-          <Text variant="caption" faint>
-            Reading the source's own convention: at or below 0.70 is bullish, at or above 1.00 is
-            bearish.
-          </Text>
-        </Card>
-      </Section>
-
       {/* -------------------------------------------------------- sentiment */}
       <Section
         title="What the market is saying"
@@ -555,6 +534,31 @@ export default function StockDetailScreen() {
                     Analyst revisions
                   </Label>
                   <Text variant="body">{stock.sentiment.value.analystRevisions}</Text>
+                </>
+              ) : null}
+              {/* Coverage above is what people say; this is what the people
+                  running the company did with their own money. */}
+              {stock.sentiment.value.insiderActivity ? (
+                <>
+                  <Label variant="label" muted term="insiderActivity">
+                    Insider activity
+                  </Label>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+                    <Pill
+                      label={stock.sentiment.value.insiderActivity.toUpperCase()}
+                      tone={
+                        stock.sentiment.value.insiderActivity === 'buying'
+                          ? 'up'
+                          : stock.sentiment.value.insiderActivity === 'selling'
+                            ? 'down'
+                            : 'flat'
+                      }
+                      compact
+                    />
+                    <Text variant="body" style={{ flex: 1 }}>
+                      {stock.sentiment.value.insiderDetail ?? 'No detail behind the filing read.'}
+                    </Text>
+                  </View>
                 </>
               ) : null}
               {stock.sentiment.value.headlines.length ? (
@@ -811,24 +815,31 @@ export default function StockDetailScreen() {
         </Card>
       </Section>
 
-      {/* ------------------------------------------------------------ plan */}
-      {legs.length ? (
+      {/* ---------------------------------------------------- in the plan */}
+      {/* The plan is dynamic now — the moves live in the portfolio read and
+          are pinned on the AI insights screen. Any of them that names this
+          ticker is surfaced here, so the stock page still answers "am I
+          supposed to be doing something about this one?". */}
+      {stanceMoves.length ? (
         <Section title="In the plan" term="planLeg">
           <Card style={{ gap: spacing.sm }}>
-            {legs.map((l) => (
-              <View key={l.id} style={{ gap: 2 }}>
+            {stanceMoves.map((m, n) => (
+              <View key={n} style={{ gap: 2 }}>
                 <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-                  <Pill label={`Tranche ${l.tranche}`} tone="flat" compact />
-                  <Pill label={actionLabel(l.action)} tone={actionTone(l.action)} compact />
-                  {l.shares != null ? (
+                  <Pill
+                    label={m.kind === 'raise-cash' ? 'raise cash' : m.kind}
+                    tone={m.kind === 'exit' || m.kind === 'trim' ? 'warn' : m.kind === 'hold' ? 'flat' : 'accent'}
+                    compact
+                  />
+                  {m.sizePctOfNlv != null ? (
                     <Text variant="caption" muted>
-                      {fmtShares(l.shares)} sh
+                      {m.sizePctOfNlv.toFixed(1)}% of the book
                     </Text>
                   ) : null}
-                  {l.done ? <Pill label="Done" tone="up" compact /> : null}
+                  {stanceDone.includes(stanceMoveKey(m)) ? <Pill label="Done" tone="up" compact /> : null}
                 </View>
                 <Text variant="caption" muted>
-                  {l.note}
+                  {m.action} {m.basis ? `— ${m.basis}` : ''}
                 </Text>
               </View>
             ))}
@@ -842,7 +853,6 @@ export default function StockDetailScreen() {
           <Row label="Price" value={sourceLabel(stock, 'quote')} hint={relativeAsOf(stock.quote.asOf)} />
           <Row label="Valuation" value={sourceLabel(stock, 'valuation')} hint={relativeAsOf(stock.valuation.asOf)} />
           <Row label="Technicals" value={sourceLabel(stock, 'technicals')} hint={relativeAsOf(stock.technicals.asOf)} />
-          <Row label="Options" value={sourceLabel(stock, 'options')} hint={relativeAsOf(stock.options.asOf)} />
           <Row label="Sentiment" value={sourceLabel(stock, 'sentiment')} hint={relativeAsOf(stock.sentiment.asOf)} />
           <Row label="Cash flow" value={sourceLabel(stock, 'cashFlow')} hint={relativeAsOf(stock.cashFlow.asOf)} />
           <Row label="Reported figures" value={sourceLabel(stock, 'fundamentals')} hint={relativeAsOf(stock.fundamentals.asOf)} />
@@ -934,7 +944,6 @@ function sourceLabel(
     | 'quote'
     | 'valuation'
     | 'technicals'
-    | 'options'
     | 'sentiment'
     | 'cashFlow'
     | 'fundamentals'
@@ -959,7 +968,11 @@ function buildBrief(stock: Stock, shares: number | null, weightPct: number | nul
     '',
     `Valuation: ${val.sentence}`,
     `Trend: ${trend.label}, ${trend.score.toFixed(1)}/5`,
-    `Options: ${optionsSentence(stock.options.value)}`,
+    stock.sentiment.value?.insiderActivity
+      ? `Insiders: ${stock.sentiment.value.insiderActivity}${
+          stock.sentiment.value.insiderDetail ? ` — ${stock.sentiment.value.insiderDetail}` : ''
+        }`
+      : '',
     '',
     stock.narrative.catalyst ? `Catalyst: ${stock.narrative.catalyst}` : '',
     stock.narrative.risk ? `Risk: ${stock.narrative.risk}` : '',

@@ -12,7 +12,7 @@ const BLOCKS = [
   ['technicals', 'Technicals'],
   ['quality', 'Quality'],
   ['momentum', 'Momentum'],
-  ['options', 'Options'],
+  ['sentiment', 'Sentiment & insiders'],
   ['fundamentals', 'Reported figures'],
   ['multipleHistory', 'Multiple history'],
   ['earnings', 'Earnings'],
@@ -115,8 +115,8 @@ export default function SourcesScreen() {
             research pass.
           </Text>
           <Text variant="body" muted>
-            • Put/call open interest is not returned by the free options endpoint; only the
-            volume-based ratio refreshes automatically.
+            • Insider activity is read from public filings during the research pass, not from a
+            feed. Between passes it ages like the rest of the research and says so.
           </Text>
           <Text variant="body" muted>
             • Multiple histories are derived — quarter-end price over trailing earnings or EBITDA —

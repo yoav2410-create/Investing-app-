@@ -1,7 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import type { AppState } from './store';
 import { trendRead } from '@/domain/technicals';
-import { optionsRead } from '@/domain/options';
 import { daysUntil } from '@/domain/format';
 
 /**
@@ -60,13 +59,12 @@ export function computeAlerts(state: AppState): Alert[] {
       }
     }
 
-    if (settings.alertOnOptionsFlip) {
-      const pc = s.options.value?.putCallVolume ?? null;
-      if (pc != null && optionsRead(pc) === 'bearish' && held.has(s.ticker)) {
+    if (settings.alertOnInsiderSelling) {
+      if (s.sentiment.value?.insiderActivity === 'selling' && held.has(s.ticker)) {
         out.push({
-          id: `options-${s.ticker}`,
-          title: `${s.ticker} options flow turned bearish`,
-          body: `Put/call by volume at ${pc.toFixed(2)}.`,
+          id: `insiders-${s.ticker}`,
+          title: `${s.ticker} insiders read as net sellers`,
+          body: s.sentiment.value.insiderDetail ?? 'Recent filings lean toward selling.',
         });
       }
     }

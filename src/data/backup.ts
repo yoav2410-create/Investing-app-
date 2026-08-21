@@ -46,6 +46,8 @@ export interface PersistedSlice {
   pendingImport: PendingImport | null;
   researchLog: { ticker: string; at: string; ok: boolean; message: string }[];
   portfolioRead: unknown;
+  /** Optional: backups written before the dynamic plan existed lack it. */
+  stanceDone?: string[];
 }
 
 export interface BackupContents {
@@ -80,6 +82,7 @@ function currentSlice(): PersistedSlice {
     pendingImport: s.pendingImport,
     researchLog: s.researchLog,
     portfolioRead: s.portfolioRead,
+    stanceDone: s.stanceDone,
   };
 }
 
@@ -214,6 +217,7 @@ export function restoreBackup(payload: BackupPayload): void {
     pendingImport: s.pendingImport ?? null,
     researchLog: s.researchLog ?? [],
     portfolioRead: (s.portfolioRead ?? null) as never,
+    stanceDone: s.stanceDone ?? [],
   });
 }
 

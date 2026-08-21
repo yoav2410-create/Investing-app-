@@ -70,6 +70,21 @@ export function resolveTargets(
 }
 
 /**
+ * A stable identity for one proposed move, so a done-mark survives re-renders
+ * and backups but not a re-generation. Built from what the move *is* rather
+ * than its position in the list: reordering the same recommendations must not
+ * shuffle which of them read as executed.
+ */
+export function stanceMoveKey(m: {
+  kind: string;
+  ticker: string | null;
+  sector: string | null;
+  action: string;
+}): string {
+  return [m.kind, m.ticker ?? '', m.sector ?? '', m.action].join('|');
+}
+
+/**
  * Problems with a stance the model returned, in words.
  *
  * Not a schema check — the tool schema already guarantees the shape. This

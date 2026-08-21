@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -9,7 +9,7 @@ import { InfoButton } from '@/components/InfoButton';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { useApp } from '@/data/store';
 import { buildInsights, type BreadthInsight, type Coverage } from '@/domain/insights';
-import { stanceProblems } from '@/domain/allocation';
+import { stanceMoveKey, stanceProblems } from '@/domain/allocation';
 import { compactCurrency, longDate, percent, ratio, relativeAsOf, tone } from '@/domain/format';
 import type { AllocationMove, AllocationStance } from '@/domain/types';
 import type { Tone } from '@/theme/tokens';
@@ -336,13 +336,13 @@ export default function InsightsScreen() {
             data={i.valueBreadth}
           />
           <BreadthRow
-            title="Options flow"
+            title="Insider filings"
             buckets={[
-              { key: 'bullish', label: 'Bullish', tone: 'up' },
-              { key: 'neutral', label: 'Neutral', tone: 'flat' },
-              { key: 'bearish', label: 'Bearish', tone: 'down' },
+              { key: 'buying', label: 'Buying', tone: 'up' },
+              { key: 'quiet', label: 'Quiet', tone: 'flat' },
+              { key: 'selling', label: 'Selling', tone: 'down' },
             ]}
-            data={i.flowBreadth}
+            data={i.insiderBreadth}
           />
         </Card>
       </Section>
@@ -517,8 +517,17 @@ function AllocationSection({
   /** What the plan is still enforcing, so a proposal is never mistaken for it. */
   inForce: { cashFloorPct: number; maxPositionPct: number };
 }) {
-  const { spacing } = useTheme();
+  const { palette, spacing, radius } = useTheme();
+  const stanceDone = useApp((s) => s.stanceDone);
+  const toggleStanceDone = useApp((s) => s.toggleStanceDone);
   const problems = useMemo(() => stanceProblems(stance), [stance]);
+
+  // The checklist half of the dynamic plan: Claude proposes, the app pins the
+  // proposals, the owner ticks them off as they execute. Hold moves are not
+  // actionable — there is nothing to do — so they carry no checkbox and do not
+  // count toward the total.
+  const actionable = stance.moves.filter((m) => m.kind !== 'hold');
+  const doneCount = actionable.filter((m) => stanceDone.includes(stanceMoveKey(m))).length;
 
   const KIND_TONE: Record<AllocationMove['kind'], Tone> = {
     trim: 'warn',
@@ -535,7 +544,10 @@ function AllocationSection({
   };
 
   return (
-    <Section title="What to change" subtitle={`Proposed ${relativeAsOf(at)} · targets, cash and positions`}>
+    <Section
+      title="What to change"
+      subtitle={`Proposed ${relativeAsOf(at)} · ${doneCount}/${actionable.length} done · refresh the read for a new plan`}
+    >
       <Card style={{ gap: spacing.md }}>
         <Text variant="body">{stance.reasoning}</Text>
 
@@ -565,26 +577,55 @@ function AllocationSection({
         <Text variant="label" muted>
           Moves
         </Text>
-        {stance.moves.map((m, n) => (
-          <View key={n} style={{ gap: 2 }}>
-            <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Pill label={m.kind === 'raise-cash' ? 'raise cash' : m.kind} tone={KIND_TONE[m.kind]} compact />
-              {m.ticker ? <Text variant="body">{m.ticker}</Text> : null}
-              {m.sizePctOfNlv != null ? (
-                <Text variant="caption" muted>
-                  {m.sizePctOfNlv.toFixed(1)}% of the book
+        {stance.moves.map((m, n) => {
+          const key = stanceMoveKey(m);
+          const checkable = m.kind !== 'hold';
+          const done = checkable && stanceDone.includes(key);
+          return (
+            <Pressable
+              key={n}
+              onPress={() => checkable && toggleStanceDone(key)}
+              disabled={!checkable}
+              accessibilityRole={checkable ? 'checkbox' : undefined}
+              accessibilityState={checkable ? { checked: done } : undefined}
+              accessibilityLabel={`${m.kind} ${m.ticker ?? m.sector ?? 'the book'}. ${m.action}`}
+              style={{
+                gap: 2,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: done ? palette.up : palette.border,
+                borderRadius: radius.md,
+                padding: spacing.sm,
+                opacity: done ? 0.65 : 1,
+              }}
+            >
+              <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center', flexWrap: 'wrap' }}>
+                {checkable ? (
+                  <Ionicons
+                    name={done ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={20}
+                    color={done ? palette.up : palette.textFaint}
+                  />
+                ) : (
+                  <Ionicons name="remove-circle-outline" size={20} color={palette.textFaint} />
+                )}
+                <Pill label={m.kind === 'raise-cash' ? 'raise cash' : m.kind} tone={KIND_TONE[m.kind]} compact />
+                {m.ticker ? <Text variant="body">{m.ticker}</Text> : null}
+                {m.sizePctOfNlv != null ? (
+                  <Text variant="caption" muted>
+                    {m.sizePctOfNlv.toFixed(1)}% of the book
+                  </Text>
+                ) : null}
+                <Text variant="caption" faint>
+                  {URGENCY_LABEL[m.urgency]}
                 </Text>
-              ) : null}
-              <Text variant="caption" faint>
-                {URGENCY_LABEL[m.urgency]}
+              </View>
+              <Text variant="body">{m.action}</Text>
+              <Text variant="caption" muted>
+                {m.basis.trim() ? m.basis : 'No figure was cited for this one.'}
               </Text>
-            </View>
-            <Text variant="body">{m.action}</Text>
-            <Text variant="caption" muted>
-              {m.basis.trim() ? m.basis : 'No figure was cited for this one.'}
-            </Text>
-          </View>
-        ))}
+            </Pressable>
+          );
+        })}
 
         {stance.caveats.length ? (
           <>
@@ -613,9 +654,10 @@ function AllocationSection({
         ) : null}
 
         <Text variant="caption" faint>
-          The sector targets above are live — the Sectors screen measures drift against them. The
-          cash floor and position cap are proposals: the plan still enforces what it enforced, and
-          changes only when you ask it to.
+          This is the plan — regenerated whenever you refresh the read, never standing still. The
+          sector targets are live and the Sectors screen measures drift against them; the cash
+          floor and position cap stay proposals until you act on them. Ticks survive restarts and
+          backups, and reset when a new read replaces these moves.
         </Text>
       </Card>
     </Section>

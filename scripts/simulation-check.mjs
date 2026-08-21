@@ -60,7 +60,8 @@ function needs(text, label, phrases) {
 
 // ---------------------------------------------------------------- Monte Carlo
 {
-  const m = await open('/market');
+  // The Monte Carlo block lives on the portfolio page now, not on Market.
+  const m = await open('/');
   for (const [i, y] of [900, 1500, 2200, 2900].entries()) {
     await m.scrollTo(y);
     await m.shot(`montecarlo-${i}`);

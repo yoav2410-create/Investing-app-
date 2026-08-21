@@ -43,6 +43,18 @@ html = html.replace(
 );
 
 const head = `
+    <!-- The only origins this app is allowed to talk to, enforced by the
+         browser. The keys live in localStorage, where any script running on
+         this origin could read them; this is the fence that says no script
+         from anywhere else runs here, and nothing exfiltrates to a host that
+         is not one of the data providers. connect-src is the working list:
+         the app's own origin (bundle + quotes.json), Finnhub for live marks,
+         Anthropic for research, Alpha Vantage for the optional technicals.
+         Widening it is a decision, not a tweak. style-src needs
+         'unsafe-inline' because react-native-web styles by injected <style>
+         tags and inline attributes; script-src does not, and that is the
+         directive doing the guarding. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://finnhub.io https://api.anthropic.com https://www.alphavantage.co; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" />
     <!-- Installed to the home screen, this is the app. Without
          apple-mobile-web-app-capable, "Add to Home Screen" makes a Safari
          bookmark that opens with browser chrome instead. -->
@@ -94,6 +106,11 @@ const required = [
   `href="${asset('icon-180.png')}"`,
   'viewport-fit=cover',
   'id="pwa-shell"',
+  'Content-Security-Policy',
+  // The two connections that make the app worth opening. A CSP that quietly
+  // dropped one would look like a provider outage, not a config mistake.
+  'https://finnhub.io',
+  'https://api.anthropic.com',
 ];
 const missing = required.filter((r) => !written.includes(r));
 if (missing.length) {

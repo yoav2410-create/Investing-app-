@@ -2,7 +2,6 @@ import type { Holding, RebalancePlan, SectorId, Stock } from './types';
 import { positionViews, sectorBuckets, type PositionView } from './portfolio';
 import { trendRead } from './technicals';
 import { valuationRead } from './valuation';
-import { optionsRead } from './options';
 import { daysUntil } from './format';
 
 /**
@@ -129,7 +128,7 @@ function breadth<T extends string>(
 
 export const TREND_BUCKETS = ['up', 'mixed', 'down'] as const;
 export const VALUE_BUCKETS = ['cheap', 'fair', 'expensive'] as const;
-export const FLOW_BUCKETS = ['bullish', 'neutral', 'bearish'] as const;
+export const INSIDER_BUCKETS = ['buying', 'quiet', 'selling'] as const;
 
 export interface EarningsCluster {
   /** Names reporting within the window, soonest first. */
@@ -196,7 +195,7 @@ export interface PortfolioInsights {
 
   trendBreadth: BreadthInsight<(typeof TREND_BUCKETS)[number]>;
   valueBreadth: BreadthInsight<(typeof VALUE_BUCKETS)[number]>;
-  flowBreadth: BreadthInsight<(typeof FLOW_BUCKETS)[number]>;
+  insiderBreadth: BreadthInsight<(typeof INSIDER_BUCKETS)[number]>;
 
   sectors: ReturnType<typeof sectorBuckets>;
   /** Sectors more than three points from target, worst first. */
@@ -293,8 +292,8 @@ export function buildInsights(
       const s = at(p);
       return s ? valuationRead(s).band : null;
     }),
-    flowBreadth: breadth(positions, FLOW_BUCKETS, (p) =>
-      optionsRead(at(p)?.options.value?.putCallVolume ?? null),
+    insiderBreadth: breadth(positions, INSIDER_BUCKETS, (p) =>
+      at(p)?.sentiment.value?.insiderActivity ?? null,
     ),
 
     sectors,
@@ -363,7 +362,7 @@ export function summariseForModel(i: PortfolioInsights): string {
     `Weighted news sentiment ${num(i.sentiment.value)} (covers ${pct(i.sentiment.coverage.weightCoveredPct, 0)})`,
     `Trend breadth — up ${i.trendBreadth.counts.up}, mixed ${i.trendBreadth.counts.mixed}, down ${i.trendBreadth.counts.down}`,
     `Valuation breadth — cheap ${i.valueBreadth.counts.cheap}, fair ${i.valueBreadth.counts.fair}, expensive ${i.valueBreadth.counts.expensive}`,
-    `Options flow — bullish ${i.flowBreadth.counts.bullish}, neutral ${i.flowBreadth.counts.neutral}, bearish ${i.flowBreadth.counts.bearish}`,
+    `Insider filings — buying ${i.insiderBreadth.counts.buying}, quiet ${i.insiderBreadth.counts.quiet}, selling ${i.insiderBreadth.counts.selling}`,
     `Sector mix: ${i.sectors.filter((s) => s.weightPct > 0.05).map((s) => `${s.short} ${pct(s.weightPct)}${s.targetPct != null ? ` (target ${pct(s.targetPct, 0)})` : ''}`).join(', ')}`,
     i.drift.length
       ? `Drift over 3pp: ${i.drift.map((d) => `${d.label} ${d.driftPct > 0 ? '+' : ''}${d.driftPct.toFixed(1)}pp`).join(', ')}`

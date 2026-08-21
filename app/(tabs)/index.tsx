@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Pill, Screen, Section, Stat, Text } from '@/components/ui';
-import { ConcentrationBar, Sparkline } from '@/components/charts';
+import { DonutChart, Sparkline } from '@/components/charts';
+import { MonteCarloBlock } from '@/components/MonteCarloBlock';
 import { StockRow } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
@@ -17,15 +19,16 @@ import {
   tone,
 } from '@/domain/format';
 import { concentration, positionViews, sectorBuckets, topMovers } from '@/domain/portfolio';
-import { SECTORS } from '@/domain/types';
+import { resolveTargets } from '@/domain/allocation';
 import { trendRead } from '@/domain/technicals';
 
 export default function PortfolioScreen() {
   const router = useRouter();
-  const { palette, spacing } = useTheme();
+  const { palette, spacing, radius } = useTheme();
   const holdings = useApp((s) => s.holdings);
   const stocks = useApp((s) => s.stocks);
   const plan = useApp((s) => s.plan);
+  const portfolioRead = useApp((s) => s.portfolioRead);
   const snapshots = useApp((s) => s.snapshots);
   const staleNarratives = useApp((s) => s.staleNarratives);
   const researching = useApp((s) => s.researching);
@@ -37,9 +40,25 @@ export default function PortfolioScreen() {
     () => positionViews(holdings, stocks, account.netLiquidationValue),
     [holdings, stocks, account.netLiquidationValue],
   );
+  // The same target resolution the Sectors screen uses, so the two screens
+  // cannot describe the same book against different targets.
+  const targets = useMemo(
+    () =>
+      resolveTargets(
+        plan,
+        portfolioRead ? { at: portfolioRead.at, stance: portfolioRead.result.allocation ?? null } : null,
+      ),
+    [plan, portfolioRead],
+  );
   const buckets = useMemo(
-    () => sectorBuckets(positions, cash, account.netLiquidationValue, plan.constraints.targetMix),
-    [positions, cash, account.netLiquidationValue, plan.constraints.targetMix],
+    () =>
+      sectorBuckets(
+        positions,
+        cash,
+        account.netLiquidationValue,
+        Object.fromEntries(Object.entries(targets.mix).map(([k, v]) => [k, v / 100])),
+      ),
+    [positions, cash, account.netLiquidationValue, targets.mix],
   );
   const movers = useMemo(() => topMovers(positions), [positions]);
   const conc = useMemo(() => concentration(positions), [positions]);
@@ -65,26 +84,52 @@ export default function PortfolioScreen() {
 
   return (
     <Screen>
-      <View style={{ gap: spacing.xs }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <Text variant="caption" muted>
-            Net liquidation value · marks as of {relativeAsOf(oldestQuote)}
+      {/* ------------------------------------------------------- hero ---- */}
+      <View
+        style={{
+          borderRadius: radius.lg,
+          overflow: 'hidden',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: palette.border,
+        }}
+        accessible
+        accessibilityLabel={`Net liquidation value ${currency(account.netLiquidationValue, { decimals: 0 })}, ${currency(account.dayPnl, { sign: true })} today.`}
+      >
+        <Svg
+          width="100%"
+          height="100%"
+          style={StyleSheet.absoluteFill}
+          preserveAspectRatio="none"
+        >
+          <Defs>
+            <LinearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={palette.accentMuted} stopOpacity={1} />
+              <Stop offset="1" stopColor={palette.card} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#hero)" />
+        </Svg>
+        <View style={{ padding: spacing.lg, gap: spacing.xs }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text variant="caption" muted>
+              Net liquidation value · marks as of {relativeAsOf(oldestQuote)}
+            </Text>
+            <InfoButton term="netLiquidationValue" size={13} />
+          </View>
+          <Text variant="display" style={{ fontVariant: ['tabular-nums'] }}>
+            {currency(account.netLiquidationValue, { decimals: 0 })}
           </Text>
-          <InfoButton term="netLiquidationValue" size={13} />
-        </View>
-        <Text variant="display" style={{ fontVariant: ['tabular-nums'] }}>
-          {currency(account.netLiquidationValue, { decimals: 0 })}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Text variant="heading" tone={tone(account.dayPnl)}>
-            {currency(account.dayPnl, { sign: true })}
-          </Text>
-          <Text variant="heading" tone={tone(account.dayPnl)}>
-            {percent(account.dayPnlPct)}
-          </Text>
-          <Text variant="caption" faint>
-            today
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Text variant="heading" tone={tone(account.dayPnl)}>
+              {currency(account.dayPnl, { sign: true })}
+            </Text>
+            <Text variant="heading" tone={tone(account.dayPnl)}>
+              {percent(account.dayPnlPct)}
+            </Text>
+            <Text variant="caption" faint>
+              today
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -130,6 +175,41 @@ export default function PortfolioScreen() {
       <Card style={{ gap: spacing.sm }}>
         <Text variant="body">{headline}</Text>
       </Card>
+
+      {/* Claude's read, surfaced where the owner actually starts. The computed
+          headline above never depends on it; this card simply disappears when
+          no read is on file rather than nagging for one. */}
+      {portfolioRead ? (
+        <Card style={{ gap: spacing.xs, borderColor: palette.accent }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Pill label="Claude" tone="accent" compact />
+            <Text variant="caption" faint style={{ flex: 1 }}>
+              Portfolio read · {relativeAsOf(portfolioRead.at)}
+            </Text>
+          </View>
+          <Text variant="body">{portfolioRead.result.headline}</Text>
+          <Text variant="caption" muted>
+            {portfolioRead.result.nextAction}
+          </Text>
+          <Link href="/insights" asChild>
+            <Button label="See the full read and what to change" onPress={() => {}} variant="quiet" />
+          </Link>
+        </Card>
+      ) : null}
+
+      <Section
+        title="Allocation"
+        term="concentration"
+        subtitle={`Share of net liquidation value · targets: ${targets.source === 'manual' ? "Claude's" : 'bundled'}`}
+      >
+        <Card>
+          <DonutChart
+            slices={buckets
+              .filter((b) => b.weightPct > 0)
+              .map((b) => ({ sector: b.sector, label: b.short, pct: b.weightPct }))}
+          />
+        </Card>
+      </Section>
 
       <Section title="Account">
         <Card>
@@ -191,48 +271,16 @@ export default function PortfolioScreen() {
             </Text>
           </View>
           <Text variant="caption" muted>
-            That is what the rebalancing plan exists to fix. Open the Plan tab to see which legs get
-            you back above it.
+            Ask for a portfolio read on the AI insights screen — it proposes the moves that get you
+            back above the floor, and you tick them off as you execute.
           </Text>
-          <Link href="/(tabs)/plan" asChild>
-            <Button label="Open the plan" onPress={() => {}} variant="quiet" />
+          <Link href="/insights" asChild>
+            <Button label="See what to change" onPress={() => {}} variant="quiet" />
           </Link>
         </Card>
       ) : null}
 
-      <Section title="Concentration" term="concentration" subtitle="Share of net liquidation value">
-        <Card style={{ gap: spacing.md }}>
-          <ConcentrationBar
-            slices={buckets
-              .filter((b) => b.weightPct > 0)
-              .map((b, i) => ({
-                label: b.short,
-                pct: b.weightPct,
-                color: b.sector === 'cash' ? palette.flat : palette.series[i % palette.series.length]!,
-              }))}
-          />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            {buckets
-              .filter((b) => b.weightPct > 0.05)
-              .map((b, i) => (
-                <View key={b.sector} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 2,
-                      backgroundColor:
-                        b.sector === 'cash' ? palette.flat : palette.series[i % palette.series.length]!,
-                    }}
-                  />
-                  <Text variant="caption" muted>
-                    {b.short} {b.weightPct.toFixed(1)}%
-                  </Text>
-                </View>
-              ))}
-          </View>
-        </Card>
-      </Section>
+      <MonteCarloBlock />
 
       {snapshots.length > 1 ? (
         <Section title="Value over time" term="snapshot" subtitle={`${snapshots.length} daily snapshots`}>
@@ -353,13 +401,12 @@ function attentionItems(
         text: `${t.label} — only ${t.score.toFixed(1)} of 5 trend checks passing.`,
       });
     }
-    const pc = s.options.value?.putCallVolume;
-    if (pc != null && pc >= 1.0) {
+    if (s.sentiment.value?.insiderActivity === 'selling') {
       out.push({
-        key: `opt-${ticker}`,
+        key: `insider-${ticker}`,
         tag: ticker,
         tone: 'warn',
-        text: `Options flow reads bearish at a ${pc.toFixed(2)} put/call ratio.`,
+        text: `Insider filings read as net selling. ${s.sentiment.value.insiderDetail ?? ''}`.trim(),
       });
     }
   }

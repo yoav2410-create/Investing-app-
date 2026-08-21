@@ -61,6 +61,11 @@ const bad = [];
 ctx.on('page', (page) => {
   page.on('pageerror', (e) => problems.push('page error: ' + e.message));
   page.on('response', (r) => {
+    // quotes.json is written by the scheduled workflow, not by the build, so a
+    // fresh deploy legitimately lacks it until the first run — and the app is
+    // built to degrade to the marks on file. Everything else that 404s is a
+    // broken asset path.
+    if (r.url().endsWith('/quotes.json')) return;
     if (r.status() >= 400 && !r.url().includes('/stock/')) bad.push(`${r.status()} ${r.url()}`);
   });
 });

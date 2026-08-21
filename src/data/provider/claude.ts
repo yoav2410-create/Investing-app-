@@ -371,6 +371,8 @@ export interface ResearchResult {
     label: 'very negative' | 'negative' | 'mixed' | 'positive' | 'very positive' | null;
     summary: string | null;
     analystRevisions: string | null;
+    insiderActivity: 'buying' | 'selling' | 'quiet' | null;
+    insiderDetail: string | null;
     headlines: {
       headline: string;
       source: string | null;
@@ -658,7 +660,7 @@ const RESEARCH_TOOL: Anthropic.Tool = {
         type: 'object',
         description: 'How the market is currently talking about this name.',
         additionalProperties: false,
-        required: ['score', 'label', 'summary', 'analystRevisions', 'headlines'],
+        required: ['score', 'label', 'summary', 'analystRevisions', 'insiderActivity', 'insiderDetail', 'headlines'],
         properties: {
           score: {
             type: ['number', 'null'],
@@ -675,6 +677,17 @@ const RESEARCH_TOOL: Anthropic.Tool = {
           analystRevisions: {
             type: ['string', 'null'],
             description: 'Target and rating changes since the last quarter, with the firms named.',
+          },
+          insiderActivity: {
+            type: ['string', 'null'],
+            enum: ['buying', 'selling', 'quiet', null],
+            description:
+              'Net direction of insider open-market filings over roughly the last quarter. Weigh purchases far above sales, ignore routine 10b5-1 programs and option exercises, and use null only when you could not find filing data at all.',
+          },
+          insiderDetail: {
+            type: ['string', 'null'],
+            description:
+              'The filings behind that read: who, roughly how much, and when — e.g. "CFO bought $2.1M on the post-earnings dip; two scheduled sales otherwise." Null only when insiderActivity is null.',
           },
           headlines: {
             type: 'array',

@@ -63,7 +63,7 @@ describe('every metric explainer resolves', () => {
   it('warns about the metrics that are most often misread', () => {
     // These four mislead in specific, well-known ways. An explainer for any of
     // them that omits the caveat is the kind that does more harm than good.
-    for (const key of ['trailingPe', 'evEbitda', 'beta', 'putCall'] as const) {
+    for (const key of ['trailingPe', 'evEbitda', 'beta', 'insiderActivity'] as const) {
       expect(glossary(key).caveat).toBeTruthy();
     }
   });

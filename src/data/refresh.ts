@@ -15,7 +15,6 @@ import {
   fundamentalsFrom,
   latestReportDate,
   multipleHistoryFrom,
-  optionsFrom,
   quoteFromCandles,
   toCandles,
   valuationFromOverview,
@@ -120,12 +119,6 @@ export function planJobs(
       jobs.push({ kind: 'prices', ticker: t, priority: held.has(t) ? 0 : 1 });
     }
   }
-  for (const t of tickers) {
-    const s = stocks[t]!;
-    if (hoursSince(s.options.asOf) >= STALE_HOURS.options) {
-      jobs.push({ kind: 'options', ticker: t, priority: held.has(t) ? 2 : 3 });
-    }
-  }
   // Slow-moving blocks rotate: oldest stamp first, so a small budget still
   // covers the whole book over a few days instead of starving the tail.
   const byAge = (kind: 'valuation' | 'earnings') =>
@@ -223,19 +216,6 @@ export async function runRefresh(input: RefreshInput): Promise<RefreshOutput> {
               ? { ...stock.valuation, value: valuation }
               : stock.valuation,
           };
-          break;
-        }
-        case 'options': {
-          const payload = await client.putCallRatio(job.ticker);
-          const options = optionsFrom(payload);
-          if (options.putCallVolume == null) {
-            messages.push(`${job.ticker}: no options chain returned, kept previous.`);
-            break;
-          }
-          // Preserve a previously known open-interest ratio; this endpoint does
-          // not supply one.
-          options.putCallOpenInterest = stock.options.value?.putCallOpenInterest ?? null;
-          stocks[job.ticker] = { ...stocks[job.ticker]!, options: stamp(options, at) };
           break;
         }
         case 'valuation': {

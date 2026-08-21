@@ -40,8 +40,7 @@ import {
   type PositionsReadResult,
 } from './provider/claude';
 import { buildInsights, summariseForModel } from '@/domain/insights';
-import { stanceProblems, summariseSimulation } from '@/domain/allocation';
-import { fetchSheet, toQuote } from './provider/googleSheet';
+import { stanceMoveKey, stanceProblems, summariseSimulation } from '@/domain/allocation';
 import { fetchQuotes } from './provider/finnhub';
 import { fetchPublishedQuotes, toQuote as toPublishedQuote } from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
@@ -82,6 +81,14 @@ export interface AppState {
   /** The last portfolio-level read, with the timestamp it was written. */
   portfolioRead: { at: string; result: PortfolioReadResult } | null;
   analysingPortfolio: boolean;
+  /**
+   * Which of the read's proposed moves the owner has executed, keyed by
+   * `stanceMoveKey`. This is the plan now: Claude proposes on request, the app
+   * pins the proposals, and the owner ticks them off. A fresh read replaces
+   * the checklist — done-marks describe moves that no longer exist.
+   */
+  stanceDone: string[];
+  toggleStanceDone: (key: string) => void;
 
   account: () => ReturnType<typeof deriveAccount>;
   cashUsd: () => number;
@@ -107,8 +114,6 @@ export interface AppState {
   enqueueResearch: (tickers: string[]) => void;
   clearResearchQueue: () => void;
   analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
-  /** Re-mark held names from the owner's published Google Sheet. */
-  refreshPricesFromSheet: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   /** Live marks for whatever is held right now. Follows the book, not a list. */
   refreshLiveQuotes: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   refreshingQuotes: boolean;
@@ -148,6 +153,13 @@ export const useApp = create<AppState>()(
       researchLog: [],
       portfolioRead: null,
       analysingPortfolio: false,
+      stanceDone: [],
+      toggleStanceDone: (key) =>
+        set((s) => ({
+          stanceDone: s.stanceDone.includes(key)
+            ? s.stanceDone.filter((k) => k !== key)
+            : [...s.stanceDone, key],
+        })),
       refreshingQuotes: false,
       quotesFetchedAt: null,
 
@@ -302,6 +314,13 @@ export const useApp = create<AppState>()(
         // moved is usually news, and the write-up on file predates it.
         const toResearch = [...new Set([...result.needResearch, ...touched])];
         if (toResearch.length) get().enqueueResearch(toResearch);
+        // Price the new book immediately rather than waiting for the next
+        // quarter-hour tick. A name that just arrived in the import has only
+        // the screenshot's mark, which was already minutes old when it was
+        // photographed; fifteen minutes more of it is the exact staleness the
+        // import was trying to fix. Fire-and-forget — the screenshot marks are
+        // already applied, so a failed refresh just leaves them in place.
+        void get().refreshLiveQuotes();
         return { applied: touched.length, needResearch: toResearch };
       },
 
@@ -419,58 +438,6 @@ export const useApp = create<AppState>()(
         }
       },
 
-      refreshPricesFromSheet: async (opts) => {
-        const url = get().settings.priceSheetUrl.trim();
-        if (!url) {
-          return { ok: false, message: 'Add the link to your published Google Sheet in Settings first.' };
-        }
-        try {
-          const read = await fetchSheet(url, opts?.fetchImpl ?? fetch);
-          const at = nowIso();
-          const day = todayIso();
-          const state = get();
-          const stocks = { ...state.stocks };
-
-          const updated: string[] = [];
-          const notHeld: string[] = [];
-          for (const q of read.quotes) {
-            const stock = stocks[q.ticker];
-            if (!stock) {
-              // The sheet is a price feed, not a position list. A row for
-              // something the owner does not own is not evidence they bought
-              // it; positions come from the broker screenshot and only from
-              // there.
-              notHeld.push(q.ticker);
-              continue;
-            }
-            stocks[q.ticker] = {
-              ...stock,
-              quote: { value: toQuote(q, day), asOf: at, source: 'googlesheet' },
-            };
-            updated.push(q.ticker);
-          }
-
-          if (updated.length === 0) {
-            return {
-              ok: false,
-              message: `That sheet had ${read.quotes.length} rows but none matched a name you hold${
-                notHeld.length ? ` (${notHeld.slice(0, 5).join(', ')})` : ''
-              }.`,
-            };
-          }
-
-          set({ stocks });
-          const parts = [`Re-marked ${updated.length} of ${state.holdings.length} holdings from your sheet.`];
-          if (notHeld.length) parts.push(`${notHeld.length} row(s) skipped as not held.`);
-          // Rows the sheet itself could not price are the owner's to fix, so
-          // they are named rather than quietly dropped.
-          if (read.skipped.length) parts.push(`Unusable: ${read.skipped.slice(0, 3).join('; ')}.`);
-          return { ok: true, message: parts.join(' ') };
-        } catch (e) {
-          return { ok: false, message: e instanceof Error ? e.message : 'Could not read that sheet.' };
-        }
-      },
-
       analysePortfolioNow: async () => {
         const key = await getClaudeKey();
         if (!key) {
@@ -493,12 +460,23 @@ export const useApp = create<AppState>()(
             .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
             .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
             .join('\n');
-          const planText = [
-            state.plan.summary,
-            ...state.plan.legs
-              .filter((l) => l.action !== 'hold')
-              .map((l) => `Tranche ${l.tranche}: ${l.action} ${l.ticker}${l.shares ? ` ${l.shares}sh` : ''}${l.done ? ' [done]' : ''}`),
-          ].join('\n');
+          // What the model proposed last time, and which of it the owner
+          // actually executed. That is the plan's whole history now — there is
+          // no standing plan document, only the previous read and its ticks —
+          // and telling the model what was and was not acted on lets it reason
+          // about follow-through instead of proposing the same trim twice.
+          const prev = state.portfolioRead?.result.allocation;
+          const planText = prev
+            ? [
+                `Your previous recommendations (${state.portfolioRead!.at.slice(0, 10)}):`,
+                ...prev.moves.map((m) => {
+                  const key = stanceMoveKey(m);
+                  return `- ${m.kind} ${m.ticker ?? m.sector ?? 'book'}: ${m.action} [${
+                    state.stanceDone.includes(key) ? 'executed' : 'not executed'
+                  }]`;
+                }),
+              ].join('\n')
+            : 'No previous recommendations on file.';
 
           // The projection is handed over rather than described. The stance is
           // supposed to set the cash floor from what this book actually does in
@@ -531,7 +509,10 @@ export const useApp = create<AppState>()(
           // sector look underweight, so it is checked before it is stored and
           // the problems are surfaced rather than swallowed.
           const problems = result.allocation ? stanceProblems(result.allocation) : [];
-          set({ portfolioRead: { at: nowIso(), result } });
+          // A fresh read replaces the checklist: the old done-marks describe
+          // moves that no longer exist, and carrying them over would show new
+          // recommendations as already executed.
+          set({ portfolioRead: { at: nowIso(), result }, stanceDone: [] });
           return {
             ok: true,
             message: problems.length
@@ -632,6 +613,7 @@ export const useApp = create<AppState>()(
         pendingImport: s.pendingImport,
         researchLog: s.researchLog,
         portfolioRead: s.portfolioRead,
+        stanceDone: s.stanceDone,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setUnlocked(false);

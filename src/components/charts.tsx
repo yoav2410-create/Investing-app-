@@ -8,10 +8,15 @@ import {
 } from 'react-native';
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
-import { toneColors, type Tone } from '@/theme/tokens';
+import { toneColors, type Palette, type Tone } from '@/theme/tokens';
 import { Text } from './ui';
 import { compactNumber } from '@/domain/format';
-import type { QuarterPoint } from '@/domain/types';
+
+// react-native-svg on web inherits the document default for SVG text, which is
+// the browser serif — Times sitting next to system-ui UI text. Every SvgText
+// takes this, or the charts look pasted in from a different app.
+const CHART_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+import { SECTORS, type QuarterPoint, type SectorId } from '@/domain/types';
 
 /**
  * Charts are hand-drawn SVG rather than a charting library: it keeps the bundle
@@ -146,7 +151,7 @@ export function LineChart({
                 strokeWidth={1}
                 strokeDasharray="4 3"
               />
-              <SvgText
+              <SvgText fontFamily={CHART_FONT}
                 x={w - padR}
                 y={Math.max(y(marker.value) - 4, 10)}
                 fill={palette.textFaint}
@@ -163,10 +168,10 @@ export function LineChart({
           {lastIndex >= 0 ? (
             <Circle cx={x(lastIndex)} cy={y(ordered[lastIndex]!.value!)} r={3.5} fill={c.fg} />
           ) : null}
-          <SvgText x={padL} y={height - 4} fill={palette.textFaint} fontSize={10}>
+          <SvgText fontFamily={CHART_FONT} x={padL} y={height - 4} fill={palette.textFaint} fontSize={10}>
             {ordered[0]?.label ?? ''}
           </SvgText>
-          <SvgText x={w - padR} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
+          <SvgText fontFamily={CHART_FONT} x={w - padR} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
             {ordered[ordered.length - 1]?.label ?? ''}
           </SvgText>
         </Svg>
@@ -280,7 +285,7 @@ export function BarChart({
             const negative = p.value < 0;
             const cx = i * slot + slot / 2;
             return (
-              <SvgText
+              <SvgText fontFamily={CHART_FONT}
                 key={`v-${p.period}`}
                 x={cx}
                 y={negative ? Math.max(vy, zeroY) + 11 : Math.min(vy, zeroY) - 5}
@@ -298,7 +303,7 @@ export function BarChart({
           {ordered.map((p, i) => {
             if (!showEveryPeriod && !keep(i)) return null;
             return (
-              <SvgText
+              <SvgText fontFamily={CHART_FONT}
                 key={`p-${p.period}`}
                 x={i * slot + slot / 2}
                 y={height - 6}
@@ -331,6 +336,151 @@ function unitOf(values: number[]): string {
   if (max >= 1e6) return 'millions';
   if (max >= 1e3) return 'thousands';
   return 'units';
+}
+
+// --------------------------------------------------------------------------
+// Sector colours and the allocation donut
+// --------------------------------------------------------------------------
+
+/**
+ * A sector's colour, stable across every screen and every filter.
+ *
+ * The screens used to paint `series[i]` over whichever buckets happened to be
+ * visible, which means colour followed *rank*: the day a sector emptied, every
+ * sector after it changed colour. Colour has to follow the entity — Tech is
+ * always the same blue whether it is first or fourth — or the reader relearns
+ * the legend every time the book changes. Cash is deliberately neutral: it is
+ * the absence of a bet, not another bet.
+ */
+export function sectorColor(palette: Palette, sector: SectorId): string {
+  if (sector === 'cash') return palette.flat;
+  const i = SECTORS.findIndex((s) => s.id === sector);
+  return palette.series[i % palette.series.length]!;
+}
+
+export interface DonutSlice {
+  sector: SectorId;
+  label: string;
+  pct: number;
+}
+
+/**
+ * The allocation donut.
+ *
+ * Slices are separated by a 2pt surface gap and the large ones carry their own
+ * label, so identity never rests on colour alone. The centre states the figure
+ * the whole chart exists to show — where the biggest bet is — rather than being
+ * decorative empty space.
+ */
+export function DonutChart({
+  slices,
+  size = 190,
+  style,
+}: {
+  slices: DonutSlice[];
+  size?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { palette, spacing } = useTheme();
+  const shown = slices.filter((s) => s.pct > 0.05).sort((a, b) => b.pct - a.pct);
+  const total = shown.reduce((s, x) => s + x.pct, 0) || 1;
+
+  const summary =
+    shown.length === 0
+      ? 'Allocation: nothing priced yet.'
+      : `Allocation: ${shown.map((s) => `${s.label} ${s.pct.toFixed(1)} percent`).join(', ')}.`;
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const rOuter = size / 2 - 2;
+  const rInner = rOuter * 0.62;
+  const rLabel = (rOuter + rInner) / 2;
+  // The 2pt gap between slices, expressed as the angle it subtends mid-ring.
+  const gapRad = 2 / rLabel;
+
+  const arcs: { d: string; color: string; labelX: number; labelY: number; s: DonutSlice }[] = [];
+  let angle = -Math.PI / 2;
+  for (const s of shown) {
+    const sweep = (s.pct / total) * Math.PI * 2;
+    const a0 = angle + gapRad / 2;
+    const a1 = angle + sweep - gapRad / 2;
+    angle += sweep;
+    if (a1 <= a0) continue; // a sliver thinner than the gap has no drawable arc
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const p = (r: number, a: number) => `${cx + r * Math.cos(a)} ${cy + r * Math.sin(a)}`;
+    arcs.push({
+      d: `M ${p(rOuter, a0)} A ${rOuter} ${rOuter} 0 ${large} 1 ${p(rOuter, a1)} L ${p(rInner, a1)} A ${rInner} ${rInner} 0 ${large} 0 ${p(rInner, a0)} Z`,
+      color: sectorColor(palette, s.sector),
+      labelX: cx + rLabel * Math.cos((a0 + a1) / 2),
+      labelY: cy + rLabel * Math.sin((a0 + a1) / 2),
+      s,
+    });
+  }
+
+  const top = shown[0];
+
+  return (
+    <View
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }, style]}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={summary}
+    >
+      <Svg width={size} height={size}>
+        {arcs.map((a) => (
+          <Path key={a.s.sector} d={a.d} fill={a.color} />
+        ))}
+        {/* A label on every slice wide enough to hold one; the legend carries
+            the rest. Text wears ink, not the series colour. */}
+        {arcs
+          .filter((a) => a.s.pct / total >= 0.09)
+          .map((a) => (
+            <SvgText fontFamily={CHART_FONT}
+              key={`l-${a.s.sector}`}
+              x={a.labelX}
+              y={a.labelY + 3}
+              fill="#FFFFFF"
+              fontSize={10}
+              fontWeight="600"
+              textAnchor="middle"
+            >
+              {`${Math.round(a.s.pct)}%`}
+            </SvgText>
+          ))}
+        {top ? (
+          <>
+            <SvgText fontFamily={CHART_FONT} x={cx} y={cy - 4} fill={palette.textMuted} fontSize={10} textAnchor="middle">
+              heaviest
+            </SvgText>
+            <SvgText fontFamily={CHART_FONT} x={cx} y={cy + 12} fill={palette.text} fontSize={13} fontWeight="700" textAnchor="middle">
+              {top.label}
+            </SvgText>
+          </>
+        ) : null}
+      </Svg>
+
+      <View style={{ flex: 1, gap: 6 }}>
+        {shown.map((s) => (
+          <View key={s.sector} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 3,
+                backgroundColor: sectorColor(palette, s.sector),
+              }}
+            />
+            <Text variant="caption" muted style={{ flex: 1 }} numberOfLines={1}>
+              {s.label}
+            </Text>
+            <Text variant="caption" style={{ fontVariant: ['tabular-nums'] }}>
+              {s.pct.toFixed(1)}%
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 /**
@@ -730,7 +880,7 @@ export function WaterfallChart({
           {drawable.map((s, i) => {
             const x = i * slot + (slot - barW) / 2;
             const label = (
-              <SvgText
+              <SvgText fontFamily={CHART_FONT}
                 key={`t-${s.key}`}
                 x={i * slot + slot / 2}
                 y={height - 26}
@@ -757,7 +907,7 @@ export function WaterfallChart({
                     fill={s.runningTotal >= 0 ? palette.accent : palette.down}
                   />
                   {label}
-                  <SvgText
+                  <SvgText fontFamily={CHART_FONT}
                     x={i * slot + slot / 2}
                     y={height - 12}
                     fill={palette.text}
@@ -788,7 +938,7 @@ export function WaterfallChart({
                     strokeDasharray="3 3"
                   />
                   {label}
-                  <SvgText
+                  <SvgText fontFamily={CHART_FONT}
                     x={i * slot + slot / 2}
                     y={height - 12}
                     fill={palette.textFaint}
@@ -815,7 +965,7 @@ export function WaterfallChart({
                   opacity={0.85}
                 />
                 {label}
-                <SvgText
+                <SvgText fontFamily={CHART_FONT}
                   x={i * slot + slot / 2}
                   y={height - 12}
                   fill={palette.textMuted}
@@ -953,10 +1103,10 @@ export function FanChart({
             />
           ) : null}
           <Circle cx={x(bands.length - 1)} cy={y(last.p50)} r={3.5} fill={palette.accent} />
-          <SvgText x={2} y={height - 4} fill={palette.textFaint} fontSize={10}>
+          <SvgText fontFamily={CHART_FONT} x={2} y={height - 4} fill={palette.textFaint} fontSize={10}>
             now
           </SvgText>
-          <SvgText x={w - 2} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
+          <SvgText fontFamily={CHART_FONT} x={w - 2} y={height - 4} fill={palette.textFaint} fontSize={10} textAnchor="end">
             {bands.length - 1}y
           </SvgText>
         </Svg>
@@ -1041,10 +1191,10 @@ export function Histogram({
               strokeDasharray="4 3"
             />
           ) : null}
-          <SvgText x={2} y={height - 3} fill={palette.textFaint} fontSize={9}>
+          <SvgText fontFamily={CHART_FONT} x={2} y={height - 3} fill={palette.textFaint} fontSize={9}>
             {format(lo)}
           </SvgText>
-          <SvgText x={w - 2} y={height - 3} fill={palette.textFaint} fontSize={9} textAnchor="end">
+          <SvgText fontFamily={CHART_FONT} x={w - 2} y={height - 3} fill={palette.textFaint} fontSize={9} textAnchor="end">
             {format(hi)}
           </SvgText>
         </Svg>

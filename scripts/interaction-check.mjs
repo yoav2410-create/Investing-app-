@@ -18,56 +18,63 @@ page.on('pageerror', (e) => problems.push('pageerror: ' + e.message));
 
 const text = async () => (await page.locator('body').innerText()).replace(/\s+/g, ' ');
 
-// ---- 1. Tranche projection recomputes the cash floor -----------------------
-await page.goto('http://localhost:8080/plan', { waitUntil: 'networkidle' });
-await page.waitForTimeout(900);
-const before = await text();
-const headroomOf = (t) => t.match(/Headroom over \d+% floor\D{0,4}([+−-]?\d+\.\d)pp/)?.[1];
-const beforeHeadroom = headroomOf(before);
-console.log('as things stand, headroom =', beforeHeadroom);
-
-await page.getByText('A', { exact: true }).first().click();
-await page.waitForTimeout(600);
-const afterA = await text();
-const afterAHeadroom = headroomOf(afterA);
-console.log('projecting tranche A, headroom =', afterAHeadroom);
-if (!afterA.includes('If tranche A is finished')) problems.push('tranche A projection header missing');
-if (!beforeHeadroom || !afterAHeadroom) problems.push('could not read the cash headroom figure');
-else if (beforeHeadroom === afterAHeadroom) problems.push('projecting tranche A did not move the cash headroom');
-await page.screenshot({ path: `${OUT}/interaction-plan-projection.png` });
-
-// ---- 2. Marking a leg done actually moves the counter ----------------------
-await page.getByText('C', { exact: true }).first().click(); // clear projection
-await page.waitForTimeout(400);
-const scroller = await page.evaluate(() => {
-  const el = [...document.querySelectorAll('div')].filter((d) => d.scrollHeight > d.clientHeight + 50)
-    .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
-  el.setAttribute('data-scroller', '1');
-  return true;
+// ---- 1. The dynamic plan: propose, pin, tick, survive a reload -------------
+// The Plan tab is gone. The plan is now the read's proposed moves, pinned on
+// the insights screen as a checklist. A real read needs a key and costs money,
+// so a stance is planted the way analysePortfolioNow would store one; what is
+// under test is everything after that point — rendering, ticking, persistence.
+await page.goto('http://localhost:8080/insights', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1200);
+await page.evaluate(() => {
+  const raw = JSON.parse(localStorage.getItem('portfolio-brief-v1'));
+  raw.state.portfolioRead = {
+    at: '2026-08-20T09:00:00.000Z',
+    result: {
+      headline: 'Planted.', whatThisBookIs: 'Planted.', observations: [], themeClusters: [],
+      biggestRisk: 'Planted.', nextAction: 'Planted.', blindSpots: [],
+      allocation: {
+        targetMix: [
+          { sector: 'tech', targetPct: 60, previousPct: null, why: 'w' },
+          { sector: 'cash', targetPct: 40, previousPct: null, why: 'w' },
+        ],
+        cashFloorPct: null, maxPositionPct: null, reasoning: 'Planted stance.',
+        moves: [
+          { kind: 'trim', ticker: 'PLTR', sector: null, sizePctOfNlv: 3, action: 'Trim PLTR.', basis: 'weight 14.5%', urgency: 'now' },
+          { kind: 'raise-cash', ticker: null, sector: 'cash', sizePctOfNlv: null, action: 'Hold the proceeds.', basis: 'floor', urgency: 'soon' },
+          { kind: 'hold', ticker: 'META', sector: null, sizePctOfNlv: null, action: 'Leave META.', basis: '', urgency: 'watch' },
+        ],
+        caveats: [],
+      },
+    },
+  };
+  raw.state.stanceDone = [];
+  localStorage.setItem('portfolio-brief-v1', JSON.stringify(raw));
 });
-await page.evaluate(() => { document.querySelector('[data-scroller]').scrollTop = 1200; });
-await page.waitForTimeout(400);
-const legBefore = await text();
-const doneBefore = legBefore.match(/(\d)\/8 done/)?.[1];
-// Target the leg by its role and what it does, not by its prose. The note text
-// is demo copy and is meant to change; "the checkbox that exits VST" is the
-// thing actually under test.
-const vstLeg = page.getByRole('checkbox', { name: /Exit VST/i }).first();
-if ((await vstLeg.count()) === 0) problems.push('could not find the VST exit leg to tick');
-await vstLeg.click();
-await page.waitForTimeout(600);
-const legAfter = await text();
-const doneAfter = legAfter.match(/(\d)\/8 done/)?.[1];
-console.log(`marking the VST exit done: tranche A ${doneBefore}/8 -> ${doneAfter}/8`);
-// Both halves have to be readable. A counter that becomes unreadable makes
-// "it changed" trivially true, which is how a check like this passes while
-// testing nothing.
-if (!doneBefore || !doneAfter) {
-  problems.push(`tranche counter unreadable (before=${doneBefore}, after=${doneAfter})`);
-} else if (doneBefore === doneAfter) {
-  problems.push('marking a leg done did not change the tranche counter');
-}
-await page.screenshot({ path: `${OUT}/interaction-leg-done.png` });
+await page.goto('http://localhost:8080/insights', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1200);
+const doneOf = (t) => t.match(/(\d)\/(\d) done/);
+const before = doneOf(await text());
+console.log(`plan pinned: ${before?.[1]}/${before?.[2]} done`);
+// The hold move must not be counted — there is nothing to execute.
+if (!before) problems.push('the pinned plan shows no done counter');
+else if (before[2] !== '2') problems.push(`expected 2 actionable moves, counter says ${before[2]}`);
+
+const move = page.getByRole('checkbox', { name: /trim PLTR/i }).first();
+if ((await move.count()) === 0) problems.push('could not find the PLTR move to tick');
+await move.click();
+await page.waitForTimeout(700);
+const after = doneOf(await text());
+console.log(`ticked the PLTR trim: ${before?.[1]}/2 -> ${after?.[1]}/2`);
+if (!after || after[1] !== '1') problems.push(`ticking a move did not advance the counter (${after?.[1]})`);
+await page.screenshot({ path: `${OUT}/interaction-plan-tick.png` });
+
+// The tick is the execution record; losing it on a reload would make the
+// checklist decorative.
+await page.goto('http://localhost:8080/insights', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1200);
+const reloaded = doneOf(await text());
+console.log(`after a reload: ${reloaded?.[1]}/2 done`);
+if (!reloaded || reloaded[1] !== '1') problems.push('the tick did not survive a reload');
 
 // ---- 3. Every list row navigates to the right detail screen ----------------
 await page.goto('http://localhost:8080/stocks', { waitUntil: 'networkidle' });

@@ -8,7 +8,6 @@ import type {
   Sentiment,
   MultipleHistory,
   Narrative,
-  OptionsPositioning,
   PrimaryMultiple,
   QuarterPoint,
   Quote,
@@ -65,7 +64,6 @@ export interface StockSpec {
   cashFlowProfile?: CashFlowProfile;
   /** Explicit lines override anything the profile would derive. */
   cashFlow?: Partial<CashFlowBridge>;
-  options: OptionsPositioning;
   /** Millions of USD, newest first (8 quarters). */
   revenue: (number | null)[];
   operatingIncome: (number | null)[];
@@ -79,7 +77,7 @@ export interface StockSpec {
   nextEarningsDate: string | null;
   /** Per-block provenance. Anything absent falls back to `seed`. */
   sources?: Partial<Record<
-    'quote' | 'valuation' | 'technicals' | 'options' | 'earnings' | 'fundamentals' | 'multipleHistory',
+    'quote' | 'valuation' | 'technicals' | 'earnings' | 'fundamentals' | 'multipleHistory',
     DataSourceId
   >>;
   /** When the live blocks were fetched. */
@@ -144,7 +142,6 @@ export function buildStock(spec: StockSpec, seedAsOf: string): Stock {
     momentum: spec.momentum
       ? stamped(spec.momentum, seedAsOf, 'seed')
       : stamped(deriveMomentum(spec), seedAsOf, 'computed'),
-    options: stamped(spec.options, asOfFor('options'), pick('options')),
     earnings: stamped({ ...EMPTY_EARNINGS, ...spec.earnings }, asOfFor('earnings'), pick('earnings')),
     // Sentiment is coverage-based and has no offline equivalent, so it stays
     // empty until a research pass fills it rather than being seeded.

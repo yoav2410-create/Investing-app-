@@ -245,8 +245,15 @@ export interface NewsItem {
 }
 
 /**
- * How the market is currently talking about this name. Distinct from options
- * positioning, which is what the market is *doing* with money.
+ * How the market is currently talking about this name — and what the people
+ * running the company are doing with their own money, which is the honest
+ * counterpart: coverage is opinion, an insider purchase is a position.
+ *
+ * Insider activity replaced the put/call positioning that used to live in its
+ * own block. The put/call ratio needed an options chain nothing free supplies
+ * reliably, and a whole-chain ratio blurs hedging with conviction. Insider
+ * filings are public, dated, and unambiguous about direction; Claude reads the
+ * recent ones during the research pass.
  */
 export interface Sentiment {
   /** -1 to +1, weighted across recent coverage. */
@@ -256,14 +263,11 @@ export interface Sentiment {
   summary: string | null;
   /** Analyst target and rating movement since the last quarter. */
   analystRevisions: string | null;
+  /** Net direction of insider filings over the last quarter or so. */
+  insiderActivity: 'buying' | 'selling' | 'quiet' | null;
+  /** The filings behind that read: who, roughly how much, when. */
+  insiderDetail: string | null;
   headlines: NewsItem[];
-}
-
-export interface OptionsPositioning {
-  /** Whole-chain put/call ratio by volume. */
-  putCallVolume: number | null;
-  /** Whole-chain put/call ratio by open interest. */
-  putCallOpenInterest: number | null;
 }
 
 export interface EarningsCall {
@@ -329,7 +333,6 @@ export interface Stock {
   quality: Stamped<QualityMetrics>;
   cashFlow: Stamped<CashFlowBridge>;
   momentum: Stamped<Momentum>;
-  options: Stamped<OptionsPositioning>;
   sentiment: Stamped<Sentiment>;
   earnings: Stamped<EarningsCall>;
   narrative: Narrative;
@@ -510,6 +513,7 @@ export interface Settings {
   biometricLockEnabled: boolean;
   /** Absolute RSI/MA thresholds that fire an alert when crossed. */
   alertOnTrendChange: boolean;
-  alertOnOptionsFlip: boolean;
+  /** Alert when insider filings on a held name read as net selling. */
+  alertOnInsiderSelling: boolean;
   alertOnEarningsWithinDays: number;
 }

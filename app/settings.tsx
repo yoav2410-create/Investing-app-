@@ -19,7 +19,7 @@ import {
   saveBackup,
   type BackupPayload,
 } from '@/data/backup';
-import { currency, shares as fmtShares } from '@/domain/format';
+import { currency, relativeAsOf, shares as fmtShares } from '@/domain/format';
 
 export default function SettingsScreen() {
   const { palette, spacing, radius } = useTheme();
@@ -45,44 +45,9 @@ export default function SettingsScreen() {
         />
       </Section>
 
-      <Section title="Alpha Vantage" subtitle="Optional — adds precise daily technicals">
-        <KeyField
-          name="alphavantage"
-          label="Alpha Vantage API key"
-          placeholder="Optional"
-          help="A free key allows 25 requests a day, which is fewer than one per tracked ticker. The scheduler spends that budget in priority order and rotates the rest across days."
-        />
-        <Card style={{ gap: spacing.sm }}>
-          <Row
-            label="Daily call budget"
-            value={String(settings.dailyCallBudget)}
-            hint={`${refresh.callsUsedToday} used today`}
-          />
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            {[25, 75, 500].map((n) => (
-              <Button
-                key={n}
-                label={String(n)}
-                onPress={() => update({ dailyCallBudget: n })}
-                variant={settings.dailyCallBudget === n ? 'solid' : 'quiet'}
-                style={{ flex: 1 }}
-              />
-            ))}
-          </View>
-          <Button
-            label={busy ? 'Refreshing…' : 'Refresh technicals now'}
-            onPress={async () => {
-              setBusy(true);
-              const res = await refreshNow();
-              setBusy(false);
-              setStatus(res.message);
-            }}
-            variant="quiet"
-            disabled={busy}
-          />
-          {busy ? <ActivityIndicator color={palette.accent} /> : null}
-        </Card>
-      </Section>
+      <PricesSection onStatus={setStatus} />
+
+      <YourDataSection onStatus={setStatus} />
 
       <Section title="Alerts">
         <Card>
@@ -108,10 +73,10 @@ export default function SettingsScreen() {
             onChange={(v) => update({ alertOnTrendChange: v })}
           />
           <Toggle
-            label="Options flow flips bearish"
-            hint="Put/call crossing 1.00"
-            value={settings.alertOnOptionsFlip}
-            onChange={(v) => update({ alertOnOptionsFlip: v })}
+            label="Insiders turn net sellers"
+            hint="A held name whose recent filings read as selling"
+            value={settings.alertOnInsiderSelling}
+            onChange={(v) => update({ alertOnInsiderSelling: v })}
           />
           <Row
             label="Earnings warning"
@@ -177,9 +142,47 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <PriceSheetSection onStatus={setStatus} />
-
-      <YourDataSection onStatus={setStatus} />
+      <Section
+        title="Alpha Vantage"
+        subtitle="Optional — precise daily technicals. Skip this unless you have a key."
+      >
+        <KeyField
+          name="alphavantage"
+          label="Alpha Vantage API key"
+          placeholder="Optional"
+          help="A free key allows 25 requests a day, which is fewer than one per tracked ticker. The scheduler spends that budget in priority order and rotates the rest across days."
+        />
+        <Card style={{ gap: spacing.sm }}>
+          <Row
+            label="Daily call budget"
+            value={String(settings.dailyCallBudget)}
+            hint={`${refresh.callsUsedToday} used today`}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {[25, 75, 500].map((n) => (
+              <Button
+                key={n}
+                label={String(n)}
+                onPress={() => update({ dailyCallBudget: n })}
+                variant={settings.dailyCallBudget === n ? 'solid' : 'quiet'}
+                style={{ flex: 1 }}
+              />
+            ))}
+          </View>
+          <Button
+            label={busy ? 'Refreshing…' : 'Refresh technicals now'}
+            onPress={async () => {
+              setBusy(true);
+              const res = await refreshNow();
+              setBusy(false);
+              setStatus(res.message);
+            }}
+            variant="quiet"
+            disabled={busy}
+          />
+          {busy ? <ActivityIndicator color={palette.accent} /> : null}
+        </Card>
+      </Section>
 
       <Section title="Reset">
         <Card style={{ gap: spacing.sm }}>
@@ -210,84 +213,40 @@ export default function SettingsScreen() {
 }
 
 /**
- * Prices from a Google Sheet the owner publishes.
+ * The price pipeline, stated plainly: a scheduled feed does the common case
+ * with no key at all, and a device key closes the gap to every name held.
  *
- * There is no Google Finance API — `GOOGLEFINANCE()` lives only inside Sheets —
- * and the two sources that could have replaced it, Yahoo and Finviz, send no
- * CORS headers, so a browser refuses to read their responses however well they
- * answer a script. With no server of our own, a published sheet is the way to
- * get Google's quotes onto the phone.
- *
- * This re-marks names already held. It does not add positions: those come from
- * the broker screenshot, which is the only thing that knows what is owned.
+ * The Google Sheet route that used to sit here is gone. It solved the same
+ * problem with a manual publishing step the scheduled feed made unnecessary,
+ * and a settings screen that offers two ways to do one thing is how the owner
+ * ends up doing neither.
  */
-function PriceSheetSection({ onStatus }: { onStatus: (s: string) => void }) {
+function PricesSection({ onStatus }: { onStatus: (s: string) => void }) {
   const { spacing } = useTheme();
-  const settings = useApp((s) => s.settings);
-  const update = useApp((s) => s.updateSettings);
-  const refreshFromSheet = useApp((s) => s.refreshPricesFromSheet);
   const refreshLive = useApp((s) => s.refreshLiveQuotes);
   const refreshingQuotes = useApp((s) => s.refreshingQuotes);
-  const [draft, setDraft] = useState(settings.priceSheetUrl);
-  const [busy, setBusy] = useState(false);
-  const { palette, radius } = useTheme();
-
-  const run = async () => {
-    setBusy(true);
-    update({ priceSheetUrl: draft.trim() });
-    const res = await refreshFromSheet();
-    setBusy(false);
-    onStatus(res.message);
-  };
+  const quotesFetchedAt = useApp((s) => s.quotesFetchedAt);
 
   return (
-    <Section title="Prices" subtitle="Live marks for whatever you hold">
+    <Section title="Prices" subtitle="Refreshed every 15 minutes on their own">
       <Card style={{ gap: spacing.sm }}>
-        <KeyField
-          name="finnhub"
-          label="Finnhub key"
-          placeholder="paste your free key"
-          help="finnhub.io — free, no card. This is the only setup: after it, the app re-marks every holding on its own, and a name that arrives in your next screenshot is priced without you doing anything."
-        />
+        <Text variant="caption" muted>
+          Marks come from a published feed the app reads automatically — on open, every fifteen
+          minutes while open, and after every screenshot import.
+          {quotesFetchedAt ? ` Feed last fetched ${relativeAsOf(quotesFetchedAt)}.` : ''}
+        </Text>
         <Button
           label={refreshingQuotes ? 'Refreshing…' : 'Refresh prices now'}
           onPress={async () => onStatus((await refreshLive()).message)}
           disabled={refreshingQuotes}
         />
         <Divider />
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="https://docs.google.com/spreadsheets/…"
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel="Google Sheet link"
-          placeholderTextColor={palette.textFaint}
-          style={{
-            borderWidth: 1,
-            borderColor: palette.border,
-            borderRadius: radius.md,
-            color: palette.text,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-            minHeight: 44,
-          }}
+        <KeyField
+          name="finnhub"
+          label="Finnhub key"
+          placeholder="paste your free key"
+          help="finnhub.io — free, no card. Optional but worth it: the feed covers the liquid US market, and this key covers everything else you ever hold, live, with nothing else to set up."
         />
-        <Button
-          label={busy ? 'Reading…' : 'Update prices from the sheet'}
-          onPress={run}
-          disabled={busy}
-        />
-        <Text variant="caption" faint>
-          In Sheets, make a tab with a ticker column and a price column —
-          {' '}<Text variant="caption">=GOOGLEFINANCE(A2,"price")</Text> — then File → Share →
-          Publish to web → Comma-separated values. Paste either link here; an ordinary sheet link
-          works too.
-        </Text>
-        <Text variant="caption" faint>
-          This updates the mark on names you already hold. Share counts, cost basis and cash still
-          come from your broker screenshot.
-        </Text>
       </Card>
     </Section>
   );

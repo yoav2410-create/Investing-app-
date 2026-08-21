@@ -2,7 +2,6 @@ import type {
   EarningsCall,
   FundamentalsSeries,
   MultipleHistory,
-  OptionsPositioning,
   QuarterPoint,
   Quote,
   ValuationSnapshot,
@@ -266,12 +265,6 @@ export function multipleHistoryFrom(
   return { peHistory, evEbitdaHistory, psHistory };
 }
 
-export function optionsFrom(pc: AvPutCall): OptionsPositioning {
-  return {
-    putCallVolume: num(pc.put_call_ratio_full_chain),
-    putCallOpenInterest: null,
-  };
-}
 
 /**
  * Latest reported quarter. `managementSaid` and `guidance` stay null here —
