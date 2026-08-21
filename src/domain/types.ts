@@ -515,5 +515,7 @@ export interface Settings {
   alertOnTrendChange: boolean;
   /** Alert when insider filings on a held name read as net selling. */
   alertOnInsiderSelling: boolean;
+  /** Alert when a sector drifts >5pp from the target the read set. */
+  alertOnDrift: boolean;
   alertOnEarningsWithinDays: number;
 }

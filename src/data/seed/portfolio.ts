@@ -217,5 +217,6 @@ export const DEFAULT_SETTINGS: Settings = {
   biometricLockEnabled: false,
   alertOnTrendChange: true,
   alertOnInsiderSelling: true,
+  alertOnDrift: true,
   alertOnEarningsWithinDays: 7,
 };

@@ -2,6 +2,8 @@ import * as Notifications from 'expo-notifications';
 import type { AppState } from './store';
 import { trendRead } from '@/domain/technicals';
 import { daysUntil } from '@/domain/format';
+import { resolveTargets } from '@/domain/allocation';
+import { positionViews, sectorBuckets } from '@/domain/portfolio';
 
 /**
  * Threshold alerts.
@@ -92,6 +94,36 @@ export function computeAlerts(state: AppState): Alert[] {
       title: 'Cash is under the floor',
       body: `${cashPct.toFixed(1)}% against a ${floorPct.toFixed(0)}% floor.`,
     });
+  }
+
+  // Drift against the targets the read set. Only when a read exists — drifting
+  // from the bundled placeholder is not information — and only past five
+  // points, because a target is a heading, not a tripwire.
+  if (settings.alertOnDrift && state.portfolioRead?.result.allocation) {
+    const targets = resolveTargets(plan, {
+      at: state.portfolioRead.at,
+      stance: state.portfolioRead.result.allocation,
+    });
+    if (targets.source === 'manual') {
+      const positions = positionViews(state.holdings, stocks, nlv);
+      const buckets = sectorBuckets(
+        positions,
+        state.cashUsd(),
+        nlv,
+        Object.fromEntries(Object.entries(targets.mix).map(([k, v]) => [k, v / 100])),
+      );
+      for (const b of buckets) {
+        if (b.driftPct != null && Math.abs(b.driftPct) > 5) {
+          out.push({
+            id: `drift-${b.sector}`,
+            title: `${b.short} has drifted from the plan`,
+            body: `${b.weightPct.toFixed(1)}% against the read's ${b.targetPct!.toFixed(0)}% target — ${
+              b.driftPct > 0 ? 'over' : 'under'
+            } by ${Math.abs(b.driftPct).toFixed(1)} points.`,
+          });
+        }
+      }
+    }
   }
 
   return out;

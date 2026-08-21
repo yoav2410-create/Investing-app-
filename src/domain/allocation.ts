@@ -154,3 +154,136 @@ export function summariseSimulation(sim: SimResult): string {
     'Every holding is driven by one shared market factor scaled by its beta, so these paths already account for the book falling together rather than diversifying in the simulation in a way it does not in reality.',
   ].join('\n');
 }
+
+
+// ---------------------------------------------------------------------------
+// Executing a move, and comparing one stance to the next
+// ---------------------------------------------------------------------------
+
+export interface HoldingChange {
+  ticker: string;
+  /** Share delta: negative sells, positive buys. */
+  sharesDelta: number;
+  /** null removes the holding entirely. */
+  newShares: number | null;
+  /** Estimated cash released (positive) or spent (negative), at the mark used. */
+  cashDelta: number;
+  /** The mark the arithmetic used, so the confirm line can cite it. */
+  price: number;
+}
+
+/**
+ * What ticking "done and applied" on a move would do to the book.
+ *
+ * Returns null - with the reason - whenever the change cannot be computed
+ * honestly: no mark to price it at, no holding to trim, a size the model
+ * declined to give. Estimating any of those would put an invented share count
+ * into the same store the broker screenshot feeds, which is the one corruption
+ * this app is built to refuse. The screenshot import remains the source of
+ * truth; this is a convenience for the gap between executing at the broker and
+ * photographing the result.
+ */
+export function moveToHoldingChange(
+  move: { kind: string; ticker: string | null; sizePctOfNlv: number | null },
+  holdings: { ticker: string; shares: number }[],
+  priceOf: (ticker: string) => number | null,
+  nlv: number,
+): { change: HoldingChange | null; reason: string | null } {
+  if (!move.ticker) return { change: null, reason: 'This move is about a sleeve, not one name.' };
+  if (move.kind === 'hold') return { change: null, reason: 'A hold changes nothing.' };
+  const price = priceOf(move.ticker);
+  if (price == null || price <= 0) {
+    return { change: null, reason: `No mark on file for ${move.ticker} to price the change.` };
+  }
+  const held = holdings.find((h) => h.ticker === move.ticker)?.shares ?? 0;
+
+  if (move.kind === 'exit') {
+    if (held <= 0) return { change: null, reason: `Nothing held in ${move.ticker} to exit.` };
+    return {
+      change: { ticker: move.ticker, sharesDelta: -held, newShares: null, cashDelta: held * price, price },
+      reason: null,
+    };
+  }
+
+  if (move.sizePctOfNlv == null || move.sizePctOfNlv <= 0 || nlv <= 0) {
+    return { change: null, reason: 'The read did not size this move, so there is no honest share count to apply.' };
+  }
+  const rawShares = (move.sizePctOfNlv / 100) * nlv / price;
+  // Whole shares, floored: applying 3.2% as 3.18 shares pretends to a
+  // precision the broker will not honour anyway.
+  const shares = Math.floor(rawShares);
+  if (shares < 1) return { change: null, reason: 'The sized amount rounds below one share at the current mark.' };
+
+  if (move.kind === 'trim') {
+    if (held <= 0) return { change: null, reason: `Nothing held in ${move.ticker} to trim.` };
+    const sell = Math.min(shares, held);
+    const remaining = held - sell;
+    return {
+      change: {
+        ticker: move.ticker,
+        sharesDelta: -sell,
+        newShares: remaining > 0 ? remaining : null,
+        cashDelta: sell * price,
+        price,
+      },
+      reason: null,
+    };
+  }
+
+  if (move.kind === 'add' || move.kind === 'enter') {
+    return {
+      change: { ticker: move.ticker, sharesDelta: shares, newShares: held + shares, cashDelta: -(shares * price), price },
+      reason: null,
+    };
+  }
+
+  return { change: null, reason: 'Raising cash is the effect of the other moves, not a trade of its own.' };
+}
+
+/**
+ * What a fresh read changed against the one it replaced, in sentences.
+ *
+ * The owner sees a new plan appear; without this they would have to remember
+ * the old numbers to know whether anything actually moved. Only real changes
+ * are reported - a target that stayed put is silence, not a line saying so.
+ */
+export function diffStances(
+  prev: AllocationStance | null | undefined,
+  next: AllocationStance,
+): string[] {
+  if (!prev) return [];
+  const out: string[] = [];
+  const label = (id: string) => SECTORS.find((s) => s.id === id)?.short ?? id;
+
+  const prevMix = new Map(prev.targetMix.map((t) => [t.sector, t.targetPct]));
+  for (const t of next.targetMix) {
+    const was = prevMix.get(t.sector);
+    if (was == null) out.push(`${label(t.sector)} target set at ${t.targetPct.toFixed(0)}% (had none).`);
+    else if (Math.abs(was - t.targetPct) >= 1) {
+      out.push(`${label(t.sector)} target ${was.toFixed(0)}% -> ${t.targetPct.toFixed(0)}%.`);
+    }
+    prevMix.delete(t.sector);
+  }
+  for (const [sector, was] of prevMix) {
+    out.push(`${label(sector)} target dropped (was ${was.toFixed(0)}%).`);
+  }
+
+  if (prev.cashFloorPct !== next.cashFloorPct) {
+    const fmt = (v: number | null) => (v == null ? 'unset' : `${v.toFixed(0)}%`);
+    out.push(`Cash floor ${fmt(prev.cashFloorPct)} -> ${fmt(next.cashFloorPct)}.`);
+  }
+  if (prev.maxPositionPct !== next.maxPositionPct) {
+    const fmt = (v: number | null) => (v == null ? 'unset' : `${v.toFixed(0)}%`);
+    out.push(`Position cap ${fmt(prev.maxPositionPct)} -> ${fmt(next.maxPositionPct)}.`);
+  }
+
+  const keyOf = stanceMoveKey;
+  const prevKeys = new Set(prev.moves.map(keyOf));
+  const nextKeys = new Set(next.moves.map(keyOf));
+  const dropped = prev.moves.filter((m) => !nextKeys.has(keyOf(m)) && m.kind !== 'hold');
+  const added = next.moves.filter((m) => !prevKeys.has(keyOf(m)) && m.kind !== 'hold');
+  for (const m of added) out.push(`New move: ${m.kind} ${m.ticker ?? m.sector ?? 'book'}.`);
+  for (const m of dropped) out.push(`No longer proposed: ${m.kind} ${m.ticker ?? m.sector ?? 'book'}.`);
+
+  return out;
+}

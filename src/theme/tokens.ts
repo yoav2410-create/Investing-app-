@@ -53,9 +53,12 @@ export const lightPalette: Palette = {
   warnMuted: '#FDF0DC',
   overlay: 'rgba(14, 22, 32, 0.45)',
   chartGrid: '#E4E8EF',
-  // The teal used to be #0E7490, which sits under the chroma floor a
-  // categorical colour needs — against the others it read as gray.
-  series: ['#2D5BD7', '#0F7B4F', '#B26A00', '#7A3FBF', '#C0392B', '#0E86A8'],
+  // Validated, not eyeballed. The teal used to sit under the chroma floor and
+  // read as gray; the green/amber pair sat at protan ΔE 6.0 — the two most
+  // confusable steps for the most common colour-vision deficiency, legal only
+  // because every chart also labels. Darkening the green and lightening the
+  // amber takes that worst pair to ΔE 13.9 and every check passes outright.
+  series: ['#2D5BD7', '#0A6B44', '#C97D0D', '#7A3FBF', '#C0392B', '#0E86A8'],
 };
 
 export const darkPalette: Palette = {
@@ -80,7 +83,10 @@ export const darkPalette: Palette = {
   warnMuted: '#3A2C12',
   overlay: 'rgba(0, 0, 0, 0.6)',
   chartGrid: '#1E2A38',
-  series: ['#6C93F5', '#3DD68C', '#F0B44C', '#B98BF0', '#FF6B5E', '#4CC7D8'],
+  // Same split as the light ramp: the green/amber pair was the worst protan
+  // adjacency at ΔE 7.4; deepening the green and lifting the amber puts it at
+  // 14.9 with contrast and chroma intact against the dark card surface.
+  series: ['#6C93F5', '#19A96A', '#F8C766', '#B98BF0', '#FF6B5E', '#4CC7D8'],
 };
 
 export const spacing = {

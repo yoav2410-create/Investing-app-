@@ -40,7 +40,15 @@ import {
   type PositionsReadResult,
 } from './provider/claude';
 import { buildInsights, summariseForModel } from '@/domain/insights';
-import { resolveTargets, stanceMoveKey, stanceProblems, summariseSimulation } from '@/domain/allocation';
+import {
+  diffStances,
+  moveToHoldingChange,
+  resolveTargets,
+  stanceMoveKey,
+  stanceProblems,
+  summariseSimulation,
+} from '@/domain/allocation';
+import { currency as currencyFmt } from '@/domain/format';
 import { fetchQuotes } from './provider/finnhub';
 import { fetchPublishedQuotes, toQuote as toPublishedQuote } from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
@@ -89,6 +97,16 @@ export interface AppState {
    */
   stanceDone: string[];
   toggleStanceDone: (key: string) => void;
+  /** What the latest read changed against the one it replaced, in sentences. */
+  stanceDiff: string[];
+  /**
+   * Tick a move AND apply its arithmetic to the book: exit removes the
+   * holding, a sized trim/add shifts whole shares at the current mark, and the
+   * cash leg moves the USD balance. Refuses — in words — anything it cannot
+   * compute honestly. The broker screenshot remains the source of truth; this
+   * covers the gap between executing there and photographing the result.
+   */
+  applyStanceMove: (key: string) => { ok: boolean; message: string };
 
   account: () => ReturnType<typeof deriveAccount>;
   cashUsd: () => number;
@@ -158,6 +176,7 @@ export function normalisePersisted<T extends Record<string, unknown>>(persisted:
       ? { ...p.refresh, status: p.refresh.status === 'running' ? 'idle' : p.refresh.status }
       : p.refresh,
     stanceDone: p.stanceDone ?? [],
+    stanceDiff: (p as { stanceDiff?: string[] }).stanceDiff ?? [],
   };
 }
 
@@ -198,6 +217,66 @@ export const useApp = create<AppState>()(
             ? s.stanceDone.filter((k) => k !== key)
             : [...s.stanceDone, key],
         })),
+      stanceDiff: [],
+      applyStanceMove: (key) => {
+        const state = get();
+        const stance = state.portfolioRead?.result.allocation;
+        const move = stance?.moves.find((m) => stanceMoveKey(m) === key);
+        if (!move) return { ok: false, message: 'That move is no longer part of the current read.' };
+
+        const { change, reason } = moveToHoldingChange(
+          move,
+          state.holdings,
+          (t) => state.stocks[t]?.quote.value?.price ?? null,
+          state.account().netLiquidationValue,
+        );
+        if (!change) return { ok: false, message: reason ?? 'This move cannot be applied automatically.' };
+        if (change.sharesDelta > 0 && !state.stocks[change.ticker]) {
+          return {
+            ok: false,
+            message: `${change.ticker} is not in the book yet — import a screenshot that includes it first.`,
+          };
+        }
+
+        const holdings =
+          change.newShares == null
+            ? state.holdings.filter((h) => h.ticker !== change.ticker)
+            : state.holdings.some((h) => h.ticker === change.ticker)
+              ? state.holdings.map((h) =>
+                  h.ticker === change.ticker ? { ...h, shares: change.newShares! } : h,
+                )
+              : [
+                  ...state.holdings,
+                  {
+                    ticker: change.ticker,
+                    shares: change.newShares,
+                    // The mark it was bought at is the honest cost basis for a
+                    // buy executed now; the next screenshot corrects it if the
+                    // fill differed.
+                    costBasis: change.price,
+                    sector: state.stocks[change.ticker]!.sector,
+                  },
+                ];
+        const cash = state.cash.some((c) => c.currency === 'USD')
+          ? state.cash.map((c) =>
+              c.currency === 'USD' ? { ...c, amount: c.amount + change.cashDelta } : c,
+            )
+          : [...state.cash, { currency: 'USD', amount: change.cashDelta }];
+
+        set({
+          holdings,
+          cash,
+          stanceDone: state.stanceDone.includes(key) ? state.stanceDone : [...state.stanceDone, key],
+        });
+        get().takeSnapshot();
+        const verb = change.sharesDelta < 0 ? 'Sold' : 'Bought';
+        return {
+          ok: true,
+          message: `${verb} ${Math.abs(change.sharesDelta)} ${change.ticker} at the ${currencyFmt(change.price)} mark${
+            change.newShares == null ? ' — position closed' : ''
+          }. Cash ${change.cashDelta >= 0 ? 'up' : 'down'} ${currencyFmt(Math.abs(change.cashDelta))}. Your next screenshot import remains the source of truth.`,
+        };
+      },
       refreshingQuotes: false,
       quotesFetchedAt: null,
 
@@ -583,8 +662,16 @@ export const useApp = create<AppState>()(
           const problems = result.allocation ? stanceProblems(result.allocation) : [];
           // A fresh read replaces the checklist: the old done-marks describe
           // moves that no longer exist, and carrying them over would show new
-          // recommendations as already executed.
-          set({ portfolioRead: { at: nowIso(), result }, stanceDone: [] });
+          // recommendations as already executed. The diff against the replaced
+          // stance is captured here, because after the set there is no "old"
+          // left to compare with.
+          set({
+            portfolioRead: { at: nowIso(), result },
+            stanceDone: [],
+            stanceDiff: result.allocation
+              ? diffStances(state.portfolioRead?.result.allocation, result.allocation)
+              : [],
+          });
           return {
             ok: true,
             message: problems.length
@@ -675,13 +762,14 @@ export const useApp = create<AppState>()(
     {
       name: 'portfolio-brief-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      // Bumped when a persisted shape changes meaning. Without a version, an
-      // upgraded install rehydrates the OLD object wholesale — which is how
-      // the renamed insider-selling alert came back as `undefined` and
-      // silently never fired for anyone who had used the app before the
-      // rename, while fresh installs had it on. A silently-off alert is the
-      // worst kind of regression: nothing on screen says it happened.
-      version: 2,
+      // Bumped when a persisted shape changes meaning — including ADDING a
+      // settings key, because migrate only runs for stores below this number
+      // and an unbumped addition rehydrates `undefined`, which reads as "off"
+      // for every toggle. That is how the renamed insider-selling alert
+      // silently never fired for upgraded installs, and it would have happened
+      // again to alertOnDrift at v2. normalisePersisted is idempotent, so
+      // re-running it on every bump is free.
+      version: 3,
       migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.
@@ -699,6 +787,7 @@ export const useApp = create<AppState>()(
         researchLog: s.researchLog,
         portfolioRead: s.portfolioRead,
         stanceDone: s.stanceDone,
+        stanceDiff: s.stanceDiff,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setUnlocked(false);

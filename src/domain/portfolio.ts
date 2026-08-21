@@ -269,3 +269,52 @@ export function yearGrowth(
   }
   return out;
 }
+
+
+export interface DividendIncome {
+  /** Estimated annual dividends across the book, in USD. */
+  annualUsd: number | null;
+  /** Income-weighted yield on the priced, covered part of the book. */
+  weightedYieldPct: number | null;
+  /** Share of the book's market value the estimate actually covers. */
+  coveragePct: number;
+  /** Holdings paying nothing, or with no yield on file, for the caption. */
+  payers: number;
+  holdingsCounted: number;
+}
+
+/**
+ * What the book pays the owner for holding it.
+ *
+ * Only holdings with both a mark and a yield on file are counted, and the
+ * coverage figure says how much of the book that is - an income estimate that
+ * quietly skips half the positions and presents itself as "the" income is the
+ * kind of number this app exists to avoid. A null yield is unknown, not zero:
+ * growth names that genuinely pay nothing carry an explicit 0 in their data.
+ */
+export function dividendIncome(
+  positions: PositionView[],
+  stocks: Record<string, Stock>,
+  nlv: number,
+): DividendIncome {
+  let annual = 0;
+  let covered = 0;
+  let payers = 0;
+  let counted = 0;
+  for (const p of positions) {
+    const y = stocks[p.ticker]?.valuation.value?.dividendYield;
+    if (p.marketValue == null || y == null) continue;
+    counted++;
+    covered += p.marketValue;
+    if (y > 0) payers++;
+    annual += p.marketValue * (y / 100);
+  }
+  const coveragePct = nlv > 0 ? (covered / nlv) * 100 : 0;
+  return {
+    annualUsd: counted > 0 ? annual : null,
+    weightedYieldPct: covered > 0 ? (annual / covered) * 100 : null,
+    coveragePct,
+    payers,
+    holdingsCounted: counted,
+  };
+}

@@ -1,4 +1,10 @@
-import { resolveTargets, stanceProblems, summariseSimulation } from '@/domain/allocation';
+import {
+  diffStances,
+  moveToHoldingChange,
+  resolveTargets,
+  stanceProblems,
+  summariseSimulation,
+} from '@/domain/allocation';
 import type { AllocationStance, RebalancePlan } from '@/domain/types';
 import { runSimulation, DEFAULT_ASSUMPTIONS } from '@/domain/montecarlo';
 import { SEED_HOLDINGS, SEED_STOCKS } from '@/data/seed';
@@ -167,5 +173,87 @@ describe('summariseSimulation', () => {
     // The shared-factor caveat is the reason the downside is believable; it
     // must reach the model rather than being left in a code comment.
     expect(text).toMatch(/shared market factor/);
+  });
+});
+
+describe('moveToHoldingChange', () => {
+  const holdings = [{ ticker: 'PLTR', shares: 100 }];
+  const priceOf = (t: string) => (t === 'PLTR' ? 150 : t === 'NEW' ? 50 : null);
+
+  it('prices an exit as the whole position at the mark', () => {
+    const { change, reason } = moveToHoldingChange(
+      { kind: 'exit', ticker: 'PLTR', sizePctOfNlv: null }, holdings, priceOf, 100_000,
+    );
+    expect(reason).toBeNull();
+    expect(change).toEqual({ ticker: 'PLTR', sharesDelta: -100, newShares: null, cashDelta: 15_000, price: 150 });
+  });
+
+  it('floors a sized trim to whole shares and never sells more than held', () => {
+    const { change } = moveToHoldingChange(
+      { kind: 'trim', ticker: 'PLTR', sizePctOfNlv: 3.5 }, holdings, priceOf, 100_000,
+    );
+    // 3.5% of 100k = $3,500 / $150 = 23.33 -> 23 shares.
+    expect(change!.sharesDelta).toBe(-23);
+    expect(change!.newShares).toBe(77);
+    const capped = moveToHoldingChange(
+      { kind: 'trim', ticker: 'PLTR', sizePctOfNlv: 90 }, holdings, priceOf, 100_000,
+    );
+    expect(capped.change!.sharesDelta).toBe(-100);
+    expect(capped.change!.newShares).toBeNull();
+  });
+
+  it('refuses, in words, everything it cannot compute honestly', () => {
+    const noSize = moveToHoldingChange({ kind: 'trim', ticker: 'PLTR', sizePctOfNlv: null }, holdings, priceOf, 100_000);
+    expect(noSize.change).toBeNull();
+    expect(noSize.reason).toMatch(/did not size/);
+    const noMark = moveToHoldingChange({ kind: 'add', ticker: 'XXXX', sizePctOfNlv: 5 }, holdings, () => null, 100_000);
+    expect(noMark.reason).toMatch(/No mark/);
+    const notHeld = moveToHoldingChange({ kind: 'trim', ticker: 'NEW', sizePctOfNlv: 5 }, holdings, priceOf, 100_000);
+    expect(notHeld.reason).toMatch(/Nothing held/);
+    const sleeve = moveToHoldingChange({ kind: 'raise-cash', ticker: null, sizePctOfNlv: 5 }, holdings, priceOf, 100_000);
+    expect(sleeve.reason).toMatch(/sleeve|other moves/);
+    const dust = moveToHoldingChange({ kind: 'add', ticker: 'PLTR', sizePctOfNlv: 0.05 }, holdings, priceOf, 100_000);
+    expect(dust.reason).toMatch(/below one share/);
+  });
+
+  it('buys into a new name with a mark on file', () => {
+    const { change } = moveToHoldingChange(
+      { kind: 'enter', ticker: 'NEW', sizePctOfNlv: 2 }, holdings, priceOf, 100_000,
+    );
+    expect(change).toEqual({ ticker: 'NEW', sharesDelta: 40, newShares: 40, cashDelta: -2_000, price: 50 });
+  });
+});
+
+describe('diffStances', () => {
+  const base = () => stance();
+
+  it('says nothing on the first read ever', () => {
+    expect(diffStances(null, base())).toEqual([]);
+  });
+
+  it('reports only what moved, in sentences', () => {
+    const next = stance({
+      targetMix: [
+        { sector: 'tech', targetPct: 22, previousPct: 28, why: 'w' },
+        { sector: 'cash', targetPct: 78, previousPct: 72, why: 'w' },
+      ],
+      cashFloorPct: 35,
+    });
+    const out = diffStances(base(), next);
+    expect(out.join(' ')).toMatch(/Tech\/AI target 28% -> 22%/);
+    expect(out.join(' ')).toMatch(/Cash target 72% -> 78%/);
+    expect(out.join(' ')).toMatch(/Cash floor 30% -> 35%/);
+    expect(out.join(' ')).not.toMatch(/Position cap/);
+  });
+
+  it('names moves that appeared and moves that were dropped', () => {
+    const next = stance({
+      moves: [
+        { kind: 'exit', ticker: 'VST', sector: null, sizePctOfNlv: null, action: 'Exit.', basis: 'b', urgency: 'now' },
+      ],
+    });
+    const out = diffStances(base(), next).join(' ');
+    expect(out).toMatch(/New move: exit VST/);
+    expect(out).toMatch(/No longer proposed: trim PLTR/);
   });
 });
