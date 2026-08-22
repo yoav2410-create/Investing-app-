@@ -105,28 +105,19 @@ async function open(route, scheme='light') {
   await ctx.close();
 }
 
-// 4. The read happens in the conversation, and the app can take it back.
-// There is no API key anywhere in this build, so what has to be true is that
-// the screen offers a route that works without one and refuses nonsense.
+// 4. The read arrives as a link, not as a form. What has to be true is that
+// the screen offers no API route, says plainly that there is no read yet, and
+// still shows every computed figure underneath — the analysis is optional,
+// the arithmetic is not.
 {
-  const { ctx, p, text } = await open('/insights');
+  const { ctx, text } = await open('/insights');
   const t = await text();
-  for (const need of ['Copy the request', 'Open the conversation', 'Apply the read']) {
-    if (!t.includes(need)) problems.push(`insights is missing "${need}"`);
+  if (/Run analysis|Anthropic API key|Copy the request|Apply the read/.test(t)) {
+    problems.push('insights still asks the owner to operate something');
   }
-  if (/Run analysis|Anthropic API key/.test(t)) {
-    problems.push('insights still offers an API route that this build cannot use');
-  }
-  // Junk must be refused in words rather than half-applied.
-  await p.getByPlaceholder(/Paste the/).fill('good morning');
-  await p.getByRole('button', { name: 'Apply the read' }).click();
-  await p.waitForTimeout(800);
-  const after = await text();
-  if (!/not contain a JSON object|no headline|did not parse/i.test(after)) {
-    problems.push('a junk paste was not refused with a reason');
-  } else {
-    console.log('the read comes from the conversation, and junk is refused with a reason');
-  }
+  if (!t.includes('No portfolio read yet')) problems.push('insights does not say the read is missing');
+  if (!t.includes('Effective positions')) problems.push('the computed half vanished with the form');
+  console.log('insights: no form, says the read is missing, still computes everything');
   await ctx.close();
 }
 

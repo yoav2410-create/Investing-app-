@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +31,34 @@ export default function SyncScreen() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [pasted, setPasted] = useState('');
+
+  // Positions handed over in the address bar, so an answer written in the
+  // conversation can arrive as one tap instead of a copy and a paste. Copying
+  // eighteen rows out of a chat on a phone is the friction that kept the demo
+  // book on screen; a link removes it entirely. The data rides in the URL,
+  // which means it stays between the conversation and this device and never
+  // touches the repository — the same rule as everything else here.
+  const handled = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || handled.current) return;
+    handled.current = true;
+    try {
+      const raw = new URL(window.location.href).searchParams.get('positions');
+      if (!raw) return;
+      const text = decodeURIComponent(raw);
+      const res = applyAnything(text);
+      setStatus(res);
+      // Drop it from the address bar once read, through the router rather
+      // than history.replaceState — the router owns the URL and puts its own
+      // version back, so a raw replaceState is undone a moment later. A
+      // reload must not silently re-apply an import already reviewed.
+      setTimeout(() => router.replace('/sync'), 0);
+    } catch {
+      setStatus({ ok: false, message: 'That link did not carry readable positions.' });
+    }
+    // Once, on mount. This is a handshake, not a binding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Straight from the clipboard, so the Live Text route is screenshot →
   // copy → one button, with no textarea in the middle. Safari asks the owner
@@ -92,89 +120,22 @@ export default function SyncScreen() {
     <Screen>
       {!pending ? (
         <>
-          {/* The whole loop, in the order it happens. The owner has a
-              screenshot on their phone; the conversation can read it and
-              analyse the book in one answer; the answer comes back here.
-              A single paste box takes whatever that answer contains —
-              positions, the read, or both — because making someone choose the
-              right button for text they did not write is a puzzle, not a
-              feature. */}
-          <Section title="Send it to Claude" subtitle="Positions and the read, in one answer">
-            <Card style={{ gap: spacing.sm }}>
-              <Text variant="body" muted>
-                Screenshot your broker's positions screen, open the conversation, attach it and
-                ask for your positions and a portfolio read. Paste the reply below. Nothing is
-                written to the book until you have seen the rows.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Button
-                  label="Open the conversation"
-                  onPress={() => Linking.openURL(sessionUrl || 'https://claude.ai/code')}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  label="Copy the book"
-                  variant="quiet"
-                  onPress={copyBook}
-                  style={{ flex: 1 }}
-                />
-              </View>
-              <Text variant="caption" faint>
-                {sessionUrl
-                  ? 'Copy the book too when you want the read to account for what you already hold.'
-                  : 'Add your conversation link in Settings and this opens it directly.'}
-              </Text>
-            </Card>
-          </Section>
-
-          <Section title="Paste the answer" subtitle="Positions, a portfolio read, or both">
-            <Card style={{ gap: spacing.sm }}>
-              <TextInput
-                value={pasted}
-                onChangeText={(t) => {
-                  setPasted(t);
-                  setStatus(null);
-                }}
-                placeholder={'Paste what Claude sent back — a positions table, a ```json read, or both'}
-                placeholderTextColor={palette.textFaint}
-                multiline
-                accessibilityLabel="Paste the answer from Claude"
-                style={{
-                  minHeight: 110,
-                  color: palette.text,
-                  backgroundColor: palette.cardMuted,
-                  borderColor: palette.border,
-                  borderWidth: 1,
-                  borderRadius: radius.md,
-                  padding: spacing.md,
-                  fontSize: 15,
-                }}
-              />
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Button
-                  label="Apply"
-                  onPress={() => {
-                    const res = applyAnything(pasted);
-                    setStatus(res);
-                    if (res.ok) setPasted('');
-                  }}
-                  disabled={busy || pasted.trim().length === 0}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  label="Paste from clipboard"
-                  variant="quiet"
-                  onPress={pasteFromClipboard}
-                  disabled={busy}
-                  style={{ flex: 1 }}
-                />
-              </View>
-              <Text variant="caption" faint>
-                A broker's CSV export works here too — or pick the file directly.
-              </Text>
-              <Button label="Choose a file" variant="quiet" onPress={chooseFile} disabled={busy} />
-            </Card>
-          </Section>
+          {/* No entry form any more. Positions arrive as a link from the
+              conversation and land straight in the review below, so what is
+              left here is the one thing that must never be skipped: seeing
+              the rows before they are written. */}
+          <Card style={{ gap: spacing.sm }}>
+            <Text variant="heading">Nothing waiting to review</Text>
+            <Text variant="body" muted>
+              Send Claude a screenshot of your broker's positions screen. The link that comes back
+              opens this page with your positions in it, row by row, and nothing is written to the
+              book until you approve them.
+            </Text>
+            <Button
+              label="Open the conversation"
+              onPress={() => Linking.openURL(sessionUrl || 'https://claude.ai/code')}
+            />
+          </Card>
 
           {busy ? (
             <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>

@@ -534,9 +534,52 @@ export const useApp = create<AppState>()(
           skipped,
         });
         const cashUsd = pending.read.account.cashUsd;
+        // An import is the whole book, so anything it does not mention is a
+        // name the owner no longer holds — and the analysis pages read from
+        // `stocks`, not from `holdings`. Leaving the entries behind is how a
+        // sold position kept appearing in the Stocks list as a watchlist row,
+        // which is exactly the "stocks that are not in my portfolio" the owner
+        // kept pointing at. The book is what is held; nothing else survives.
+        const held = new Set(result.holdings.map((h) => h.ticker));
+        const keptStocks = Object.fromEntries(
+          Object.entries(result.stocks)
+            .filter(([ticker]) => held.has(ticker))
+            .map(([ticker, stock]) => {
+              // A name the owner holds that also happens to be in the demo
+              // book arrives carrying the demo's opinion of it — "full exit in
+              // tranche A" is a verdict about a plan that no longer exists,
+              // and it reads as advice next to a real position. Prices and
+              // figures keep their seed stamps and say so; judgement does not
+              // get that luxury, so it is cleared until a research pass writes
+              // a real one. Anything already researched is left alone.
+              const researched = [stock.valuation, stock.technicals, stock.sentiment, stock.earnings, stock.about]
+                .some((b) => b.source === 'manual');
+              if (researched) return [ticker, stock];
+              return [
+                ticker,
+                {
+                  ...stock,
+                  narrative: {
+                    catalyst: null,
+                    risk: null,
+                    verdict: 'watch' as const,
+                    verdictReasoning: null,
+                    thesis: 'Imported from your broker — not researched yet.',
+                    bullCase: null,
+                    bearCase: null,
+                    whatWouldChangeMyMind: null,
+                  },
+                  narrativeAsOf: null,
+                },
+              ];
+            }),
+        );
         set({
           holdings: result.holdings,
-          stocks: result.stocks,
+          stocks: keptStocks,
+          // A verdict-staleness flag for a name that is gone is a note about
+          // nothing.
+          staleNarratives: state.staleNarratives.filter((t) => held.has(t)),
           pendingImport: null,
           cash:
             cashUsd == null

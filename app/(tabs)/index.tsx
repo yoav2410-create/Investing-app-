@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -43,6 +43,7 @@ export default function PortfolioScreen() {
   const cash = useApp((s) => s.cashUsd)();
   const vix = useApp((s) => s.vix);
   const streamStatus = useApp((s) => s.streamStatus);
+  const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
 
   const positions = useMemo(
     () => positionViews(holdings, stocks, account.netLiquidationValue),
@@ -159,16 +160,16 @@ export default function PortfolioScreen() {
         </View>
       </View>
 
-      {/* One button, because it is one errand. The owner sends a screenshot
-          of their broker to the conversation and gets back both halves —
-          the positions and the read — in a single answer they paste once.
-          Splitting it into "update" and "analyse" made the app look like it
-          had two features where it has one loop. */}
+      {/* One button, and it does one thing: open the conversation. Everything
+          the app used to ask the owner to do by hand — copy the book, paste a
+          request, paste an answer back, pick a file — was machinery around
+          this. They send a screenshot; a link comes back that loads the
+          positions and the read straight into the review. */}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Button
-          label="Update positions & get insights"
-          onPress={() => router.push('/sync')}
-          accessibilityHint="Send your broker screenshot to Claude and paste the answer back"
+          label="Update with Claude"
+          onPress={() => Linking.openURL(sessionUrl || 'https://claude.ai/code')}
+          accessibilityHint="Opens the conversation — send your broker screenshot there"
           style={{ flex: 1 }}
         />
       </View>
@@ -185,9 +186,9 @@ export default function PortfolioScreen() {
             This is demo data, not your book
           </Text>
           <Text variant="caption" muted>
-            Fourteen invented positions so the screens have something to show. Send a screenshot of
-            your broker to Claude and paste the answer back — every number here becomes yours, and
-            this notice disappears.
+            Fourteen invented positions so the screens have something to show. Tap the button
+            above, send Claude a screenshot of your broker, and open the link that comes back —
+            every number here becomes yours and this notice disappears.
           </Text>
         </Card>
       ) : null}

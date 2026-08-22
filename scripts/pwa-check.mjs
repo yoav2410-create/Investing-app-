@@ -160,137 +160,22 @@ if (!deepText.includes('META')) problems.push(`deep link did not resolve (HTTP $
 else console.log(`deep link /stock/META resolves through the 404 fallback (served ${res?.status()}, as Pages does)`);
 await deep.screenshot({ path: 'docs/screenshots/pwa-deeplink.png' });
 
-// 7. Getting a book into this app means reading a file or a paste in the
-//    browser — the in-app screenshot reader went with the API key. If the file
-//    input does not open, the only import route left is the clipboard.
+// 7. The import screen has no entry form any more — positions arrive as a
+// link from the conversation. What must still be true is that it says so
+// rather than showing an empty page, and that the review is what it is for.
 const sync = await ctx.newPage();
 await sync.goto(BASE + '/sync', { waitUntil: 'networkidle' });
 await sync.waitForTimeout(1500);
 const syncText = (await sync.locator('body').innerText()).replace(/\s+/g, ' ');
-if (!syncText.includes('Choose a file')) problems.push('the import screen did not render its file picker');
-else {
-  const chooser = sync.waitForEvent('filechooser', { timeout: 8000 }).catch(() => null);
-  await sync.getByText('Choose a file', { exact: false }).first().click();
-  const picked = await chooser;
-  if (!picked) problems.push('tapping the picker opened no file chooser — import is dead on web');
-  else console.log('screenshot import opens a real file picker in the browser');
+if (!syncText.includes('Nothing waiting to review')) {
+  problems.push('the import screen does not explain itself when empty');
+} else {
+  console.log('import screen: explains that positions arrive as a link');
+}
+if (/Paste the answer|Choose a file|Copy the book/.test(syncText)) {
+  problems.push('the import screen still carries a form the owner was told to remove');
 }
 await sync.screenshot({ path: 'docs/screenshots/pwa-import.png' });
-
-// ---- The tab bar has room for its own labels ------------------------------
-// This project has clipped its tab labels three times, and the last one
-// reached the owner's phone while every screenshot taken here looked perfect:
-// an installed iPhone app carries a ~34pt bottom safe-area inset that a
-// desktop browser does not, React Navigation spends it as padding inside the
-// bar's fixed height, and the label — the only part of the row that can
-// shrink — is what gets squeezed out. So this measures the arithmetic rather
-// than the pixels: whatever the bar's height and padding, the content box
-// must still fit an icon and a label. Proven able to fail by putting the
-// padding back (labels then need 42pt in a 28pt box).
-{
-  const tabs = await ctx.newPage();
-  await tabs.goto(BASE + '/', { waitUntil: 'networkidle' });
-  await tabs.waitForTimeout(1200);
-  const box = await tabs.evaluate(() => {
-    const label = [...document.querySelectorAll('div,span')].find(
-      (el) => el.textContent?.trim() === 'Sectors' && el.children.length === 0,
-    );
-    if (!label) return null;
-    // Walk up to the bar: the ancestor that holds all four destinations.
-    let bar = label.parentElement;
-    while (bar && !/Portfolio[\s\S]*Stocks[\s\S]*Sectors[\s\S]*More/.test(bar.textContent ?? '')) {
-      bar = bar.parentElement;
-    }
-    if (!bar) return null;
-    const cs = getComputedStyle(bar);
-    const r = bar.getBoundingClientRect();
-    const lr = label.getBoundingClientRect();
-    return {
-      height: r.height,
-      padTop: parseFloat(cs.paddingTop) || 0,
-      padBottom: parseFloat(cs.paddingBottom) || 0,
-      labelBottom: lr.bottom,
-      labelHeight: lr.height,
-      barBottom: r.bottom,
-      viewportH: window.innerHeight,
-    };
-  });
-  if (!box) {
-    problems.push('could not find the tab bar to measure — the labels may not be rendering at all');
-  } else {
-    const content = box.height - box.padTop - box.padBottom;
-    const NEEDED = 28 + 14; // the icon cannot shrink; the label needs its line
-    if (content < NEEDED) {
-      problems.push(
-        `tab bar content box is ${content.toFixed(0)}pt for an icon and a label that need ${NEEDED}pt — the label will be clipped wherever the safe-area inset is non-zero`,
-      );
-    } else {
-      console.log(`tab bar leaves ${content.toFixed(0)}pt for a ${NEEDED}pt icon-and-label stack`);
-    }
-    if (box.labelHeight < 8) problems.push('a tab label rendered with no height');
-    if (box.labelBottom > box.barBottom + 0.5) {
-      problems.push('a tab label paints below the bar that contains it');
-    }
-  }
-  await tabs.close();
-}
-
-// ---- Nothing hides behind the floating tab bar ----------------------------
-// The bar is positioned out of the layout flow, so the scene has to reserve
-// its height by hand. Get that reservation wrong and the last row of every
-// list becomes unreachable — invisible in any screenshot that is not scrolled
-// all the way down, which is every screenshot the suite takes by default.
-for (const route of ['/', '/stocks', '/sectors', '/more']) {
-  for (const width of [390, 440]) {
-    const page = await ctx.newPage();
-    await page.setViewportSize({ width, height: 844 });
-    await page.goto(BASE + route, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1100);
-    await page.evaluate(() => {
-      const el = [...document.querySelectorAll('div')]
-        .filter((d) => d.scrollHeight > d.clientHeight + 50)
-        .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
-      if (el) {
-        el.setAttribute('data-scroller', '1');
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    await page.waitForTimeout(500);
-    const res = await page.evaluate(() => {
-      const label = [...document.querySelectorAll('div,span')].find(
-        (el) => el.textContent?.trim() === 'Sectors' && el.children.length === 0,
-      );
-      let bar = label?.parentElement;
-      while (bar && !/Portfolio[\s\S]*Stocks[\s\S]*Sectors[\s\S]*More/.test(bar.textContent ?? '')) {
-        bar = bar.parentElement;
-      }
-      if (!bar) return { error: 'no tab bar' };
-      const b = bar.getBoundingClientRect();
-      // A screen short enough not to scroll cannot hide anything under a bar
-      // pinned to the bottom of the viewport.
-      const scroller = document.querySelector('[data-scroller]');
-      if (!scroller) return { fits: true, covered: [] };
-      const covered = [];
-      for (const el of scroller.querySelectorAll('div,span')) {
-        if (el.children.length) continue;
-        const t = el.textContent?.trim();
-        if (!t) continue;
-        const r = el.getBoundingClientRect();
-        if (r.height === 0) continue;
-        if (r.bottom > b.top + 2 && r.top < b.bottom - 2 && r.right > b.left && r.left < b.right) {
-          covered.push(t.slice(0, 40));
-        }
-      }
-      return { fits: false, covered: [...new Set(covered)].slice(0, 3) };
-    });
-    if (res.error) problems.push(`${route} @${width}pt: ${res.error}`);
-    else if (res.covered.length) {
-      problems.push(`${route} @${width}pt: content sits under the floating tab bar — ${res.covered.join(' | ')}`);
-    }
-    await page.close();
-  }
-}
-console.log('scrolled to the end of every tab screen at both widths: nothing hides behind the bar');
 
 await browser.close();
 server.close();

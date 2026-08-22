@@ -15,9 +15,16 @@
 # was not refreshed.
 #
 # Sizing: Finnhub's free tier allows 60 calls a minute and the workflow runs
-# every 30 minutes. At 537 names the sweep takes about ten minutes, so there is
-# room to grow but not unlimited room: past roughly 1,400 a run would not finish
-# before the next one started, and the schedule would need lengthening first.
+# every 15 minutes. At 520 names, paced 1050ms apart, the sweep takes about
+# nine minutes and the build adds two — eleven inside a fifteen-minute window.
+# There is room to grow but not unlimited room: past roughly 700 a run would
+# not finish before the next one started, and the schedule would need
+# lengthening first.
+#
+# The last three names were added because the owner's own book needed them:
+# BSX, ETHA and KRKNF were held and unpriced, which is exactly the case the
+# note above describes. Finnhub quotes all three, including the pink-sheet
+# listing.
 AA
 AAPL
 ABBV
@@ -535,3 +542,6 @@ ZBRA
 ZION
 ZM
 ZS
+BSX
+ETHA
+KRKNF
