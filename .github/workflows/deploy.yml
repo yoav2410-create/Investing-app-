@@ -12,7 +12,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main
+      # Deliberately NOT main. Main carries only this workflow file now — the
+      # app lives on the working branch — and a push to main (say, syncing
+      # this very file) used to trigger a build of main's pre-reshape bundle
+      # that would deploy over the live site. One such run had to be cancelled
+      # mid-flight; this is why it cannot start again.
       - claude/iphone-investment-app-frn8sy
   workflow_dispatch:
   # Marks go stale on their own, so something has to run when nobody is

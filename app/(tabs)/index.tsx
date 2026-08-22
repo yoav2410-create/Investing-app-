@@ -80,6 +80,7 @@ export default function PortfolioScreen() {
     () => dividendIncome(positions, stocks, account.netLiquidationValue),
     [positions, stocks, account.netLiquidationValue],
   );
+  const invested = useMemo(() => positions.reduce((s, p) => s + p.costValue, 0), [positions]);
 
   const cashPct = account.netLiquidationValue === 0 ? 0 : (cash / account.netLiquidationValue) * 100;
   const floorPct = plan.constraints.cashFloorPct * 100;
@@ -279,10 +280,21 @@ export default function PortfolioScreen() {
               tone={tone(account.unrealizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
+            {/* Realised P&L used to sit here — a seed constant no source can
+                ever update, since the broker screenshot does not carry it.
+                A number that can only ever be the demo's is worse than none.
+                Return on cost is the honest neighbour: fully computable from
+                the holdings on file. */}
             <Stat
-              label="Realised P&L" term="realizedPnl"
-              value={compactCurrency(account.realizedPnl)}
-              tone={tone(account.realizedPnl)}
+              label="Return on cost"
+              term="unrealizedPnl"
+              value={
+                invested > 0 && account.unrealizedPnl != null
+                  ? percent((account.unrealizedPnl / invested) * 100, { decimals: 1 })
+                  : '—'
+              }
+              detail={invested > 0 ? `on ${compactCurrency(invested)} invested` : 'no cost basis on file'}
+              tone={tone(account.unrealizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
