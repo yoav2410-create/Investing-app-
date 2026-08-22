@@ -162,7 +162,7 @@ export default function PortfolioScreen() {
 
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Button
-          label="Update from a screenshot"
+          label="Update from screenshot"
           onPress={() => router.push('/sync')}
           accessibilityHint="Photograph your broker's positions screen and Claude will read it"
           style={{ flex: 1 }}
@@ -273,18 +273,14 @@ export default function PortfolioScreen() {
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
-              label="T-bill ETFs"
+              label="T-bill ETFs" term="tbillEtfs"
               value={split.cashLikePct > 0 ? `${split.cashLikePct.toFixed(1)}%` : '—'}
-              detail={
-                split.cashLikeTickers.length
-                  ? split.cashLikeTickers.join(', ')
-                  : 'none held (SGOV, BIL…)'
-              }
+              detail={split.cashLikeTickers.length ? split.cashLikeTickers.join(', ') : 'none held'}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
               label="Unrealised P&L" term="unrealizedPnl"
-              value={compactCurrency(account.unrealizedPnl)}
+              value={`${account.unrealizedPnl > 0 ? '+' : ''}${compactCurrency(account.unrealizedPnl)}`}
               tone={tone(account.unrealizedPnl)}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />

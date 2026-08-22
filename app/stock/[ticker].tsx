@@ -1,11 +1,27 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '@/theme/ThemeProvider';
-import { Button, Card, Divider, Empty, Label, Pill, Row, Screen, Section, Stat, Text } from '@/components/ui';
-import { BarChart, LineChart, MaDistanceChart, RangeMeter, WaterfallChart } from '@/components/charts';
+import {
+  Button,
+  Card,
+  Divider,
+  Empty,
+  Label,
+  Pill,
+  Row,
+  Screen,
+  Section,
+  SegmentedTabs,
+  Skeleton,
+  Stat,
+  Text,
+} from '@/components/ui';
+import { SearchOverlay } from '@/components/SearchOverlay';
+import { BarChart, GroupedBarChart, LineChart, MaDistanceChart, RangeMeter, WaterfallChart } from '@/components/charts';
 import { VERDICT_LABEL, VERDICT_TONE } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
@@ -25,7 +41,7 @@ import { trendLabelTone, trendRead } from '@/domain/technicals';
 import { bandLabel, bandTone, valuationRead } from '@/domain/valuation';
 import { stanceMoveKey } from '@/domain/allocation';
 import { buildBridge, conversionTone, fcfYield } from '@/domain/cashflow';
-import type { Stock } from '@/domain/types';
+import type { QuarterPoint, Stock } from '@/domain/types';
 import type { GlossaryKey } from '@/domain/glossary';
 import type { PrimaryMultiple } from '@/domain/types';
 
@@ -37,6 +53,31 @@ function trendCheckTerm(label: string): GlossaryKey {
   if (label.startsWith('RSI')) return 'rsi';
   if (label.startsWith('+DI')) return 'directionalIndicators';
   return 'movingAverage';
+}
+
+/**
+ * Quarterly points as-is, or rolled into two twelve-month bars: the latest
+ * four quarters against the four before. A year with any missing quarter sums
+ * to null rather than to a smaller "year" — a bar that quietly covered nine
+ * months would be the invented number this app refuses to show.
+ */
+function finSeries(
+  pts: QuarterPoint[] | null | undefined,
+  period: 'quarterly' | 'annual',
+): QuarterPoint[] {
+  const list = pts ?? [];
+  if (period === 'quarterly') return list;
+  const year = (start: number, label: string): QuarterPoint | null => {
+    const four = list.slice(start, start + 4);
+    if (four.length < 4) return null;
+    const vals = four.map((p) => p.value);
+    return {
+      period: four[0]!.period,
+      label,
+      value: vals.every((v) => v != null) ? vals.reduce((s, v) => (s ?? 0) + (v ?? 0), 0) : null,
+    };
+  };
+  return [year(0, 'TTM'), year(4, 'Prior 12m')].filter((p): p is QuarterPoint => p != null);
 }
 
 /** Which explainer belongs with each headline multiple. */
@@ -65,6 +106,11 @@ export default function StockDetailScreen() {
   const researchTicker = useApp((s) => s.researchTicker);
   const staleNarrative = useApp((s) => s.staleNarratives.includes(ticker));
   const [status, setStatus] = useState<string | null>(null);
+  // One quote page, four sections, one continuous piece of navigation —
+  // the way a finance product organises a name rather than one long scroll.
+  const [tab, setTab] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [finPeriod, setFinPeriod] = useState<'quarterly' | 'annual'>('quarterly');
 
   if (!stock) {
     return (
@@ -110,7 +156,35 @@ export default function StockDetailScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: stock.ticker }} />
+      <Stack.Screen
+        options={{
+          title: stock.ticker,
+          // Ticker over price, centred — the price stays in sight while the
+          // page scrolls, the way a quote page keeps its subject pinned.
+          headerTitle: () => (
+            <View style={{ alignItems: 'center' }}>
+              <Text variant="caption" faint>
+                {stock.ticker}
+              </Text>
+              <Text variant="label" style={{ fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                {quote ? currency(quote.price) : '—'}
+              </Text>
+            </View>
+          ),
+          headerRight: () => (
+            <Pressable
+              onPress={() => setSearchOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Search the book"
+              hitSlop={10}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, paddingHorizontal: 4 })}
+            >
+              <Ionicons name="search" size={20} color={palette.text} />
+            </Pressable>
+          ),
+        }}
+      />
+      <SearchOverlay visible={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* ---------------------------------------------------------- header */}
       <View style={{ gap: spacing.xs }}>
@@ -164,7 +238,15 @@ export default function StockDetailScreen() {
         </Card>
       ) : null}
 
+      <SegmentedTabs
+        tabs={['Summary', 'News', 'Analysis', 'Financials']}
+        active={tab}
+        onChange={setTab}
+      />
+
       {/* ---------------------------------------------------- the business */}
+      {tab === 0 ? (
+        <>
       {stock.about.value ? (
         <Card style={{ gap: spacing.xs }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
@@ -202,8 +284,12 @@ export default function StockDetailScreen() {
           </Text>
         ) : null}
       </Card>
+        </>
+      ) : null}
 
       {/* ------------------------------------------------------- valuation */}
+      {tab === 2 ? (
+        <>
       <Section title="Valuation" subtitle={val.rationale} term="valuationBand">
         <Card style={{ gap: spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
@@ -378,8 +464,12 @@ export default function StockDetailScreen() {
           </Card>
         </Section>
       ) : null}
+        </>
+      ) : null}
 
       {/* -------------------------------------------------------- cashflow */}
+      {tab === 3 ? (
+        <>
       {bridge ? (
         <Section
           title="EBITDA to free cash flow"
@@ -484,9 +574,11 @@ export default function StockDetailScreen() {
           </Card>
         </Section>
       ) : null}
+        </>
+      ) : null}
 
       {/* -------------------------------------------------------- momentum */}
-      {stock.momentum.value ? (
+      {tab === 0 && stock.momentum.value ? (
         <Section title="Momentum" term="momentum">
           <Card>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
@@ -513,6 +605,8 @@ export default function StockDetailScreen() {
       ) : null}
 
       {/* -------------------------------------------------------- sentiment */}
+      {tab === 1 ? (
+        <>
       <Section
         title="What the market is saying"
         term="sentiment"
@@ -595,6 +689,8 @@ export default function StockDetailScreen() {
                 </>
               ) : null}
             </>
+          ) : researching ? (
+            <Skeleton lines={4} />
           ) : (
             <Empty
               title="No coverage read yet."
@@ -603,8 +699,12 @@ export default function StockDetailScreen() {
           )}
         </Card>
       </Section>
+        </>
+      ) : null}
 
       {/* -------------------------------------------------------- earnings */}
+      {tab === 3 ? (
+        <>
       <Section
         term="earningsSurprise"
         title="Latest earnings call"
@@ -711,43 +811,72 @@ export default function StockDetailScreen() {
       </Section>
 
       {/* ---------------------------------------------------------- charts */}
-      <Section title="Fundamentals" subtitle="Eight quarters, newest on the right" term="fundamentals">
+      <Section
+        title="Fundamentals"
+        subtitle={
+          finPeriod === 'quarterly'
+            ? 'Eight quarters, newest on the right'
+            : 'Last four quarters summed, against the four before'
+        }
+        term="fundamentals"
+      >
         <Card style={{ gap: spacing.xl }}>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            {(['quarterly', 'annual'] as const).map((p) => (
+              <Button
+                key={p}
+                label={p === 'quarterly' ? 'Quarterly' : 'Annual'}
+                onPress={() => setFinPeriod(p)}
+                variant={finPeriod === p ? 'solid' : 'quiet'}
+                style={{ flex: 1, minHeight: 36, paddingVertical: 6 }}
+              />
+            ))}
+          </View>
           <View style={{ gap: spacing.sm }}>
-            <Label term="revenue">Revenue</Label>
-            <BarChart
-              points={stock.fundamentals.value?.revenue ?? []}
+            <Label term="revenue">Revenue vs earnings</Label>
+            <GroupedBarChart
+              series={[
+                {
+                  name: 'Revenue',
+                  tone: 'accent',
+                  points: finSeries(stock.fundamentals.value?.revenue, finPeriod),
+                },
+                {
+                  name: 'Earnings',
+                  tone: 'warn',
+                  points: finSeries(stock.fundamentals.value?.netIncome, finPeriod),
+                },
+              ]}
               format={(v) => compactCurrency(v)}
-              title="Revenue"
-              tone="accent"
+              title="Revenue against earnings"
             />
           </View>
           <View style={{ gap: spacing.sm }}>
             <Label term="operatingIncome">Operating income</Label>
             <BarChart
-              points={stock.fundamentals.value?.operatingIncome ?? []}
+              points={finSeries(stock.fundamentals.value?.operatingIncome, finPeriod)}
               format={(v) => compactCurrency(v)}
               title="Operating income"
               tone="up"
             />
           </View>
           <View style={{ gap: spacing.sm }}>
-            <Label term="netIncome">Net income</Label>
-            <BarChart
-              points={stock.fundamentals.value?.netIncome ?? []}
-              format={(v) => compactCurrency(v)}
-              title="Net income"
-              tone="up"
-            />
-          </View>
-          <View style={{ gap: spacing.sm }}>
             <Label term="eps">Diluted EPS</Label>
-            <LineChart
-              points={stock.fundamentals.value?.eps ?? []}
-              format={(v) => currency(v)}
-              title="EPS"
-              tone="accent"
-            />
+            {finPeriod === 'quarterly' ? (
+              <LineChart
+                points={stock.fundamentals.value?.eps ?? []}
+                format={(v) => currency(v)}
+                title="EPS"
+                tone="accent"
+              />
+            ) : (
+              <BarChart
+                points={finSeries(stock.fundamentals.value?.eps, finPeriod)}
+                format={(v) => currency(v)}
+                title="EPS"
+                tone="accent"
+              />
+            )}
           </View>
         </Card>
       </Section>
@@ -799,7 +928,12 @@ export default function StockDetailScreen() {
         </Card>
       </Section>
 
+        </>
+      ) : null}
+
       {/* ------------------------------------------------------- narrative */}
+      {tab === 0 ? (
+        <>
       <Section title="The case" term="bullBearCase">
         <Card style={{ gap: spacing.md }}>
           {stock.narrative.catalyst ? (
@@ -858,6 +992,8 @@ export default function StockDetailScreen() {
             ))}
           </Card>
         </Section>
+      ) : null}
+        </>
       ) : null}
 
       {/* ----------------------------------------------------- provenance */}

@@ -453,6 +453,168 @@ export function BarChart({
 }
 
 /**
+ * Two series, paired bars per period — the revenue-vs-earnings read every
+ * finance product opens its financials page with. The two magnitudes share
+ * one scale on purpose: the gap between the pair IS the margin story, and
+ * putting them on separate charts hides exactly that.
+ */
+export function GroupedBarChart({
+  series,
+  format,
+  title,
+  height = 170,
+  style,
+}: {
+  series: { name: string; tone: Tone; points: QuarterPoint[] }[];
+  format: (v: number) => string;
+  title: string;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { palette, spacing } = useTheme();
+  const [width, onLayout] = useWidth();
+  const [selected, setSelected] = useState<number | null>(null);
+  const ordered = useMemo(() => series.map((s) => [...s.points].reverse()), [series]);
+  const periods = ordered[0] ?? [];
+  const all = ordered.flat().map((p) => p.value).filter((v): v is number => v != null);
+
+  const summary = useMemo(() => {
+    if (!all.length || !periods.length) return `${title}: no data.`;
+    const latest = ordered
+      .map((pts, s) => {
+        const v = pts[pts.length - 1]?.value;
+        return v == null ? null : `${series[s]!.name} ${format(v)}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+    return `${title} across ${periods.length} periods. Latest: ${latest}.`;
+  }, [all.length, periods.length, ordered, series, title, format]);
+
+  if (!all.length) {
+    return (
+      <View style={style}>
+        <Text variant="caption" faint>
+          No {title.toLowerCase()} reported for this security.
+        </Text>
+      </View>
+    );
+  }
+
+  // 16pt of headroom: the top gridline's label sits above the line, and at
+  // 8pt its cap height fell off the edge of the SVG.
+  const padT = 16;
+  const padB = 24;
+  const w = Math.max(width, 1);
+  const innerH = Math.max(height - padT - padB, 1);
+  const hi = Math.max(...all, 0);
+  const lo = Math.min(...all, 0);
+  const span = hi - lo || 1;
+  const slot = w / Math.max(periods.length, 1);
+  const groupW = Math.max(slot * 0.6, 6);
+  const barW = Math.max(groupW / series.length - 2, 3);
+  const zeroY = padT + innerH - ((0 - lo) / span) * innerH;
+  const showEveryPeriod = slot >= 44;
+  const keep = (i: number) => i === 0 || i === periods.length - 1 || i % 2 === periods.length % 2;
+
+  return (
+    <View style={style} onLayout={onLayout} accessible accessibilityRole="image" accessibilityLabel={summary}>
+      {width > 0 ? (
+        <Pressable
+          onPress={(e: GestureResponderEvent) => {
+            const x = e.nativeEvent.locationX ?? 0;
+            const i = Math.max(0, Math.min(periods.length - 1, Math.floor(x / slot)));
+            setSelected((cur) => (cur === i ? null : i));
+          }}
+          accessible={false}
+        >
+          <Svg width={w} height={height}>
+            <Line x1={0} x2={w} y1={zeroY} y2={zeroY} stroke={palette.chartGrid} strokeWidth={1} />
+            {[hi, (hi + lo) / 2].map((v, n) => {
+              if (v === 0) return null;
+              const gy = padT + innerH - ((v - lo) / span) * innerH;
+              return (
+                <G key={`gy-${n}`}>
+                  <Line x1={0} x2={w} y1={gy} y2={gy} stroke={palette.chartGrid} strokeWidth={0.75} strokeDasharray="2 4" />
+                  <SvgText fontFamily={CHART_FONT} x={2} y={gy - 3} fill={palette.textFaint} fontSize={8.5}>
+                    {compactNumber(v)}
+                  </SvgText>
+                </G>
+              );
+            })}
+            {periods.map((p, i) =>
+              ordered.map((pts, s) => {
+                const v = pts[i]?.value;
+                if (v == null) return null;
+                const vy = padT + innerH - ((v - lo) / span) * innerH;
+                const top = Math.min(vy, zeroY);
+                const h = Math.max(Math.abs(zeroY - vy), 1);
+                const groupX = i * slot + (slot - groupW) / 2;
+                return (
+                  <Rect
+                    key={`${p.period}-${s}`}
+                    x={groupX + s * (barW + 2)}
+                    y={top}
+                    width={barW}
+                    height={h}
+                    rx={2}
+                    fill={toneColors(palette, series[s]!.tone).fg}
+                    opacity={i === periods.length - 1 || i === selected ? 1 : 0.62}
+                    stroke={i === selected ? palette.text : 'none'}
+                    strokeWidth={i === selected ? 1 : 0}
+                  />
+                );
+              }),
+            )}
+            {periods.map((p, i) => {
+              if (!showEveryPeriod && !keep(i)) return null;
+              return (
+                <SvgText
+                  fontFamily={CHART_FONT}
+                  key={`p-${p.period}`}
+                  x={i * slot + slot / 2}
+                  y={height - 6}
+                  fill={palette.textFaint}
+                  fontSize={9}
+                  textAnchor="middle"
+                >
+                  {p.label}
+                </SvgText>
+              );
+            })}
+          </Svg>
+          {selected != null && periods[selected] ? (
+            <ChartBubble
+              label={periods[selected]!.label}
+              value={ordered
+                .map((pts, s) => {
+                  const v = pts[selected]?.value;
+                  return `${series[s]!.name} ${v == null ? '—' : format(v)}`;
+                })
+                .join(' · ')}
+            />
+          ) : null}
+        </Pressable>
+      ) : (
+        <View style={{ height }} />
+      )}
+      <View style={{ flexDirection: 'row', gap: spacing.lg, marginTop: spacing.xs, flexWrap: 'wrap' }}>
+        {series.map((s) => (
+          <View key={s.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <View style={{ width: 9, height: 9, borderRadius: 2.5, backgroundColor: toneColors(palette, s.tone).fg }} />
+            <Text variant="caption" muted>
+              {s.name}
+            </Text>
+          </View>
+        ))}
+        <Text variant="caption" faint style={{ marginLeft: 'auto' }}>
+          figures in {unitOf(all)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
  * The tap read-out. One fixed pill above the plot rather than a balloon
  * chasing the finger: it can never clip at the edges, and the tapped mark is
  * already highlighted, so the eye has both ends of the connection.
@@ -532,12 +694,16 @@ export function DonutChart({
   size?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { palette, spacing } = useTheme();
+  const { palette, spacing, scheme } = useTheme();
   const [width, onLayout] = useWidth();
   // The ring takes half the row and the legend the rest. A fixed diameter left
   // the legend ~120pt on an iPhone SE, where "Consumer" truncated — and a
   // legend that cannot spell its labels is failing at its one job.
   const diameter = size ?? Math.max(132, Math.min(190, Math.round(width * 0.46)));
+  // The dark palette lightens the sector fills to pastels, and white numerals
+  // on a pastel measure ~2:1 — the amber slice's label all but vanished. Dark
+  // ink on light slices, light ink on dark ones; re-inked with the fills.
+  const sliceInk = scheme === 'dark' ? palette.bg : '#FFFFFF';
   const shown = slices.filter((s) => s.pct > 0.05).sort((a, b) => b.pct - a.pct);
   const total = shown.reduce((s, x) => s + x.pct, 0) || 1;
 
@@ -596,7 +762,7 @@ export function DonutChart({
               key={`l-${a.s.sector}`}
               x={a.labelX}
               y={a.labelY + 3}
-              fill="#FFFFFF"
+              fill={sliceInk}
               fontSize={10}
               fontWeight="600"
               textAnchor="middle"
@@ -616,7 +782,9 @@ export function DonutChart({
         ) : null}
       </Svg>
 
-      <View style={{ flex: 1, gap: 6 }}>
+      {/* maxWidth so a wide viewport doesn't open a dead band between a
+          label and its value — extra width becomes margin, not intra-row gap. */}
+      <View style={{ flex: 1, gap: 6, maxWidth: 240 }}>
         {shown.map((s) => (
           <View key={s.sector} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View
@@ -1477,6 +1645,10 @@ export function VixCashChart({
           {boundaries.map((b) => (
             <G key={b}>
               <Line x1={0} x2={innerW} y1={y(b)} y2={y(b)} stroke={palette.chartGrid} strokeWidth={1} strokeDasharray="3 3" />
+              {/* A card-coloured chip under the number: the line spends whole
+                  months hugging a boundary, and a bare label there is exactly
+                  where the path runs through its glyphs. */}
+              <Rect x={0} y={y(b) - 11} width={16} height={11} rx={2} fill={palette.card} />
               <SvgText fontFamily={CHART_FONT} x={2} y={y(b) - 3} fill={palette.textFaint} fontSize={8.5}>
                 {b}
               </SvgText>
@@ -1509,17 +1681,31 @@ export function VixCashChart({
           />
           <Path d={path} stroke={palette.accent} strokeWidth={2} fill="none" strokeLinejoin="round" />
           <Circle cx={x(series.length - 1)} cy={y(last)} r={4} fill={palette.accent} stroke={palette.card} strokeWidth={1.5} />
-          <SvgText
-            fontFamily={CHART_FONT}
-            x={Math.min(x(series.length - 1), innerW - 4)}
-            y={Math.max(y(last) - 8, 10)}
-            fill={palette.text}
-            fontSize={10}
-            fontWeight="700"
-            textAnchor="end"
-          >
-            {last.toFixed(1)}
-          </SvgText>
+          {/* The reading wears an accent pill rather than sitting bare next to
+              the band labels — "15.1 normal · 20% cash" once read as a single
+              string. A filled chip is unambiguously the data point. */}
+          {(() => {
+            const label = last.toFixed(1);
+            const pillW = label.length * 6 + 10;
+            const right = Math.min(x(series.length - 1) - 2, innerW - 4);
+            const baseline = Math.max(y(last) - 10, 12);
+            return (
+              <G>
+                <Rect x={right - pillW} y={baseline - 9} width={pillW} height={13} rx={6.5} fill={palette.accent} />
+                <SvgText
+                  fontFamily={CHART_FONT}
+                  x={right - pillW / 2}
+                  y={baseline + 1}
+                  fill={palette.card}
+                  fontSize={9.5}
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  {label}
+                </SvgText>
+              </G>
+            );
+          })()}
           <SvgText fontFamily={CHART_FONT} x={0} y={height - 4} fill={palette.textFaint} fontSize={9}>
             {series[0]!.date.slice(0, 7)}
           </SvgText>

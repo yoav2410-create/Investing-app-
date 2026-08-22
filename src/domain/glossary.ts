@@ -28,6 +28,12 @@ export const GLOSSARY = {
     read: 'This is the headline number for the account — market value of the holdings plus cash.',
     caveat: 'It uses the marks from your last screenshot, not a live feed, so it is as current as that picture.',
   },
+  tbillEtfs: {
+    title: 'T-bill ETFs',
+    what: 'The share of the book parked in cash-like funds — SGOV, BIL, SHV, USFR, TFLO — that hold short-dated US Treasury bills.',
+    read: 'Counts as dry powder alongside cash: it earns the bill yield while it waits, and sells in seconds when the plan calls for deploying.',
+    caveat: 'Cash-like is not cash — a fund can lag a fast rate move by a few basis points, and settlement still takes a day.',
+  },
   aboutBusiness: {
     title: 'What this business is',
     what: 'A plain statement of what the company sells, through which channels, and who the end customer is. For an ETF, what the fund holds.',

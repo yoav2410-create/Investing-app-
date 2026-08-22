@@ -45,13 +45,32 @@ export default function TabsLayout() {
           // Web only: on native React Navigation derives this height from the
           // bottom safe-area inset, and a fixed number there would put the
           // labels under the home indicator.
-          ...(Platform.OS === 'web' ? { height: 62 } : {}),
+          //
+          // On web the bar floats: inset from the edges, fully rounded, with
+          // a soft shadow — navigation as an object over the page rather than
+          // a strip fused to the viewport. sceneStyle below reserves the
+          // space so nothing scrolls to a stop underneath it.
+          ...(Platform.OS === 'web'
+            ? {
+                height: 62,
+                position: 'absolute' as const,
+                left: 12,
+                right: 12,
+                bottom: 10,
+                borderRadius: 31,
+                borderTopWidth: 0,
+                shadowColor: '#000',
+                shadowOpacity: 0.16,
+                shadowRadius: 18,
+                shadowOffset: { width: 0, height: 6 },
+              }
+            : {}),
         },
         // The active tab wears a pill rather than only a colour change —
         // state carried in form, readable at a glance and in any palette.
         tabBarActiveBackgroundColor: palette.accentMuted,
         tabBarItemStyle: {
-          borderRadius: 14,
+          borderRadius: 24,
           marginHorizontal: 6,
           marginVertical: 4,
           overflow: 'hidden',
@@ -61,7 +80,12 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 10, lineHeight: 14 },
         tabBarActiveTintColor: palette.accent,
         tabBarInactiveTintColor: palette.textFaint,
-        sceneStyle: { backgroundColor: palette.bg },
+        sceneStyle: {
+          backgroundColor: palette.bg,
+          // The floating bar no longer reserves layout space, so the scene
+          // must — 82pt clears the 62pt bar plus its 10pt inset and a breath.
+          ...(Platform.OS === 'web' ? { paddingBottom: 82 } : {}),
+        },
       }}
     >
       <Tabs.Screen

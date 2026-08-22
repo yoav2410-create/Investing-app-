@@ -429,6 +429,11 @@ export function Button({
       style={({ pressed }) => [
         {
           backgroundColor: variant === 'solid' ? c.fg : c.bg,
+          // The quiet variant's tinted fill sits close to the card surface in
+          // dark theme — a whisper of its own tone at the edge keeps it
+          // reading as a control rather than as another card.
+          borderWidth: variant === 'quiet' ? 1 : 0,
+          borderColor: variant === 'quiet' ? c.fg + '38' : 'transparent',
           borderRadius: radius.md,
           paddingVertical: spacing.md - 2,
           paddingHorizontal: spacing.lg,
@@ -443,7 +448,9 @@ export function Button({
     >
       <Text
         variant="label"
-        style={{ color: variant === 'solid' ? palette.bg : c.fg, fontWeight: '600' }}
+        // Centred even when it wraps — a flush-left wrapped label reads as a
+        // paragraph in a pill, not a button.
+        style={{ color: variant === 'solid' ? palette.bg : c.fg, fontWeight: '600', textAlign: 'center' }}
       >
         {label}
       </Text>
@@ -468,6 +475,7 @@ export function Label({
   faint,
   size,
   style,
+  labelTextStyle,
 }: {
   /** Text, including interpolated fragments. */
   children: React.ReactNode;
@@ -479,6 +487,8 @@ export function Label({
   /** Overrides the icon size, which otherwise tracks the text variant. */
   size?: number;
   style?: StyleProp<ViewStyle>;
+  /** Styles the text itself; `style` covers the row container. */
+  labelTextStyle?: StyleProp<TextStyle>;
 }) {
   const { type } = useTheme();
   return (
@@ -491,7 +501,7 @@ export function Label({
         tone={tone}
         muted={muted}
         faint={faint}
-        style={{ flexShrink: 1 }}
+        style={[{ flexShrink: 1 }, labelTextStyle]}
         accessibilityRole={variant === 'heading' || variant === 'title' ? 'header' : undefined}
       >
         {children}
@@ -502,6 +512,152 @@ export function Label({
 }
 
 /** Shown wherever a block has no data rather than leaving a hole. */
+/**
+ * Horizontal section tabs with a sliding underline — one continuous piece of
+ * navigation, the way a finance product sections a quote page, rather than a
+ * row of buttons that each feel like a different screen. Equal-width segments
+ * so the indicator's geometry is arithmetic, not measurement.
+ */
+export function SegmentedTabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: string[];
+  active: number;
+  onChange: (index: number) => void;
+}) {
+  const { palette, spacing } = useTheme();
+  const [width, setWidth] = React.useState(0);
+  const slide = React.useRef(new Animated.Value(active)).current;
+  const reduced = useReducedMotion();
+
+  React.useEffect(() => {
+    if (reduced) {
+      slide.setValue(active);
+      return;
+    }
+    Animated.spring(slide, {
+      toValue: active,
+      useNativeDriver: false,
+      speed: 22,
+      bounciness: 4,
+    }).start();
+  }, [active, reduced, slide]);
+
+  const segW = tabs.length > 0 ? width / tabs.length : 0;
+
+  return (
+    <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={{ borderBottomWidth: 1, borderBottomColor: palette.border }}
+      accessibilityRole="tablist"
+    >
+      <View style={{ flexDirection: 'row' }}>
+        {tabs.map((label, i) => (
+          <Pressable
+            key={label}
+            onPress={() => onChange(i)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: i === active }}
+            style={({ pressed }) => ({
+              flex: 1,
+              alignItems: 'center',
+              paddingVertical: spacing.sm + 2,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Text
+              variant="label"
+              style={{
+                color: i === active ? palette.text : palette.textFaint,
+                fontWeight: i === active ? '700' : '500',
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {width > 0 ? (
+        <Animated.View
+          style={{
+            height: 3,
+            width: Math.max(segW - 28, 24),
+            marginBottom: -1,
+            borderRadius: 2,
+            backgroundColor: palette.accent,
+            transform: [
+              {
+                translateX: slide.interpolate({
+                  inputRange: [0, Math.max(tabs.length - 1, 1)],
+                  outputRange: [14, segW * Math.max(tabs.length - 1, 1) + 14],
+                }),
+              },
+            ],
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Pulsing placeholder rows for content that is genuinely on its way (a
+ * research pass in flight). Never a stand-in for "no data" — missing means
+ * missing, and gets words, not shimmer.
+ */
+export function Skeleton({ lines = 3 }: { lines?: number }) {
+  const { palette, spacing, radius } = useTheme();
+  const pulse = React.useRef(new Animated.Value(0.5)).current;
+  const reduced = useReducedMotion();
+
+  React.useEffect(() => {
+    if (reduced) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 700, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, reduced]);
+
+  return (
+    <View style={{ gap: spacing.sm }} accessibilityLabel="Loading">
+      {Array.from({ length: lines }, (_, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            height: 13,
+            borderRadius: radius.sm,
+            backgroundColor: palette.border,
+            opacity: pulse,
+            width: `${[92, 78, 85, 64][i % 4] ?? 80}%`,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = React.useState(false);
+  React.useEffect(() => {
+    let live = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      if (live) setReduced(v);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, []);
+  return reduced;
+}
+
 export function Empty({ title, detail }: { title: string; detail?: string }) {
   const { spacing } = useTheme();
   return (

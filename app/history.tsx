@@ -74,16 +74,25 @@ export default function HistoryScreen() {
             label="Net liquidation value over the recorded period"
             tone={change >= 0 ? 'up' : 'down'}
           />
+          {/* Labelled — three bare figures under a sparkline read as a
+              rendering mistake, doubly so while first and latest are equal. */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text variant="caption" muted>
-              {compactCurrency(first.netLiquidationValue)}
-            </Text>
-            <Text variant="caption" tone={tone(change)}>
-              {currency(change, { sign: true, decimals: 0 })} ({percent(changePct)})
-            </Text>
-            <Text variant="caption" muted>
-              {compactCurrency(last.netLiquidationValue)}
-            </Text>
+            {(
+              [
+                ['First', compactCurrency(first.netLiquidationValue), undefined],
+                ['Change', `${currency(change, { sign: true, decimals: 0 })} (${percent(changePct)})`, tone(change)],
+                ['Latest', compactCurrency(last.netLiquidationValue), undefined],
+              ] as const
+            ).map(([label, value, valueTone], i) => (
+              <View key={label} style={{ alignItems: i === 0 ? 'flex-start' : i === 2 ? 'flex-end' : 'center' }}>
+                <Text variant="caption" faint>
+                  {label}
+                </Text>
+                <Text variant="caption" tone={valueTone} muted={valueTone == null}>
+                  {value}
+                </Text>
+              </View>
+            ))}
           </View>
         </Card>
       </Section>

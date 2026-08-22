@@ -189,7 +189,7 @@ function PricesSection(_props: { onStatus: (s: string) => void }) {
   const crosscheck = useApp((s) => s.feedCrosscheck);
 
   return (
-    <Section title="Prices" subtitle="Automatic — nothing here to operate">
+    <Section title="Prices" subtitle="Automatic — the key below is optional, not required">
       <Card style={{ gap: spacing.sm }}>
         <Text variant="caption" muted>
           Marks refresh on their own: on open, every fifteen minutes while open, when the app
@@ -400,7 +400,9 @@ function KeyField({
           color: palette.text,
           backgroundColor: palette.cardMuted,
           borderColor: palette.border,
-          borderWidth: StyleSheet.hairlineWidth,
+          // A full point, not a hairline — in dark theme the hairline
+          // disappeared and the field read as bare text on the card.
+          borderWidth: 1,
           borderRadius: radius.md,
           paddingHorizontal: spacing.md,
           minHeight: 44,

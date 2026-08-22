@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '@/theme/ThemeProvider';
-import { Card, Row, Screen, Section, Text } from '@/components/ui';
+import { Card, Row, Screen, Section } from '@/components/ui';
 import { useApp } from '@/data/store';
 import { percent, relativeAsOf, tone } from '@/domain/format';
 
@@ -24,11 +24,7 @@ export default function MarketScreen() {
 
   return (
     <Screen>
-      <Text variant="caption" faint>
-        As of {relativeAsOf(market.asOf)}
-      </Text>
-
-      <Section title="Indices" term="marketIndex">
+      <Section title="Indices" term="marketIndex" subtitle={`As of ${relativeAsOf(market.asOf)}`}>
         <Card>
           {indices.map((i) => (
             <Row

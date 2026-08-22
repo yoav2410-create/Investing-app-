@@ -5,7 +5,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { Card, Row, Screen, Section, Stat, Text } from '@/components/ui';
 import { useApp } from '@/data/store';
 import { compactCurrency, currency, percent, tone } from '@/domain/format';
-import { attribution, positionViews, sectorBuckets } from '@/domain/portfolio';
+import { positionViews, sectorBuckets } from '@/domain/portfolio';
 
 export default function ReturnsScreen() {
   const { palette, spacing } = useTheme();
@@ -19,7 +19,6 @@ export default function ReturnsScreen() {
     () => positionViews(holdings, stocks, account.netLiquidationValue),
     [holdings, stocks, account.netLiquidationValue],
   );
-  const rows = useMemo(() => attribution(positions), [positions]);
   const buckets = useMemo(
     () => sectorBuckets(positions, cash, account.netLiquidationValue, plan.constraints.targetMix),
     [positions, cash, account.netLiquidationValue, plan.constraints.targetMix],
@@ -39,54 +38,97 @@ export default function ReturnsScreen() {
     <Screen>
       <Section title="Where the book stands">
         <Card>
+          {/* flexBasis 40% pins the grid to two-up at every width — at 440pt a
+              30% basis reflowed to three columns and orphaned the fourth stat
+              alone on its own row. */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
             <Stat
               label="Unrealised P&L" term="unrealizedPnl"
               value={compactCurrency(account.unrealizedPnl)}
               detail={totalReturnPct == null ? undefined : `${percent(totalReturnPct)} on cost`}
               tone={tone(account.unrealizedPnl)}
-              style={{ flexBasis: '30%', flexGrow: 1 }}
+              style={{ flexBasis: '40%', flexGrow: 1 }}
             />
+            {/* Realised P&L sat here — a seed constant the screenshot schema
+                has no field for, so it could never move. Market value pairs
+                with cost basis instead: the two numbers the unrealised line
+                is literally the difference of. */}
             <Stat
-              label="Realised P&L" term="realizedPnl"
-              value={compactCurrency(account.realizedPnl)}
-              tone={tone(account.realizedPnl)}
-              style={{ flexBasis: '30%', flexGrow: 1 }}
+              label="Market value" term="marketValue"
+              value={compactCurrency(positions.reduce((s, p) => s + (p.marketValue ?? 0), 0))}
+              style={{ flexBasis: '40%', flexGrow: 1 }}
             />
             <Stat
               label="Day P&L" term="dayPnl"
               value={compactCurrency(account.dayPnl)}
               detail={percent(account.dayPnlPct)}
               tone={tone(account.dayPnl)}
-              style={{ flexBasis: '30%', flexGrow: 1 }}
+              style={{ flexBasis: '40%', flexGrow: 1 }}
             />
-            <Stat label="Cost basis" value={compactCurrency(totalCost)} style={{ flexBasis: '30%', flexGrow: 1 }} />
+            <Stat label="Cost basis" value={compactCurrency(totalCost)} style={{ flexBasis: '40%', flexGrow: 1 }} />
           </View>
         </Card>
       </Section>
 
-      <Section title="Today's attribution" term="attribution" subtitle="Who actually moved the number">
-        <Card>
-          {rows.every((r) => r.contribution === 0) ? (
-            <Text variant="body" muted>
-              No day moves recorded. Import a screenshot to set today's marks.
-            </Text>
-          ) : (
-            rows
-              .filter((r) => r.contribution !== 0)
-              .map((r) => (
-                <Link key={r.ticker} href={{ pathname: '/stock/[ticker]', params: { ticker: r.ticker } }} asChild>
-                  <View>
-                    <Row
-                      label={r.ticker}
-                      hint={`${r.sharePct.toFixed(0)}% of today's total move`}
-                      value={currency(r.contribution, { sign: true })}
-                      tone={tone(r.contribution)}
-                    />
-                  </View>
-                </Link>
-              ))
-          )}
+      {/* The daily attribution list sat here and answered a question the owner
+          does not ask — who moved the book today. What they hold for years is
+          the question of whether size and conviction line up with results. */}
+      <Section
+        title="Size against return"
+        term="weight"
+        subtitle="Is the money where the compounding is?"
+      >
+        <Card style={{ gap: spacing.xs }}>
+          {(() => {
+            const sized = positions
+              .filter((p) => p.weightPct != null && p.unrealizedPnlPct != null)
+              .sort((a, b) => (b.weightPct ?? 0) - (a.weightPct ?? 0));
+            if (sized.length < 2) {
+              return (
+                <Text variant="body" muted>
+                  Not enough priced positions to compare size with return.
+                </Text>
+              );
+            }
+            const top = sized.slice(0, 3);
+            const rest = sized.slice(3);
+            const roc = (list: typeof sized) => {
+              const cost = list.reduce((s, p) => s + p.costValue, 0);
+              const pnl = list.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0);
+              return cost === 0 ? null : (pnl / cost) * 100;
+            };
+            const topRoc = roc(top);
+            const restRoc = roc(rest);
+            return (
+              <>
+                {topRoc != null && restRoc != null ? (
+                  <Text variant="body" style={{ marginBottom: spacing.sm }}>
+                    The three largest positions return {percent(topRoc)} on cost; the rest of the
+                    book returns {percent(restRoc)}.{' '}
+                    {topRoc >= restRoc
+                      ? 'The money is sitting where the compounding is.'
+                      : 'The smaller names are out-compounding the size bets — worth knowing before adding to the top.'}
+                  </Text>
+                ) : null}
+                {sized.map((p) => (
+                  <Link
+                    key={p.ticker}
+                    href={{ pathname: '/stock/[ticker]', params: { ticker: p.ticker } }}
+                    asChild
+                  >
+                    <View>
+                      <Row
+                        label={p.ticker}
+                        hint={`${(p.weightPct ?? 0).toFixed(1)}% of the book`}
+                        value={percent(p.unrealizedPnlPct)}
+                        tone={tone(p.unrealizedPnlPct)}
+                      />
+                    </View>
+                  </Link>
+                ))}
+              </>
+            );
+          })()}
         </Card>
       </Section>
 

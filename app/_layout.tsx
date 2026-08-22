@@ -144,8 +144,19 @@ function Root() {
   }, [hydrated, startLiveStream, stopLiveStream]);
 
   if (!hydrated) {
+    // The first thing a cold start shows. A bare spinner reads as "something
+    // is stuck"; a wordmark over the spinner reads as "the product is opening".
     return (
-      <View style={{ flex: 1, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: palette.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 14,
+        }}
+      >
+        <Text variant="title">Portfolio Brief</Text>
         <ActivityIndicator color={palette.accent} />
       </View>
     );

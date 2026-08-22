@@ -34,11 +34,14 @@ export function StockRow({
   shares,
   weightPct,
   showValuation = true,
+  hideWatchlistPill = false,
 }: {
   stock: Stock;
   shares?: number;
   weightPct?: number | null;
   showValuation?: boolean;
+  /** On the watchlist screen itself the pill would repeat the page title on every row. */
+  hideWatchlistPill?: boolean;
 }) {
   const { palette, spacing, radius, scheme } = useTheme();
   const quote = stock.quote.value;
@@ -83,14 +86,21 @@ export function StockRow({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <Text variant="heading">{stock.ticker}</Text>
               {stock.isEtf ? <Pill label="ETF" tone="flat" compact /> : null}
-              {shares == null ? <Pill label="Watchlist" tone="accent" compact /> : null}
+              {shares == null && !hideWatchlistPill ? (
+                <Pill label="Watchlist" tone="accent" compact />
+              ) : null}
             </View>
             <Text variant="caption" muted numberOfLines={1}>
               {stock.name}
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text variant="mono">{quote ? currency(quote.price) : '—'}</Text>
+            {/* lineHeight matched to the 18pt ticker box so the price shares
+                its baseline instead of riding a few points high — every row
+                had a slight zig-zag where two clean lines should be. */}
+            <Text variant="mono" style={{ lineHeight: 24 }}>
+              {quote ? currency(quote.price) : '—'}
+            </Text>
             <Text variant="caption" tone={tone(quote?.changePct)}>
               {quote ? percent(quote.changePct) : 'no price'}
             </Text>

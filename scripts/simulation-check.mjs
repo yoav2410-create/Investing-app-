@@ -130,7 +130,10 @@ function needs(text, label, phrases) {
 // ------------------------------------------------------------- EBITDA -> FCF
 {
   const s = await open('/stock/META');
-  for (const [i, y] of [2450, 2900].entries()) {
+  // The bridge lives on the Financials tab now, near its top.
+  await s.page.getByRole('tab', { name: 'Financials' }).click();
+  await s.page.waitForTimeout(400);
+  for (const [i, y] of [200, 700].entries()) {
     await s.scrollTo(y);
     await s.shot(`fcfbridge-${i}`);
   }
@@ -154,14 +157,19 @@ function needs(text, label, phrases) {
 // Dark mode, and a fund that has no cash-flow statement of its own.
 {
   const d = await open('/stock/CEG', 'dark');
-  await d.scrollTo(2450);
+  await d.page.getByRole('tab', { name: 'Financials' }).click();
+  await d.page.waitForTimeout(400);
+  await d.scrollTo(200);
   await d.shot('fcfbridge-dark-0');
   if (!(await d.text()).includes('EBITDA to free cash flow')) note('CEG bridge missing in dark mode');
   await d.ctx.close();
 }
 {
   const e = await open('/stock/SMH', 'dark');
-  await e.scrollTo(1500);
+  // Asserted on the tab that would show it — on Summary the absence would be
+  // vacuously true for every name.
+  await e.page.getByRole('tab', { name: 'Financials' }).click();
+  await e.page.waitForTimeout(400);
   await e.shot('etf-nobridge-0');
   if ((await e.text()).includes('EBITDA to free cash flow'))
     note('ETF showed a cash-flow bridge it has no data for');

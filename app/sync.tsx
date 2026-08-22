@@ -127,7 +127,7 @@ export default function SyncScreen() {
                 color: palette.text,
                 backgroundColor: palette.card,
                 borderColor: palette.border,
-                borderWidth: StyleSheet.hairlineWidth,
+                borderWidth: 1,
                 borderRadius: radius.md,
                 padding: spacing.md,
                 fontSize: 15,

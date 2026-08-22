@@ -156,15 +156,33 @@ export default function StocksScreen() {
         <Text variant="caption" muted>
           {rows.length} of {Object.keys(stocks).length} names
         </Text>
-        {/* Each row carries three reads; this is where they are explained. */}
+        {/* Each row carries three reads; this is where they are explained.
+            Micro-label styling (small caps, tracked) so the cluster reads as
+            a key for the badge colours, not as a second result count or as
+            column headers the badges never line up under. */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          <Label variant="caption" faint term="verdict">
+          <Label
+            variant="caption"
+            faint
+            term="verdict"
+            labelTextStyle={{ fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase' }}
+          >
             Verdict
           </Label>
-          <Label variant="caption" faint term="trendScore">
+          <Label
+            variant="caption"
+            faint
+            term="trendScore"
+            labelTextStyle={{ fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase' }}
+          >
             Trend
           </Label>
-          <Label variant="caption" faint term="valuationBand">
+          <Label
+            variant="caption"
+            faint
+            term="valuationBand"
+            labelTextStyle={{ fontSize: 10.5, letterSpacing: 0.7, textTransform: 'uppercase' }}
+          >
             Valuation
           </Label>
         </View>

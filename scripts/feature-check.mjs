@@ -28,9 +28,11 @@ async function open(route, scheme='light') {
 // 1. The "?" opens a real explanation with all three sections.
 {
   const { ctx, p, text } = await open('/stock/META');
-  await p.evaluate(() => { document.querySelector('[data-scroller]').scrollTop = 1400; });
+  // The quote page is sectioned now; valuation lives under Analysis.
+  await p.getByRole('tab', { name: 'Analysis' }).click();
   await p.waitForTimeout(400);
   const btn = p.getByLabel('What is Trailing P/E?').first();
+  await btn.scrollIntoViewIfNeeded();
   await btn.click();
   await p.waitForTimeout(600);
   const t = await text();
@@ -48,14 +50,28 @@ async function open(route, scheme='light') {
   await ctx.close();
 }
 
-// 2. How many "?" buttons a detail page actually carries.
+// 2. How many "?" buttons a detail page actually carries — summed across the
+// four tabs, since the page is sectioned now and no single tab holds them all.
 {
   const { ctx, p } = await open('/stock/META');
-  const n = await p.getByRole('button', { name: /^What is / }).count();
-  console.log(`stock detail carries ${n} metric explainers`);
+  let n = 0;
+  const perTab = {};
+  for (const tabName of ['Summary', 'News', 'Analysis', 'Financials']) {
+    await p.getByRole('tab', { name: tabName }).click();
+    await p.waitForTimeout(350);
+    const c = await p.getByRole('button', { name: /^What is / }).count();
+    perTab[tabName] = c;
+    n += c;
+  }
+  console.log(`stock detail carries ${n} metric explainers across its tabs (${JSON.stringify(perTab)})`);
   if (n < 40) problems.push(`only ${n} explainers on the detail page`);
-  // The headings and chart captions matter as much as the table rows.
-  for (const needed of ['EV / EBITDA', 'Net income', 'Multiple history', 'Trend score', 'Verdict']) {
+  // The headings and chart captions matter as much as the table rows. Each
+  // named explainer is asserted on the tab that owns it, so a tab silently
+  // dropping its sections cannot pass.
+  const where = { 'EV / EBITDA': 'Analysis', 'Operating income': 'Financials', 'Multiple history': 'Financials', 'Trend score': 'Analysis', 'Verdict': 'Summary' };
+  for (const [needed, tabName] of Object.entries(where)) {
+    await p.getByRole('tab', { name: tabName }).click();
+    await p.waitForTimeout(300);
     if ((await p.getByLabel(`What is ${needed}?`).count()) === 0) {
       problems.push(`no explainer beside "${needed}"`);
     }
@@ -100,9 +116,12 @@ async function open(route, scheme='light') {
   await ctx.close();
 }
 
-// 5. Sentiment card present and honest before any research.
+// 5. Sentiment card present and honest before any research. It lives on the
+// News tab now.
 {
   const { ctx, p, text } = await open('/stock/PLTR', 'dark');
+  await p.getByRole('tab', { name: 'News' }).click();
+  await p.waitForTimeout(400);
   const t = await text();
   if (!t.includes('What the market is saying')) problems.push('sentiment card missing');
   if (!t.includes('No coverage read yet')) problems.push('sentiment card claimed data it does not have');
