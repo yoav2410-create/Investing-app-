@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -8,7 +8,9 @@ import { useApp } from '@/data/store';
 import { relativeAsOf } from '@/domain/format';
 
 type Item = {
-  href: Href;
+  /** A route inside the app, or — with `external` — a URL that leaves it. */
+  href: Href | string;
+  external?: boolean;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   detail: string;
@@ -18,6 +20,7 @@ export default function MoreScreen() {
   const router = useRouter();
   const { palette, spacing, radius } = useTheme();
   const stocks = useApp((s) => s.stocks);
+  const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
   const snapshots = useApp((s) => s.snapshots);
   const market = useApp((s) => s.market);
 
@@ -40,6 +43,19 @@ export default function MoreScreen() {
       icon: 'camera-outline',
       title: 'Update positions',
       detail: 'Read your holdings from a screenshot, a broker export, or a pasted table',
+    },
+    // Not a route: this leaves the app for the conversation it is built in.
+    // It sits here because More is where the owner looks for the things that
+    // change the app, and a button they cannot find is a button that does not
+    // exist.
+    {
+      href: sessionUrl || 'https://claude.ai/code',
+      external: true,
+      icon: 'chatbubbles-outline',
+      title: 'Change the app',
+      detail: sessionUrl
+        ? 'Opens the conversation — send a screenshot and say what should be different'
+        : 'Opens Claude Code. Add your conversation link in Settings to jump straight in',
     },
     {
       href: '/market',
@@ -86,7 +102,9 @@ export default function MoreScreen() {
           {items.map((i) => (
             <Pressable
               key={i.title}
-              onPress={() => router.push(i.href)}
+              onPress={() =>
+                i.external ? Linking.openURL(String(i.href)) : router.push(i.href as Href)
+              }
               accessibilityRole="button"
               accessibilityLabel={`${i.title}. ${i.detail}`}
               style={({ pressed }) => ({

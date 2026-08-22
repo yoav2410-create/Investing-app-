@@ -526,4 +526,11 @@ export interface Settings {
   /** Alert when a sector drifts >5pp from the target the read set. */
   alertOnDrift: boolean;
   alertOnEarningsWithinDays: number;
+  /**
+   * The Claude Code conversation this app is being built in, so a button can
+   * open it. Empty until the owner sets it — deliberately not shipped in the
+   * bundle, because the repository is public and a session link is theirs.
+   * Set in Settings, or in one tap by opening the app with `?session=<url>`.
+   */
+  claudeSessionUrl: string;
 }

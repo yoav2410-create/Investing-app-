@@ -961,7 +961,8 @@ export const useApp = create<AppState>()(
       // re-running it on every bump is free. v4: stocks gained `about`. v5:
       // `about` is backfilled from the bundle, so installs that already had
       // their stocks on disk get the descriptions rather than a blank card.
-      version: 5,
+      // v6: settings gained claudeSessionUrl.
+      version: 6,
       migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.

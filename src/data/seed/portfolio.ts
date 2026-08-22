@@ -219,4 +219,6 @@ export const DEFAULT_SETTINGS: Settings = {
   alertOnInsiderSelling: true,
   alertOnDrift: true,
   alertOnEarningsWithinDays: 7,
+  // Nothing ships pointing at anyone's conversation.
+  claudeSessionUrl: '',
 };

@@ -90,10 +90,15 @@ export default function SyncScreen() {
 
     const result =
       from === 'camera'
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.85 })
+        // quality: 1 is not a nicety. The picker re-encodes anything below it
+        // as JPEG, and a broker table is small text on a light ground — the
+        // exact thing JPEG smears. Measured: the same screenshot read
+        // perfectly as a PNG and came back with a missing average cost after a
+        // 0.85 re-encode. The file is a few hundred KB either way.
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 1 })
         : await ImagePicker.launchImageLibraryAsync({
             base64: true,
-            quality: 0.85,
+            quality: 1,
             mediaTypes: ['images'],
           });
     if (result.canceled || !result.assets?.[0]) return;

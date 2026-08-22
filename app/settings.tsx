@@ -33,7 +33,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <ChangeTheAppSection />
+      <TalkToClaudeSection />
 
       <Section
         title="Reading your screenshots"
@@ -205,102 +205,104 @@ export default function SettingsScreen() {
 }
 
 /**
- * Changing the app from the phone, using the subscription rather than the API.
+ * One button that opens the conversation this app is built in.
  *
- * The owner pays for Claude.ai and has no API credits, so the key field below
- * is closed to them — and what they actually wanted was never the in-app
- * research anyway: it was to send a screenshot, say what is wrong, and have
- * the app change. That loop exists, it just does not live inside this bundle.
- * A static page on Pages cannot reach a coding session, and editing the app
- * means writing files and running a build, which a browser tab cannot do.
+ * Everything else tried here was a workaround for the same wish — the owner
+ * wants to say "change this" with a screenshot and have it happen, and they
+ * pay for a Claude.ai subscription rather than API credits. A page served
+ * from Pages cannot reach a coding session, and no amount of copying request
+ * text into a clipboard makes that less of a detour. What it *can* do is open
+ * the conversation, on the phone, in one tap — which is the whole of it.
  *
- * What it can do is hand the request over intact. This composes the note, the
- * exact build the owner is looking at, and where to send it — so the session
- * on the other side starts with the commit, not with "which version?".
+ * The link is not in the bundle. This repository is public and the session
+ * belongs to the owner, so the app ships with the field empty and learns it
+ * either from Settings or from being opened once as `?session=<url>`.
  */
-function ChangeTheAppSection() {
-  const { spacing } = useTheme();
-  const [copied, setCopied] = useState<string | null>(null);
-  const [build, setBuild] = useState<string | null>(null);
-  const [note, setNote] = useState('');
-  const { palette, radius } = useTheme();
+function TalkToClaudeSection() {
+  const { spacing, palette, radius } = useTheme();
+  const settings = useApp((s) => s.settings);
+  const update = useApp((s) => s.updateSettings);
+  const [draft, setDraft] = useState(settings.claudeSessionUrl);
+  const [saved, setSaved] = useState(false);
 
+  // Opening the app as .../?session=<url> configures the button without
+  // anyone typing a URL on a phone keyboard.
   useEffect(() => {
-    // The commit the running site was built from, published beside it.
-    let live = true;
-    const base = (process.env.EXPO_PUBLIC_BASE_URL ?? '').replace(/^\/+|\/+$/g, '');
-    fetch(base ? `/${base}/build-info.json` : '/build-info.json', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (live && j?.sha) setBuild(`${String(j.sha).slice(0, 7)} · built ${String(j.builtAt ?? '').slice(0, 16).replace('T', ' ')} UTC`);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  const request = [
-    'Portfolio Brief — change request from the phone.',
-    build ? `Running build: ${build}` : 'Running build: unknown',
-    'Repo: yoav2410-create/Investing-app-, branch claude/iphone-investment-app-frn8sy',
-    '',
-    note.trim() || '(describe the change, and attach the screenshot)',
-  ].join('\n');
-
-  const copy = async () => {
+    if (Platform.OS !== 'web') return;
     try {
-      if (Platform.OS === 'web' && navigator?.clipboard) {
-        await navigator.clipboard.writeText(request);
-        setCopied('Copied. Paste it into Claude with your screenshot attached.');
-      } else {
-        setCopied('Copying is only available in the browser — select the text above instead.');
+      const fromLink = new URL(window.location.href).searchParams.get('session');
+      if (fromLink && fromLink !== settings.claudeSessionUrl && /^https:\/\//.test(fromLink)) {
+        update({ claudeSessionUrl: fromLink });
+        setDraft(fromLink);
+        setSaved(true);
       }
     } catch {
-      setCopied('The browser refused the clipboard. Select the text above and copy it by hand.');
+      /* a malformed address is not worth a crash */
     }
-  };
+    // Only on mount: this is a one-time handshake, not a live binding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const target = settings.claudeSessionUrl || 'https://claude.ai/code';
 
   return (
-    <Section title="Change the app" subtitle="Send a screenshot and say what should be different">
+    <Section title="Change the app" subtitle="Opens the conversation this app is built in">
       <Card style={{ gap: spacing.sm }}>
+        <Button
+          label={settings.claudeSessionUrl ? 'Open the conversation' : 'Open Claude Code'}
+          onPress={() => Linking.openURL(target)}
+        />
         <Text variant="caption" muted>
-          This works on a Claude.ai subscription and needs no API key. Open Claude Code in the
-          browser, attach the screenshot, paste the request below, and the change is made, built
-          and published to this site — the same loop that produced every version of it so far.
+          {settings.claudeSessionUrl
+            ? 'Tap it, attach a screenshot, say what should be different. The change is made, built and published back to this site.'
+            : 'Paste the link to your Claude Code conversation below and this button will open it directly. Until then it opens Claude Code.'}
         </Text>
         <TextInput
-          value={note}
+          value={draft}
           onChangeText={(t) => {
-            setNote(t);
-            setCopied(null);
+            setDraft(t);
+            setSaved(false);
           }}
-          placeholder="e.g. on the stock page the earnings card should show the quarter's date"
+          placeholder="https://claude.ai/code/session_…"
           placeholderTextColor={palette.textFaint}
-          multiline
-          accessibilityLabel="What should change"
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel="Claude Code conversation link"
           style={{
-            minHeight: 64,
             color: palette.text,
             backgroundColor: palette.cardMuted,
             borderColor: palette.border,
             borderWidth: 1,
             borderRadius: radius.md,
-            padding: spacing.md,
+            paddingHorizontal: spacing.md,
+            minHeight: 44,
             fontSize: 15,
           }}
         />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button label="Copy the request" onPress={copy} style={{ flex: 1 }} />
           <Button
-            label="Open Claude Code"
+            label={saved ? 'Saved' : 'Save link'}
+            onPress={() => {
+              update({ claudeSessionUrl: draft.trim() });
+              setSaved(true);
+            }}
             variant="quiet"
-            onPress={() => Linking.openURL('https://claude.ai/code')}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="Clear"
+            variant="quiet"
+            tone="down"
+            onPress={() => {
+              update({ claudeSessionUrl: '' });
+              setDraft('');
+              setSaved(false);
+            }}
             style={{ flex: 1 }}
           />
         </View>
         <Text variant="caption" faint>
-          {copied ?? (build ? `You are looking at build ${build}.` : 'Build unknown — the site has not published one yet.')}
+          Stored on this device only, and left out of the published app on purpose.
         </Text>
       </Card>
     </Section>
