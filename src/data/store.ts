@@ -60,6 +60,7 @@ import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { parsePositionsTable } from './import/positionsTable';
 import { readPositionsWithGemini } from './provider/gemini';
+import { buildReadRequest, parsePastedRead } from './readExchange';
 import { runAlertCheck } from './alerts';
 
 /** A screenshot import in progress, kept in the store so the review screen
@@ -142,6 +143,14 @@ export interface AppState {
   enqueueResearch: (tickers: string[]) => void;
   clearResearchQueue: () => void;
   analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
+  /**
+   * The same read, without an API key: the app writes the request — the book,
+   * the previous recommendations and the projection, plus the exact output
+   * shape — and the owner runs it in the conversation they already pay for.
+   */
+  buildReadPrompt: () => string;
+  /** Take the answer back. Untrusted text; validated before it is stored. */
+  applyPastedRead: (text: string) => { ok: boolean; message: string };
   /** Live marks for whatever is held right now. Follows the book, not a list. */
   refreshLiveQuotes: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   refreshingQuotes: boolean;
@@ -758,6 +767,98 @@ export const useApp = create<AppState>()(
             void get().refreshLiveQuotes(opts);
           }
         }
+      },
+
+      // The book, the previous recommendations and the projection, assembled
+      // exactly as the API path assembles them — one source of truth for what
+      // the reader is told, so a pasted read is working from the same facts
+      // as a keyed one rather than a summary that drifted.
+      buildReadPrompt: () => {
+        const state = get();
+        const targets = resolveTargets(
+          state.plan,
+          state.portfolioRead
+            ? { at: state.portfolioRead.at, stance: state.portfolioRead.result.allocation ?? null }
+            : null,
+        );
+        const planInForce = {
+          ...state.plan,
+          constraints: {
+            ...state.plan.constraints,
+            targetMix: Object.fromEntries(
+              Object.entries(targets.mix).map(([k, v]) => [k, v / 100]),
+            ) as RebalancePlan['constraints']['targetMix'],
+          },
+        };
+        const insights = buildInsights(
+          state.holdings,
+          state.stocks,
+          planInForce,
+          state.cashUsd(),
+          state.account().netLiquidationValue,
+        );
+        const verdicts = Object.values(state.stocks)
+          .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
+          .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
+          .join('\n');
+        const prev = state.portfolioRead?.result.allocation;
+        const planText = prev
+          ? [
+              `Previous recommendations (${state.portfolioRead!.at.slice(0, 10)}):`,
+              ...prev.moves.map((m) => {
+                const key = stanceMoveKey(m);
+                return `- ${m.kind} ${m.ticker ?? m.sector ?? 'book'}: ${m.action} [${
+                  state.stanceDone.includes(key) ? 'executed' : 'not executed'
+                }]`;
+              }),
+            ].join('\n')
+          : 'No previous recommendations on file.';
+        const simulation = summariseSimulation(
+          runSimulation(
+            state.holdings,
+            state.stocks,
+            state.cashUsd(),
+            state.account().netLiquidationValue,
+            {
+              ...DEFAULT_ASSUMPTIONS,
+              riskFreePct:
+                state.market.instruments.find((i) => i.symbol === 'US10Y')?.last ??
+                DEFAULT_ASSUMPTIONS.riskFreePct,
+            },
+          ),
+        );
+        const book = [
+          summariseForModel(insights),
+          '',
+          'PER-NAME VERDICTS AND THESES:',
+          verdicts,
+          '',
+          'PROJECTION:',
+          simulation,
+        ].join('\n');
+        return buildReadRequest(book, planText);
+      },
+
+      applyPastedRead: (text) => {
+        const outcome = parsePastedRead(text);
+        if (!outcome.ok || !outcome.result) return { ok: false, message: outcome.message };
+        const state = get();
+        // Same guard the API path uses: a mix whose arithmetic does not hold
+        // would make every sector read as drifting.
+        const problems = outcome.result.allocation ? stanceProblems(outcome.result.allocation) : [];
+        set({
+          portfolioRead: { at: nowIso(), result: outcome.result },
+          stanceDone: [],
+          stanceDiff: outcome.result.allocation
+            ? diffStances(state.portfolioRead?.result.allocation, outcome.result.allocation)
+            : [],
+        });
+        return {
+          ok: true,
+          message: problems.length
+            ? `${outcome.message} The targets need a look: ${problems.join(' ')}`
+            : outcome.message,
+        };
       },
 
       analysePortfolioNow: async () => {

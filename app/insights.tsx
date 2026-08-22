@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -75,6 +75,8 @@ export default function InsightsScreen() {
             </Text>
           </Card>
         ) : null}
+
+        <ReadByHand />
 
         {status ? (
           <Card style={{ borderColor: palette.down }}>
@@ -708,5 +710,110 @@ function AllocationSection({
         </Text>
       </Card>
     </Section>
+  );
+}
+
+/**
+ * The read, done in the conversation instead of through an API key.
+ *
+ * The analysis is the part of this app that needs judgement, and it is also
+ * the part the owner cannot buy: a Claude.ai subscription is not API access.
+ * Rather than substitute a weaker model, the app hands the work over — it
+ * writes the request with the whole book in it, the owner runs it in the
+ * session they already pay for, and pastes the answer back. Everything
+ * downstream — the sector targets, the pinned move checklist, the drift
+ * alerts — cannot tell the difference, because the answer is validated into
+ * exactly the shape the API path produces.
+ */
+function ReadByHand() {
+  const { palette, spacing, radius } = useTheme();
+  const buildPrompt = useApp((s) => s.buildReadPrompt);
+  const applyPasted = useApp((s) => s.applyPastedRead);
+  const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
+  const [open, setOpen] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const copyRequest = async () => {
+    const prompt = buildPrompt();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setNote({ ok: true, text: 'Request copied. Open the conversation and paste it.' });
+    } catch {
+      setNote({ ok: false, text: 'The browser refused the clipboard. Open the conversation and ask for a portfolio read there.' });
+    }
+  };
+
+  if (!open) {
+    return (
+      <Card style={{ gap: spacing.sm }}>
+        <Text variant="body" muted>
+          No API key? Have the conversation do the read instead — it costs nothing beyond the
+          subscription and the result lands in exactly the same place.
+        </Text>
+        <Button label="Read it in the conversation" variant="quiet" onPress={() => setOpen(true)} />
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ gap: spacing.sm }}>
+      <Text variant="label">Three steps</Text>
+      <Text variant="caption" muted>
+        1. Copy the request — it contains your whole book, the previous recommendations and the
+        projection. 2. Paste it into the conversation. 3. Paste the answer back here.
+      </Text>
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Button label="Copy the request" onPress={copyRequest} style={{ flex: 1 }} />
+        <Button
+          label="Open the conversation"
+          variant="quiet"
+          onPress={() => Linking.openURL(sessionUrl || 'https://claude.ai/code')}
+          style={{ flex: 1 }}
+        />
+      </View>
+      <TextInput
+        value={answer}
+        onChangeText={(t) => {
+          setAnswer(t);
+          setNote(null);
+        }}
+        placeholder="Paste the ```json block the conversation replies with"
+        placeholderTextColor={palette.textFaint}
+        multiline
+        accessibilityLabel="Paste the portfolio read"
+        style={{
+          minHeight: 96,
+          color: palette.text,
+          backgroundColor: palette.cardMuted,
+          borderColor: palette.border,
+          borderWidth: 1,
+          borderRadius: radius.md,
+          padding: spacing.md,
+          fontSize: 14,
+        }}
+      />
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <Button
+          label="Apply the read"
+          onPress={() => {
+            const res = applyPasted(answer);
+            setNote({ ok: res.ok, text: res.message });
+            if (res.ok) {
+              setAnswer('');
+              setOpen(false);
+            }
+          }}
+          disabled={answer.trim().length === 0}
+          style={{ flex: 1 }}
+        />
+        <Button label="Close" variant="quiet" onPress={() => setOpen(false)} style={{ flex: 1 }} />
+      </View>
+      {note ? (
+        <Text variant="caption" tone={note.ok ? undefined : 'down'} muted={note.ok}>
+          {note.text}
+        </Text>
+      ) : null}
+    </Card>
   );
 }
