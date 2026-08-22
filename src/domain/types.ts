@@ -286,8 +286,10 @@ export interface EarningsCall {
   watchNext: string | null;
   /** Two or three sentences summarising the call as a whole. */
   callSummary: string | null;
-  /** Verbatim lines worth keeping, each attributed to a speaker. */
-  quotes: { speaker: string; text: string }[];
+  /** Verbatim lines worth keeping, each attributed to a speaker. `topic` is a
+   *  one-or-two-word label — "momentum", "backlog", "guidance" — so the card
+   *  can say what a line is about; absent on entries that predate it. */
+  quotes: { speaker: string; text: string; topic?: string | null }[];
   /** How the shares reacted on the day, in percent. */
   reactionPct: number | null;
 }

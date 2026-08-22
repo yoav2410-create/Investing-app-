@@ -666,6 +666,7 @@ export default function StockDetailScreen() {
                       </Text>
                       <Text variant="caption" faint>
                         {q.speaker}
+                        {q.topic ? ` · on ${q.topic}` : ''}
                       </Text>
                     </View>
                   ))}

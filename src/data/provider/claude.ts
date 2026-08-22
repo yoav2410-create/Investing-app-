@@ -364,7 +364,7 @@ export interface ResearchResult {
     guidance: string | null;
     watchNext: string | null;
     reactionPct: number | null;
-    quotes: { speaker: string; text: string }[];
+    quotes: { speaker: string; text: string; topic: string | null }[];
   };
   sentiment: {
     score: number | null;
@@ -643,14 +643,19 @@ const RESEARCH_TOOL: Anthropic.Tool = {
           quotes: {
             type: 'array',
             description:
-              'Verbatim lines from the call worth keeping. Only include a quote you actually found; an empty array is correct when you did not.',
+              'Two to four verbatim lines from the call, chosen for substance: what the CEO or CFO said about demand momentum, backlog or bookings, forward guidance, or the margin trajectory — the sentences a holder would underline, not pleasantries. Only include a quote you actually found in a transcript or reputable report of the call; an empty array is correct when you did not.',
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['speaker', 'text'],
+              required: ['speaker', 'text', 'topic'],
               properties: {
                 speaker: { type: 'string', description: 'Name and role, e.g. "Susan Li, CFO".' },
                 text: { type: 'string' },
+                topic: {
+                  type: ['string', 'null'],
+                  description:
+                    'One or two words on what the line is about: "momentum", "backlog", "guidance", "margins". Null if it fits none.',
+                },
               },
             },
           },
@@ -745,6 +750,7 @@ Standards:
 - Percentages are percentages: an operating margin of 34.8% is 34.8, not 0.348.
 - Revenue, operating income and net income in the quarters array are millions of USD.
 - managementSaid must be grounded in what was actually said or reported. Quote only what you can source. If you have the figures but not the words, give the figures and say the commentary is not sourced.
+- The quotes array is the owner's window into the room: search for the call transcript (or detailed coverage of it) and bring back the CEO's or CFO's own sentences on demand momentum, backlog or bookings, and the guidance they gave — the words behind the numbers, each attributed and labelled by topic. A paraphrase is not a quote; put paraphrases in managementSaid.
 - Pick primaryMultiple honestly: EV/EBITDA where debt matters, forward P/E for a profitable grower, P/S where earnings are not yet meaningful. Say why in one sentence.
 - The verdict is a judgement and should read like one: state what would change your mind. Do not hedge into meaninglessness, and do not pretend to a confidence the evidence does not support.
 - For an ETF, most company fields are legitimately null. Say so rather than inventing a P/E.
