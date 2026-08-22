@@ -326,6 +326,12 @@ export interface Stock {
   peerGroup: string | null;
   /** Median of `primaryMultiple` across the peer group, when known. */
   peerMedianMultiple: number | null;
+  /**
+   * What the business actually is: what it sells, through which channels, and
+   * to whom. Deliberately descriptive — the thesis below it argues; this
+   * doesn't. For an ETF, what the fund holds.
+   */
+  about: Stamped<string>;
 
   quote: Stamped<Quote>;
   valuation: Stamped<ValuationSnapshot>;

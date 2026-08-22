@@ -124,6 +124,7 @@ describe('merging research', () => {
     return {
       ticker: 'META',
       companyName: 'Meta Platforms',
+      about: null,
       primaryMultiple: 'forwardPe',
       primaryMultipleRationale: '',
       peerGroup: null,
@@ -176,6 +177,18 @@ describe('merging research', () => {
     expect(after.valuation.value!.trailingPe).toBe(before.valuation.value!.trailingPe);
     expect(after.valuation.value!.beta).toBe(before.valuation.value!.beta);
     expect(after.earnings.value!.managementSaid).toBe(before.earnings.value!.managementSaid);
+  });
+
+  it('a description found this pass replaces the old one; silence keeps it', () => {
+    const withAbout = mergeResearch(
+      SEED_STOCKS.META!,
+      research({ about: 'Sells advertising on its social apps.' }),
+      'META',
+    );
+    expect(withAbout.about.value).toBe('Sells advertising on its social apps.');
+    expect(withAbout.about.source).toBe('manual');
+    const kept = mergeResearch(withAbout, research({ about: null }), 'META');
+    expect(kept.about.value).toBe('Sells advertising on its social apps.');
   });
 
   it('keeps the existing series when the model returns no quarters', () => {

@@ -133,6 +133,7 @@ export function blankStock(ticker: string, p: ParsedPosition, sector: SectorId):
     primaryMultiple: 'forwardPe',
     peerGroup: null,
     peerMedianMultiple: null,
+    about: { value: null, asOf: null, source: 'unavailable' },
     quote: quote ? stampClaude(quote) : { value: null, asOf: null, source: 'unavailable' },
     valuation: { value: null, asOf: null, source: 'unavailable' },
     technicals: { value: null, asOf: null, source: 'unavailable' },
@@ -244,6 +245,9 @@ export function mergeResearch(existing: Stock | undefined, r: ResearchResult, ti
     primaryMultiple: r.primaryMultiple ?? base.primaryMultiple,
     peerGroup: keep(r.peerGroup, base.peerGroup),
     peerMedianMultiple: keep(r.peerMedianMultiple, base.peerMedianMultiple),
+    // A description found this pass replaces the old one; silence keeps it —
+    // a business does not stop being what it is because a search came back thin.
+    about: r.about ? stampClaude(r.about) : base.about,
     valuation: stampClaude(valuation),
     quality: r.quality ? stampClaude(mergeQuality(base.quality.value, r.quality)) : base.quality,
     cashFlow: r.cashFlow

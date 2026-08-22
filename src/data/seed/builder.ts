@@ -53,6 +53,8 @@ export interface StockSpec {
   primaryMultiple: PrimaryMultiple;
   peerGroup: string | null;
   peerMedianMultiple: number | null;
+  /** What the business is — product, channels, end customer. Factual prose. */
+  about?: string;
   /** [price, previousClose, volume] */
   quote: [number, number, number | null];
   tradingDay: string;
@@ -126,6 +128,9 @@ export function buildStock(spec: StockSpec, seedAsOf: string): Stock {
     primaryMultiple: spec.primaryMultiple,
     peerGroup: spec.peerGroup,
     peerMedianMultiple: spec.peerMedianMultiple,
+    about: spec.about
+      ? stamped(spec.about, seedAsOf, 'seed')
+      : stamped<string>(null, null, 'unavailable'),
     quote: stamped(quote, asOfFor('quote'), pick('quote')),
     valuation: stamped(spec.valuation, asOfFor('valuation'), pick('valuation')),
     technicals: stamped(spec.technicals, asOfFor('technicals'), pick('technicals')),

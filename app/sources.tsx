@@ -7,6 +7,7 @@ import { relativeAsOf } from '@/domain/format';
 import type { DataSourceId, Stock } from '@/domain/types';
 
 const BLOCKS = [
+  ['about', 'Business description'],
   ['quote', 'Price'],
   ['valuation', 'Valuation'],
   ['technicals', 'Technicals'],

@@ -164,6 +164,18 @@ export default function StockDetailScreen() {
         </Card>
       ) : null}
 
+      {/* ---------------------------------------------------- the business */}
+      {stock.about.value ? (
+        <Card style={{ gap: spacing.xs }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+            <Label variant="label" muted term="aboutBusiness">
+              What this business is
+            </Label>
+          </View>
+          <Text variant="body">{stock.about.value}</Text>
+        </Card>
+      ) : null}
+
       {/* --------------------------------------------------------- verdict */}
       <Card style={{ gap: spacing.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>

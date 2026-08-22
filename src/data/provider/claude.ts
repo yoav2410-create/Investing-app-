@@ -319,6 +319,7 @@ export function diffHoldings(
 export interface ResearchResult {
   ticker: string;
   companyName: string;
+  about: string | null;
   primaryMultiple: 'evEbitda' | 'forwardPe' | 'trailingPe' | 'ps';
   primaryMultipleRationale: string;
   peerGroup: string | null;
@@ -452,6 +453,7 @@ const RESEARCH_TOOL: Anthropic.Tool = {
     required: [
       'ticker',
       'companyName',
+      'about',
       'primaryMultiple',
       'primaryMultipleRationale',
       'peerGroup',
@@ -471,6 +473,11 @@ const RESEARCH_TOOL: Anthropic.Tool = {
     properties: {
       ticker: { type: 'string' },
       companyName: { type: 'string' },
+      about: {
+        type: ['string', 'null'],
+        description:
+          'Two or three matter-of-fact sentences on what the business is: what it makes or sells, through which channels (direct sales force, subscriptions, marketplaces, distributors, government contracts…), and who the end customer is. Description, not pitch — no adjectives of praise, no thesis. For an ETF: what the fund holds and who runs it. Null only if you genuinely could not establish it.',
+      },
       primaryMultiple: {
         type: 'string',
         enum: ['evEbitda', 'forwardPe', 'trailingPe', 'ps'],

@@ -28,6 +28,12 @@ export const GLOSSARY = {
     read: 'This is the headline number for the account — market value of the holdings plus cash.',
     caveat: 'It uses the marks from your last screenshot, not a live feed, so it is as current as that picture.',
   },
+  aboutBusiness: {
+    title: 'What this business is',
+    what: 'A plain statement of what the company sells, through which channels, and who the end customer is. For an ETF, what the fund holds.',
+    read: 'Ground the rest of the page in it: the multiples, margins and risks below are the economics of exactly this machine, and a number that surprises you should be checked against what the business actually does.',
+    caveat: 'Deliberately carries no view — the verdict below argues, this does not. It updates when the name is re-researched, so a business mid-pivot shows its previous shape until the next pass.',
+  },
   dayPnl: {
     title: 'Day P&L',
     what: 'How much the book has gained or lost today, in dollars and as a percentage of yesterday\'s close.',

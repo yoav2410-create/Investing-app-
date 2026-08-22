@@ -193,8 +193,21 @@ export function normalisePersisted<T extends Record<string, unknown>>(persisted:
     alertOnInsiderSelling:
       old.alertOnInsiderSelling ?? old.alertOnOptionsFlip ?? DEFAULT_SETTINGS.alertOnInsiderSelling,
   };
+  // Stocks written before the business-description block exist without
+  // `about`; the detail screen dereferences `about.value`, so the field must
+  // be present, honestly marked unavailable, not undefined.
+  const stocks = (p as { stocks?: Record<string, Stock> }).stocks;
+  const repairedStocks = stocks
+    ? Object.fromEntries(
+        Object.entries(stocks).map(([t, s]) => [
+          t,
+          { ...s, about: s.about ?? { value: null, asOf: null, source: 'unavailable' as const } },
+        ]),
+      )
+    : stocks;
   return {
     ...p,
+    ...(repairedStocks ? { stocks: repairedStocks } : {}),
     settings,
     refresh: p.refresh
       ? { ...p.refresh, status: p.refresh.status === 'running' ? 'idle' : p.refresh.status }
@@ -862,8 +875,8 @@ export const useApp = create<AppState>()(
       // for every toggle. That is how the renamed insider-selling alert
       // silently never fired for upgraded installs, and it would have happened
       // again to alertOnDrift at v2. normalisePersisted is idempotent, so
-      // re-running it on every bump is free.
-      version: 3,
+      // re-running it on every bump is free. v4: stocks gained `about`.
+      version: 4,
       migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.
