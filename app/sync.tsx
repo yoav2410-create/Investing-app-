@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Pill, Screen, Section, Text } from '@/components/ui';
@@ -22,7 +21,6 @@ export default function SyncScreen() {
   const router = useRouter();
   const { palette, spacing, radius } = useTheme();
   const pending = useApp((s) => s.pendingImport);
-  const readScreenshot = useApp((s) => s.readScreenshot);
   const applyAnything = useApp((s) => s.applyAnythingPasted);
   const buildReadPrompt = useApp((s) => s.buildReadPrompt);
   const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
@@ -32,7 +30,6 @@ export default function SyncScreen() {
 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
-  const [hint, setHint] = useState('');
   const [pasted, setPasted] = useState('');
 
   // Straight from the clipboard, so the Live Text route is screenshot →
@@ -74,63 +71,6 @@ export default function SyncScreen() {
     const text = await pickPositionsFile();
     if (text == null) return;
     setStatus(applyAnything(text));
-  };
-
-  const pick = async (from: 'library' | 'camera') => {
-    setStatus(null);
-    const permission =
-      from === 'camera'
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setStatus({
-        ok: false,
-        message:
-          from === 'camera'
-            ? 'Camera access was declined. You can still choose an existing screenshot.'
-            : 'Photo access was declined. Enable it in iOS Settings to pick a screenshot.',
-      });
-      return;
-    }
-
-    const result =
-      from === 'camera'
-        // quality: 1 is not a nicety. The picker re-encodes anything below it
-        // as JPEG, and a broker table is small text on a light ground — the
-        // exact thing JPEG smears. Measured: the same screenshot read
-        // perfectly as a PNG and came back with a missing average cost after a
-        // 0.85 re-encode. The file is a few hundred KB either way.
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 1 })
-        : await ImagePicker.launchImageLibraryAsync({
-            base64: true,
-            quality: 1,
-            mediaTypes: ['images'],
-          });
-    // A silent return here is how a broken picker looks like a dead button:
-    // the file chooser closes, nothing happens, and there is nothing on
-    // screen to explain it. Cancelling is the only case that should be quiet.
-    if (result.canceled) return;
-    if (!result.assets?.[0]) {
-      setStatus({ ok: false, message: 'The picker returned no image. Try again, or paste the table instead.' });
-      return;
-    }
-
-    const asset = result.assets[0];
-    if (!asset.base64) {
-      setStatus({ ok: false, message: 'That image could not be read from disk.' });
-      return;
-    }
-
-    setBusy(true);
-    setStatus({ ok: true, message: 'Reading the screenshot…' });
-    const res = await readScreenshot({
-      uri: asset.uri,
-      base64: asset.base64,
-      mediaType: asset.mimeType === 'image/png' ? 'image/png' : 'image/jpeg',
-      hint: hint.trim() || undefined,
-    });
-    setBusy(false);
-    setStatus(res);
   };
 
   const apply = () => {

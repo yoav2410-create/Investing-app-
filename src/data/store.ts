@@ -27,13 +27,9 @@ import {
   deriveAccount,
 } from './seed';
 import { INITIAL_REFRESH_STATE, runRefresh } from './refresh';
-import { getApiKey, getClaudeKey, getKey } from './keys';
+import { getApiKey, getKey } from './keys';
 import {
-  analysePortfolio,
-  createClaude,
   diffHoldings,
-  readPositionsFromImage,
-  researchStock,
   type HoldingDiff,
   type ParsedPosition,
   type PortfolioReadResult,
@@ -88,15 +84,8 @@ export interface AppState {
   staleNarratives: string[];
   unlocked: boolean;
   pendingImport: PendingImport | null;
-  /** Ticker currently in flight, so the UI can show a spinner. */
-  researching: string[];
-  /** Tickers waiting their turn. Research runs one at a time. */
-  researchQueue: string[];
-  /** Newest first: what the last few research passes did. */
-  researchLog: { ticker: string; at: string; ok: boolean; message: string }[];
   /** The last portfolio-level read, with the timestamp it was written. */
   portfolioRead: { at: string; result: PortfolioReadResult } | null;
-  analysingPortfolio: boolean;
   /**
    * Which of the read's proposed moves the owner has executed, keyed by
    * `stanceMoveKey`. This is the plan now: Claude proposes on request, the app
@@ -126,22 +115,11 @@ export interface AppState {
   updateSettings: (patch: Partial<Settings>) => void;
   setUnlocked: (v: boolean) => void;
   refreshNow: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
-  readScreenshot: (input: {
-    uri: string;
-    base64: string;
-    mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
-    hint?: string;
-  }) => Promise<{ ok: boolean; message: string }>;
   /** The whole book from a broker export or a pasted table. No key needed. */
   readPositionsTable: (text: string) => { ok: boolean; message: string };
   toggleImportSkip: (ticker: string) => void;
   applyPendingImport: () => { applied: number; needResearch: string[] };
   discardPendingImport: () => void;
-  researchTicker: (ticker: string) => Promise<{ ok: boolean; message: string }>;
-  /** Queue names for research; they run sequentially in the background. */
-  enqueueResearch: (tickers: string[]) => void;
-  clearResearchQueue: () => void;
-  analysePortfolioNow: () => Promise<{ ok: boolean; message: string }>;
   /**
    * The same read, without an API key: the app writes the request — the book,
    * the previous recommendations and the projection, plus the exact output
@@ -281,11 +259,7 @@ export const useApp = create<AppState>()(
       staleNarratives: [],
       unlocked: false,
       pendingImport: null,
-      researching: [],
-      researchQueue: [],
-      researchLog: [],
       portfolioRead: null,
-      analysingPortfolio: false,
       stanceDone: [],
       toggleStanceDone: (key) =>
         set((s) => ({
@@ -537,51 +511,6 @@ export const useApp = create<AppState>()(
         };
       },
 
-      readScreenshot: async ({ uri, base64, mediaType, hint }) => {
-        // Reading a picture in the app needs an Anthropic key. Without one the
-        // screenshot goes to the conversation instead, which is the route the
-        // owner actually uses — see the button on the Portfolio screen.
-        const key = await getClaudeKey();
-        if (!key) {
-          return {
-            ok: false,
-            message:
-              'Reading a screenshot inside the app needs an Anthropic API key. Send the screenshot to Claude instead — the Update button on the Portfolio screen opens the conversation — and paste the answer back below.',
-          };
-        }
-        try {
-          const read = await readPositionsFromImage(
-            createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' }),
-            { base64, mediaType },
-            hint,
-          );
-          if (read.positions.length === 0) {
-            return {
-              ok: false,
-              message:
-                read.warnings[0] ?? 'No positions were legible in that image. Try a fuller screenshot.',
-            };
-          }
-          const state = get();
-          const diffs = diffHoldings(state.holdings, read.positions, (t) =>
-            state.stocks[t]?.sector ?? 'tech',
-          );
-          set({
-            pendingImport: { imageUri: uri, read, diffs, skipped: [], at: nowIso() },
-          });
-          const changed = diffs.filter((d) => d.kind !== 'unchanged').length;
-          return {
-            ok: true,
-            message:
-              changed === 0
-                ? `Read ${read.positions.length} positions — nothing has changed.`
-                : `Read ${read.positions.length} positions, ${changed} differ from the book.`,
-          };
-        } catch (e) {
-          return { ok: false, message: describeError(e) };
-        }
-      },
-
       toggleImportSkip: (ticker) =>
         set((s) => {
           if (!s.pendingImport) return {};
@@ -624,10 +553,11 @@ export const useApp = create<AppState>()(
         const touched = pending.diffs
           .filter((d) => !skipped.has(d.ticker) && (d.kind === 'added' || d.kind === 'changed'))
           .map((d) => d.ticker);
-        // A position that moved is a position worth a fresh read: the reason it
-        // moved is usually news, and the write-up on file predates it.
+        // A position that moved is worth a fresh read, and that read now
+        // happens in the conversation rather than through an API key — so the
+        // names are handed back to the caller and the import screen names
+        // them, instead of a queue quietly researching nothing.
         const toResearch = [...new Set([...result.needResearch, ...touched])];
-        if (toResearch.length) get().enqueueResearch(toResearch);
         // Price the new book immediately rather than waiting for the next
         // quarter-hour tick. A name that just arrived in the import has only
         // the screenshot's mark, which was already minutes old when it was
@@ -642,18 +572,6 @@ export const useApp = create<AppState>()(
       },
 
       discardPendingImport: () => set({ pendingImport: null }),
-
-      enqueueResearch: (tickers) => {
-        const state = get();
-        const known = new Set(Object.keys(state.stocks));
-        const queued = new Set([...state.researchQueue, ...state.researching]);
-        const next = tickers.filter((t) => known.has(t) && !queued.has(t));
-        if (next.length === 0) return;
-        set({ researchQueue: [...state.researchQueue, ...next] });
-        void pumpResearchQueue();
-      },
-
-      clearResearchQueue: () => set({ researchQueue: [] }),
 
       refreshLiveQuotes: async (opts) => {
         if (get().refreshingQuotes) {
@@ -905,163 +823,6 @@ export const useApp = create<AppState>()(
         return { ok: true, message: messages.join(' ') };
       },
 
-      analysePortfolioNow: async () => {
-        const key = await getClaudeKey();
-        if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
-        }
-        if (get().analysingPortfolio) {
-          return { ok: false, message: 'Already running.' };
-        }
-        set({ analysingPortfolio: true });
-        try {
-          const state = get();
-          // The summary's drift figures must be measured against the targets
-          // actually in force — the previous stance when one exists — or the
-          // model is told the book drifted from a placeholder it already
-          // replaced, and re-litigates a mix it set itself.
-          const targets = resolveTargets(
-            state.plan,
-            state.portfolioRead
-              ? { at: state.portfolioRead.at, stance: state.portfolioRead.result.allocation ?? null }
-              : null,
-          );
-          const planInForce = {
-            ...state.plan,
-            constraints: {
-              ...state.plan.constraints,
-              targetMix: Object.fromEntries(
-                Object.entries(targets.mix).map(([k, v]) => [k, v / 100]),
-              ) as RebalancePlan['constraints']['targetMix'],
-            },
-          };
-          const insights = buildInsights(
-            state.holdings,
-            state.stocks,
-            planInForce,
-            state.cashUsd(),
-            state.account().netLiquidationValue,
-          );
-          const verdicts = Object.values(state.stocks)
-            .filter((s) => state.holdings.some((h) => h.ticker === s.ticker))
-            .map((s) => `${s.ticker}: ${s.narrative.verdict} — ${s.narrative.thesis ?? ''}`)
-            .join('\n');
-          // What the model proposed last time, and which of it the owner
-          // actually executed. That is the plan's whole history now — there is
-          // no standing plan document, only the previous read and its ticks —
-          // and telling the model what was and was not acted on lets it reason
-          // about follow-through instead of proposing the same trim twice.
-          const prev = state.portfolioRead?.result.allocation;
-          const planText = prev
-            ? [
-                `Your previous recommendations (${state.portfolioRead!.at.slice(0, 10)}):`,
-                ...prev.moves.map((m) => {
-                  const key = stanceMoveKey(m);
-                  return `- ${m.kind} ${m.ticker ?? m.sector ?? 'book'}: ${m.action} [${
-                    state.stanceDone.includes(key) ? 'executed' : 'not executed'
-                  }]`;
-                }),
-              ].join('\n')
-            : 'No previous recommendations on file.';
-
-          // The projection is handed over rather than described. The stance is
-          // supposed to set the cash floor from what this book actually does in
-          // a drawdown, and it cannot do that from sector weights alone.
-          const simulation = summariseSimulation(
-            runSimulation(
-              state.holdings,
-              state.stocks,
-              state.cashUsd(),
-              state.account().netLiquidationValue,
-              {
-                ...DEFAULT_ASSUMPTIONS,
-                // The same 10-year yield the Market screen discounts against,
-                // so the stance and the chart cannot disagree about the rate.
-                riskFreePct:
-                  state.market.instruments.find((i) => i.symbol === 'US10Y')?.last ??
-                  DEFAULT_ASSUMPTIONS.riskFreePct,
-              },
-            ),
-          );
-
-          const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
-          const result = await analysePortfolio(client, summariseForModel(insights), {
-            verdicts,
-            plan: planText,
-            simulation,
-          });
-
-          // A stance whose arithmetic does not hold would quietly make every
-          // sector look underweight, so it is checked before it is stored and
-          // the problems are surfaced rather than swallowed.
-          const problems = result.allocation ? stanceProblems(result.allocation) : [];
-          // A fresh read replaces the checklist: the old done-marks describe
-          // moves that no longer exist, and carrying them over would show new
-          // recommendations as already executed. The diff against the replaced
-          // stance is captured here, because after the set there is no "old"
-          // left to compare with.
-          set({
-            portfolioRead: { at: nowIso(), result },
-            stanceDone: [],
-            stanceDiff: result.allocation
-              ? diffStances(state.portfolioRead?.result.allocation, result.allocation)
-              : [],
-          });
-          return {
-            ok: true,
-            message: problems.length
-              ? `Portfolio read updated, but the targets need a look: ${problems.join(' ')}`
-              : 'Portfolio read updated.',
-          };
-        } catch (e) {
-          return { ok: false, message: describeError(e) };
-        } finally {
-          set({ analysingPortfolio: false });
-        }
-      },
-
-      researchTicker: async (ticker) => {
-        const key = await getClaudeKey();
-        if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
-        }
-        if (get().researching.includes(ticker)) {
-          return { ok: false, message: `${ticker} is already being researched.` };
-        }
-        set((s) => ({ researching: [...s.researching, ticker] }));
-        try {
-          const state = get();
-          const holding = state.holdings.find((h) => h.ticker === ticker);
-          const planNote = state.plan.legs.find((l) => l.ticker === ticker)?.note;
-          const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
-          const result = await researchStock(client, ticker, {
-            name: state.stocks[ticker]?.name,
-            shares: holding?.shares,
-            costBasis: holding?.costBasis,
-            planNote,
-          });
-          set((s) => ({
-            stocks: { ...s.stocks, [ticker]: mergeResearch(s.stocks[ticker], result, ticker) },
-            staleNarratives: s.staleNarratives.filter((t) => t !== ticker),
-          }));
-          const headlines = result.sentiment?.headlines?.length ?? 0;
-          const message = `${ticker} updated${
-            headlines ? ` ֲ· ${headlines} recent article${headlines === 1 ? '' : 's'}` : ''
-          }.`;
-          set((s) => ({
-            researchLog: [{ ticker, at: nowIso(), ok: true, message }, ...s.researchLog].slice(0, 40),
-          }));
-          return { ok: true, message };
-        } catch (e) {
-          const message = describeError(e);
-          set((s) => ({
-            researchLog: [{ ticker, at: nowIso(), ok: false, message }, ...s.researchLog].slice(0, 40),
-          }));
-          return { ok: false, message };
-        } finally {
-          set((s) => ({ researching: s.researching.filter((t) => t !== ticker) }));
-        }
-      },
 
       takeSnapshot: () =>
         set((s) => {
@@ -1090,8 +851,6 @@ export const useApp = create<AppState>()(
           // book that no longer exists.
           stanceDone: [],
           quotesFetchedAt: null,
-          researchQueue: [],
-          researchLog: [],
         }),
     }),
     {
@@ -1123,7 +882,6 @@ export const useApp = create<AppState>()(
         snapshots: s.snapshots,
         staleNarratives: s.staleNarratives,
         pendingImport: s.pendingImport,
-        researchLog: s.researchLog,
         portfolioRead: s.portfolioRead,
         stanceDone: s.stanceDone,
         stanceDiff: s.stanceDiff,
@@ -1145,27 +903,11 @@ export const useApp = create<AppState>()(
  * useful progress signal. One at a time is slower in wall-clock and much easier
  * to reason about when one of them fails.
  */
-let pumping = false;
 /** A refresh asked for while one was running; honoured when it finishes. */
 let queuedQuoteRefresh = false;
 /** The open trade stream, if any. Module-level: sockets do not belong in state. */
 let streamHandle: StreamHandle | null = null;
 
-async function pumpResearchQueue(): Promise<void> {
-  if (pumping) return;
-  pumping = true;
-  try {
-    for (;;) {
-      const state = useApp.getState();
-      const next = state.researchQueue[0];
-      if (!next) break;
-      useApp.setState({ researchQueue: state.researchQueue.slice(1) });
-      await state.researchTicker(next);
-    }
-  } finally {
-    pumping = false;
-  }
-}
 
 /** Seed the first snapshot so the history chart is never empty on day one. */
 export function ensureFirstSnapshot() {

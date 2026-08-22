@@ -39,8 +39,6 @@ export default function PortfolioScreen() {
   const portfolioRead = useApp((s) => s.portfolioRead);
   const snapshots = useApp((s) => s.snapshots);
   const staleNarratives = useApp((s) => s.staleNarratives);
-  const researching = useApp((s) => s.researching);
-  const researchQueue = useApp((s) => s.researchQueue);
   const account = useApp((s) => s.account)();
   const cash = useApp((s) => s.cashUsd)();
   const vix = useApp((s) => s.vix);
@@ -173,17 +171,6 @@ export default function PortfolioScreen() {
           style={{ flex: 1 }}
         />
       </View>
-
-      {researching.length || researchQueue.length ? (
-        <Card style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
-          <ActivityIndicator color={palette.accent} />
-          <Text variant="caption" muted style={{ flex: 1 }}>
-            Claude is researching {researching[0] ?? researchQueue[0]}
-            {researchQueue.length ? ` · ${researchQueue.length} more queued` : ''} — latest results,
-            what management said, and current coverage.
-          </Text>
-        </Card>
-      ) : null}
 
       {staleNarratives.length > 0 ? (
         <Card style={{ borderColor: palette.warn, gap: spacing.xs }}>

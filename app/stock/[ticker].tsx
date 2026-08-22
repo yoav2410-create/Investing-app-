@@ -119,7 +119,6 @@ export default function StockDetailScreen() {
     (m) => m.ticker === ticker,
   );
   const nlv = useApp((s) => s.account)().netLiquidationValue;
-  const researching = useApp((s) => s.researching.includes(ticker));
   const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
   const staleNarrative = useApp((s) => s.staleNarratives.includes(ticker));
   const [status, setStatus] = useState<string | null>(null);
@@ -767,8 +766,6 @@ export default function StockDetailScreen() {
                 </>
               ) : null}
             </>
-          ) : researching ? (
-            <Skeleton lines={4} />
           ) : (
             <Empty
               title="No coverage read yet."
@@ -1095,7 +1092,6 @@ export default function StockDetailScreen() {
           accessibilityHint="Copies the ask and opens the conversation"
         />
         <Button label="Share this brief" onPress={share} variant="quiet" />
-        {researching ? <ActivityIndicator color={palette.accent} /> : null}
         {status ? (
           <Text variant="caption" muted>
             {status}

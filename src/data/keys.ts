@@ -19,11 +19,10 @@ import { Platform } from 'react-native';
  * Either way the key stays on the device and is sent only to Anthropic.
  */
 
-export type KeyName = 'alphavantage' | 'anthropic' | 'finnhub';
+export type KeyName = 'alphavantage' | 'finnhub';
 
 const STORE_KEYS: Record<KeyName, string> = {
   alphavantage: 'alphavantage.apiKey',
-  anthropic: 'anthropic.apiKey',
   finnhub: 'finnhub.apiKey',
 };
 
@@ -90,8 +89,6 @@ export function keyStorageDescription(): string {
 
 export const getApiKey = () => getKey('alphavantage');
 export const setApiKey = (v: string) => setKey('alphavantage', v);
-export const getClaudeKey = () => getKey('anthropic');
-export const setClaudeKey = (v: string) => setKey('anthropic', v);
 
 /** Never render the key itself — only enough to confirm which one is stored. */
 export function maskKey(key: string | null): string {

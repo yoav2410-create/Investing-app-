@@ -106,14 +106,16 @@ if (!touch.ok()) problems.push(`apple-touch-icon -> ${touch.status()}`);
 else console.log(`icons resolve: ${manifest.icons.length} in the manifest plus the 180pt home-screen icon`);
 if (manifest.display !== 'standalone') problems.push(`manifest display is "${manifest.display}", not standalone`);
 
-// 4. Without persistence the app asks for an API key on every launch, which
-//    makes it unusable as a daily thing. This is the check that matters most.
-await p.evaluate(() => localStorage.setItem('anthropic.apiKey', 'sk-ant-test-KEY123'));
+// 4. Without persistence the app asks for a key on every launch, which makes
+//    it unusable as a daily thing. The Anthropic key is gone — the work moved
+//    to the conversation — so this now proves the same property against the
+//    Finnhub key, which is the only one left and the one that buys live marks.
+await p.evaluate(() => localStorage.setItem('finnhub.apiKey', 'test-key-KEY123'));
 await p.goto(BASE + '/settings', { waitUntil: 'networkidle' });
 await p.waitForTimeout(1500);
 const settings = (await p.locator('body').innerText()).replace(/\s+/g, ' ');
 if (!settings.includes('••••Y123')) problems.push('the stored key was not read back after a reload');
-else console.log('API key survives a full reload and renders masked (••••Y123)');
+else console.log('the stored key survives a full reload and renders masked (••••Y123)');
 if (!settings.includes('Stored in this browser only')) problems.push('settings does not say where the key is kept on web');
 else console.log('settings states where the key lives on this platform');
 await p.screenshot({ path: 'docs/screenshots/pwa-settings.png' });
@@ -158,17 +160,17 @@ if (!deepText.includes('META')) problems.push(`deep link did not resolve (HTTP $
 else console.log(`deep link /stock/META resolves through the 404 fallback (served ${res?.status()}, as Pages does)`);
 await deep.screenshot({ path: 'docs/screenshots/pwa-deeplink.png' });
 
-// 7. The screenshot import is the only way real data gets into this build, so
-//    it has to work in a browser. expo-image-picker falls back to a file input
-//    on web; if that fallback is missing, the whole app is a demo.
+// 7. Getting a book into this app means reading a file or a paste in the
+//    browser — the in-app screenshot reader went with the API key. If the file
+//    input does not open, the only import route left is the clipboard.
 const sync = await ctx.newPage();
 await sync.goto(BASE + '/sync', { waitUntil: 'networkidle' });
 await sync.waitForTimeout(1500);
 const syncText = (await sync.locator('body').innerText()).replace(/\s+/g, ' ');
-if (!syncText.includes('Choose a screenshot')) problems.push('the import screen did not render its picker');
+if (!syncText.includes('Choose a file')) problems.push('the import screen did not render its file picker');
 else {
   const chooser = sync.waitForEvent('filechooser', { timeout: 8000 }).catch(() => null);
-  await sync.getByText('Choose a screenshot', { exact: false }).first().click();
+  await sync.getByText('Choose a file', { exact: false }).first().click();
   const picked = await chooser;
   if (!picked) problems.push('tapping the picker opened no file chooser — import is dead on web');
   else console.log('screenshot import opens a real file picker in the browser');

@@ -334,7 +334,7 @@ function PricesSection(_props: { onStatus: (s: string) => void }) {
           name="finnhub"
           label="Finnhub key"
           placeholder="paste your free key"
-          help="finnhub.io — free, no card. Optional but worth it: the feed covers the liquid US market, and this key covers everything else you ever hold, live, with nothing else to set up."
+          help={`finnhub.io — free, no card. Optional but worth it: the feed covers the liquid US market, and this key covers everything else you ever hold, live, with nothing else to set up. ${keyStorageDescription()}`}
         />
       </Card>
     </Section>
