@@ -137,6 +137,13 @@ function sniffDelimiter(lines: string[]): string {
   if (bestScore < 2) {
     const spaceCounts = lines.slice(0, 12).map((l) => l.split(/\s{2,}/).length);
     if (Math.min(...spaceCounts) >= 2) return '  +';
+    // And what iOS Live Text hands back from a screenshot has no alignment
+    // left at all — the columns collapse to single spaces. This is the most
+    // important case in the file, because a screenshot is what the owner
+    // actually has on their phone, so a single space counts as a column
+    // boundary once the richer candidates have all failed.
+    const wordCounts = lines.slice(0, 12).map((l) => l.split(/\s+/).length);
+    if (Math.min(...wordCounts) >= 2) return ' +';
   }
   return best;
 }
@@ -157,7 +164,12 @@ export function parsePositionsTable(text: string): TableImport {
   }
 
   const delimiter = sniffDelimiter(lines);
-  const split = (l: string) => (delimiter === '  +' ? l.split(/\s{2,}/).map((c) => c.trim()) : splitLine(l, delimiter));
+  const split = (l: string) =>
+    delimiter === '  +'
+      ? l.split(/\s{2,}/).map((c) => c.trim())
+      : delimiter === ' +'
+        ? l.split(/\s+/).map((c) => c.trim())
+        : splitLine(l, delimiter);
 
   const rows = lines.map(split).filter((r) => r.some((c) => c.length > 0));
   const header = rows[0] ?? [];
@@ -167,7 +179,14 @@ export function parsePositionsTable(text: string): TableImport {
   // A header row is one where the columns say what they hold. Without it, the
   // parser falls back to position: symbol first, then the first two numbers as
   // quantity and cost — which is what a pasted broker table looks like.
-  const hasHeader = named >= 2 && mapping.includes('ticker');
+  // Single-space text cannot carry a header map: "Avg cost" arrives as two
+  // separate cells, so matching would half-work, which is worse than not
+  // working. That text is read by position instead — the symbol, then the
+  // first two numbers, which are quantity and cost in every broker layout
+  // seen. The price columns are given up on deliberately; the app has live
+  // marks of its own, and cost basis is the number only the owner has.
+  const alignedBySpaces = delimiter === ' +';
+  const hasHeader = !alignedBySpaces && named >= 2 && mapping.includes('ticker');
   const body = hasHeader ? rows.slice(1) : rows;
   if (!hasHeader) {
     warnings.push('No column headings were recognised, so the first column was read as the ticker and the next two numbers as quantity and average cost.');
@@ -203,6 +222,10 @@ export function parsePositionsTable(text: string): TableImport {
       averageCost = parseNumber(get('averageCost'));
     } else {
       const numbers = row.slice(1).map(parseNumber).filter((n): n is number => n != null);
+      // A row with no numbers at all is a heading or a section label, not a
+      // position the parser failed on — saying it was "skipped" would send
+      // the owner looking for a problem that is not there.
+      if (numbers.length === 0) continue;
       shares = numbers[0] ?? null;
       averageCost = numbers[1] ?? null;
     }

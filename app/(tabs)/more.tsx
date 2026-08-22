@@ -30,9 +30,17 @@ export default function MoreScreen() {
       title: 'AI insights',
       detail: 'What the book is actually betting on, concentration, and where the risk sits',
     },
-    // "Update from a screenshot" is deliberately absent: it is the primary
-    // button on the Portfolio page, and a second door to the same flow just
-    // makes the list longer.
+    // This was left out once, on the reasoning that the Portfolio page's
+    // primary button already leads here and a second door only lengthens the
+    // list. The owner then went looking for it in More — which is where a
+    // person looks for "the thing that changes my positions" — and found
+    // nothing. One extra row is cheaper than a feature nobody can find.
+    {
+      href: '/sync',
+      icon: 'camera-outline',
+      title: 'Update positions',
+      detail: 'Read your holdings from a screenshot, a broker export, or a pasted table',
+    },
     {
       href: '/market',
       icon: 'globe-outline',

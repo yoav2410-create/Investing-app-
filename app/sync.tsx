@@ -40,6 +40,26 @@ export default function SyncScreen() {
     if (res.ok) setPasted('');
   };
 
+  // Straight from the clipboard, so the Live Text route is screenshot →
+  // copy → one button, with no textarea in the middle. Safari asks the owner
+  // to confirm the paste, which is the browser doing its job, not a failure.
+  const pasteFromClipboard = async () => {
+    setStatus(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        setStatus({ ok: false, message: 'The clipboard is empty. Copy the table first.' });
+        return;
+      }
+      readTable(text);
+    } catch {
+      setStatus({
+        ok: false,
+        message: 'The browser would not hand over the clipboard. Paste into the box below instead.',
+      });
+    }
+  };
+
   const chooseFile = async () => {
     setStatus(null);
     if (Platform.OS !== 'web') {
@@ -115,20 +135,46 @@ export default function SyncScreen() {
     <Screen>
       {!pending ? (
         <>
-          {/* The export route comes first and deliberately so: it is the one
-              that needs no API key, no credits and no model, brings the whole
-              book in one go, and is exact rather than read off a picture. The
-              screenshot route below stays for when there is no export to
-              hand. Both end in the same review diff. */}
+          {/* A screenshot is what the owner actually has on a phone: exporting
+              a CSV from a broker's app means a desktop, an email, a download.
+              So the picture leads, and the two ways to turn one into positions
+              sit side by side — a Gemini key reads it in the app, or iOS Live
+              Text lifts the text out of the picture for free with no key at
+              all. Everything ends in the same review diff. */}
+          <Section title="From a screenshot" subtitle="The whole book at once — nothing typed">
+            <Card style={{ gap: spacing.sm }}>
+              <Text variant="body" muted>
+                Screenshot your broker's positions screen, then pick it here. With a free Gemini
+                key in Settings the app reads the rows itself; without one, open the screenshot in
+                Photos, press and hold the text, Select All, Copy — then paste it below. Either
+                way you approve every row before anything is written.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button
+                  label="Choose a screenshot"
+                  onPress={() => pick('library')}
+                  disabled={busy}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  label="Paste"
+                  variant="quiet"
+                  onPress={pasteFromClipboard}
+                  disabled={busy}
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </Card>
+          </Section>
+
           <Section
-            title="From your broker's export"
-            subtitle="The whole book at once — no key, no typing"
+            title="Or from a file your broker exports"
+            subtitle="A CSV, or the table copied off their website"
           >
             <Card style={{ gap: spacing.sm }}>
               <Text variant="body" muted>
-                Every broker can export positions as a CSV, and most let you select the positions
-                table on their own page and copy it. Either one lands here: the app reads it on
-                this device, shows you what changed, and writes nothing until you approve.
+                Read on this device — no key involved. Paste the table or pick the file, and the
+                app shows you what changed before writing anything.
               </Text>
               <TextInput
                 value={pasted}
@@ -173,55 +219,43 @@ export default function SyncScreen() {
             </Card>
           </Section>
 
-          <Card style={{ gap: spacing.sm }}>
-            <Text variant="heading">Or from a screenshot</Text>
-            <Text variant="body" muted>
-              Take a screenshot of your broker's positions screen and pick it here. Claude reads the
-              rows, shows you exactly what it thinks changed, and only writes to the book once you
-              approve. This route needs an Anthropic API key — the export above does not.
-            </Text>
-            <Text variant="body" muted>
-              Once you apply, every position that moved goes into a research queue: Claude searches
-              for the latest on each one — what was said on the most recent earnings call, current
-              analyst targets and revisions, and news from the last month — and rewrites that stock's
-              page.
-            </Text>
-            <Text variant="caption" faint>
-              A full-width screenshot with the ticker, quantity, last price and P&L columns visible
-              gives the best read. Crop out anything you would rather not send.
-            </Text>
-          </Card>
-
-          <Section title="Anything Claude should know?" subtitle="Optional">
-            <TextInput
-              value={hint}
-              onChangeText={setHint}
-              placeholder="e.g. this is the margin account, ignore the pending orders row"
-              placeholderTextColor={palette.textFaint}
-              multiline
-              accessibilityLabel="Optional context for reading the screenshot"
-              style={{
-                minHeight: 64,
-                color: palette.text,
-                backgroundColor: palette.card,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.md,
-                padding: spacing.md,
-                fontSize: 15,
-              }}
-            />
+          {/* The optional nudge for the model, and the camera. Both belong
+              with the screenshot route above, which is why the duplicate
+              picker that used to sit here is gone: two buttons doing the same
+              thing on one screen is how a reader concludes they must do
+              something different. */}
+          <Section title="Anything the reader should know?" subtitle="Optional">
+            <Card style={{ gap: spacing.sm }}>
+              <TextInput
+                value={hint}
+                onChangeText={setHint}
+                placeholder="e.g. this is the margin account, ignore the pending orders row"
+                placeholderTextColor={palette.textFaint}
+                multiline
+                accessibilityLabel="Optional context for reading the screenshot"
+                style={{
+                  minHeight: 64,
+                  color: palette.text,
+                  backgroundColor: palette.cardMuted,
+                  borderColor: palette.border,
+                  borderWidth: 1,
+                  borderRadius: radius.md,
+                  padding: spacing.md,
+                  fontSize: 15,
+                }}
+              />
+              <Button
+                label="Take a photo instead"
+                onPress={() => pick('camera')}
+                variant="quiet"
+                disabled={busy}
+              />
+              <Text variant="caption" faint>
+                A full-width screenshot showing the ticker, quantity and average cost columns gives
+                the best read. Crop out anything you would rather not send.
+              </Text>
+            </Card>
           </Section>
-
-          <View style={{ gap: spacing.sm }}>
-            <Button label="Choose a screenshot" onPress={() => pick('library')} disabled={busy} />
-            <Button
-              label="Take a photo"
-              onPress={() => pick('camera')}
-              variant="quiet"
-              disabled={busy}
-            />
-          </View>
 
           {busy ? (
             <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>

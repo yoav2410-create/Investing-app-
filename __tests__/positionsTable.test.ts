@@ -118,3 +118,42 @@ describe('reading a whole book out of one file', () => {
     expect(warnings.join(' ')).toMatch(/no positions could be read/i);
   });
 });
+
+/**
+ * What iOS Live Text hands over when the owner copies the table straight out
+ * of a screenshot: no delimiter at all, just single spaces, and a heading row
+ * that arrives as ordinary words. This is the path the app leads with, so it
+ * is the path with the most fixtures.
+ */
+describe('a table copied out of a screenshot with Live Text', () => {
+  it('reads single-space rows with no headings', () => {
+    const live = ['AAPL 25 180.00 309.35', 'META 10 600.00 549.90', 'PLTR 150 72.50 179.94'].join('\n');
+    const { positions } = parsePositionsTable(live);
+    expect(positions.map((p) => p.ticker)).toEqual(['AAPL', 'META', 'PLTR']);
+    expect(positions[0]!.shares).toBe(25);
+    expect(positions[0]!.averageCost).toBe(180);
+    expect(positions[2]!.shares).toBe(150);
+  });
+
+  it('reads single-space rows that do carry headings', () => {
+    const live = ['Symbol Qty Avg cost Last', 'AAPL 25 180.00 309.35', 'KO 40 58.20 62.10'].join('\n');
+    const { positions } = parsePositionsTable(live);
+    expect(positions.map((p) => p.ticker)).toEqual(['AAPL', 'KO']);
+    expect(positions[1]!.averageCost).toBeCloseTo(58.2, 2);
+  });
+
+  it('copes with the company name sitting between the ticker and the numbers', () => {
+    const live = ['AAPL Apple Inc. 25 180.00', 'META Meta Platforms 10 600.00'].join('\n');
+    const { positions } = parsePositionsTable(live);
+    expect(positions.map((p) => p.ticker)).toEqual(['AAPL', 'META']);
+    expect(positions[0]!.shares).toBe(25);
+    expect(positions[0]!.averageCost).toBe(180);
+  });
+
+  it('ignores the percentages a broker row trails', () => {
+    const live = ['META 10 600.00 549.90 -8.35% -501.00'].join('\n');
+    const { positions } = parsePositionsTable(live);
+    expect(positions[0]!.shares).toBe(10);
+    expect(positions[0]!.averageCost).toBe(600);
+  });
+});

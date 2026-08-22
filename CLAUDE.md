@@ -171,6 +171,14 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   `verify:pwa` now measures the arithmetic — content box versus
   icon-plus-label — rather than photographing it. Proven able to fail by
   putting the padding back.
+- **A test fixture that was the owner's actual portfolio.** Verifying the
+  Gemini reader meant rebuilding the owner's real broker screen — their
+  tickers, their share counts, their net liquidation value — and the
+  screenshot of it landed in `docs/screenshots/`, which is a public
+  repository. `privacy-check` did not catch it: that scans `dist/` for text,
+  and this was owner data inside a PNG outside the build. Deleted before it
+  was committed. Test fixtures get invented numbers; if a real book is needed
+  to prove something, the artefact stays in the scratchpad.
 - **A cross-check that only ever ran on the author's laptop.** The publish
   compared its Finnhub prices against Yahoo and passed 12 of 12 — locally.
   On GitHub's runners every request came back 429 (Yahoo refuses datacenter

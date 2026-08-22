@@ -36,19 +36,33 @@ export default function SettingsScreen() {
       <ChangeTheAppSection />
 
       <Section
-        title="Claude inside the app"
-        subtitle="Optional — reads your screenshots and researches each stock"
+        title="Reading your screenshots"
+        subtitle="A free Gemini key is all this needs"
       >
         <Card style={{ gap: spacing.sm }}>
-          {/* Said plainly because it costs money to discover the hard way: a
-              Claude.ai subscription is not API access. They are separate
-              products with separate billing, and this field wants the second
-              one. Everything else in the app works without it. */}
+          {/* Gemini first because it is the one that actually works for this
+              owner: free tier, and it answers a browser directly — measured
+              from a real page, not from a terminal. Anthropic stays below for
+              anyone who holds API credits. */}
           <Text variant="caption" muted>
-            This is the only part of the app that needs an Anthropic API key — a separate paid
-            product from a Claude.ai subscription, billed per request. Without a key the app still
-            prices the book, tracks it and explains every number; what it cannot do is read a
-            broker screenshot or research a name for you.
+            Paste a Gemini key and the app can read a screenshot of your broker's positions
+            screen — the whole book at once, nothing typed. Google gives these away at
+            aistudio.google.com; it takes a minute and costs nothing.
+          </Text>
+          <KeyField
+            name="gemini"
+            label="Gemini API key"
+            placeholder="AI…"
+            help={`${keyStorageDescription()} It never leaves this device except in requests to Google. Worth restricting the key to your own use in Google's console.`}
+          />
+          <Divider />
+          {/* Said plainly because it costs money to discover the hard way: a
+              Claude.ai subscription is not API access. */}
+          <Text variant="caption" muted>
+            Claude can do the same job and also research each stock, but it needs an Anthropic API
+            key — a separate paid product from a Claude.ai subscription, billed per request. Leave
+            it empty if you do not have credits; the app prices, tracks and explains the book
+            without it.
           </Text>
           <KeyField
             name="anthropic"

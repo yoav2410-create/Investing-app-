@@ -59,6 +59,7 @@ import {
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { parsePositionsTable } from './import/positionsTable';
+import { readPositionsWithGemini } from './provider/gemini';
 import { runAlertCheck } from './alerts';
 
 /** A screenshot import in progress, kept in the store so the review screen
@@ -518,13 +519,27 @@ export const useApp = create<AppState>()(
       },
 
       readScreenshot: async ({ uri, base64, mediaType, hint }) => {
+        // Gemini first, and not as a fallback: it has a free tier, it answers
+        // a browser directly, and a Claude.ai subscription is not API access —
+        // so for this owner it is the only reader that exists. Anthropic stays
+        // for anyone holding API credits, and both return the same shape, so
+        // the review diff below cannot tell which one read the picture.
+        const geminiKey = await getKey('gemini');
         const key = await getClaudeKey();
-        if (!key) {
-          return { ok: false, message: 'Add your Anthropic API key in Settings → Data first.' };
+        if (!geminiKey && !key) {
+          return {
+            ok: false,
+            message: 'Add a Gemini key in Settings first — it is free, and it reads the screenshot.',
+          };
         }
         try {
-          const client = createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' });
-          const read = await readPositionsFromImage(client, { base64, mediaType }, hint);
+          const read = geminiKey
+            ? await readPositionsWithGemini(geminiKey, { base64, mediaType }, hint)
+            : await readPositionsFromImage(
+                createClaude({ apiKey: key!, allowBrowser: Platform.OS === 'web' }),
+                { base64, mediaType },
+                hint,
+              );
           if (read.positions.length === 0) {
             return {
               ok: false,
