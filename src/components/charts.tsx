@@ -234,14 +234,7 @@ export function LineChart({
               Labels thin to every other one when the slots get too narrow to
               keep them apart, ends always kept. */}
           {ordered.map((p, i) => {
-            const slot = innerW / Math.max(ordered.length - 1, 1);
-            const keepLabel =
-              slot >= 34 || i === 0 || i === ordered.length - 1 || i % 2 === (ordered.length - 1) % 2;
-            if (!keepLabel) return null;
-            // The end labels are anchored outward, which walks them into their
-            // immediate neighbours — "Q1 24Q2 24" run together. The neighbour
-            // yields; the end label is the one a reader needs.
-            if ((i === 1 || i === ordered.length - 2) && slot < 48) return null;
+            if (!labelEvery(ordered.length, innerW)(i)) return null;
             return (
               <SvgText
                 fontFamily={CHART_FONT}
@@ -277,6 +270,22 @@ export function LineChart({
       </View>
     </View>
   );
+}
+
+/**
+ * Which periods to label so the axis reads as an even ruler.
+ *
+ * The old rule kept every label that fit, then dropped whichever ones crowded
+ * the outward-anchored ends — which produced "Q1 24, Q3 24, Q4 24 … Q4 25,
+ * Q2 26": two gaps in an otherwise complete run, so the axis looked like it
+ * was missing quarters rather than thinned. A single stride, counted back
+ * from the newest point, is regular by construction and always labels the
+ * quarter the eye goes to first.
+ */
+function labelEvery(count: number, plotWidth: number, approxLabelPx = 46) {
+  const fits = Math.max(2, Math.floor(plotWidth / approxLabelPx));
+  const stride = Math.max(1, Math.ceil(count / fits));
+  return (i: number) => (count - 1 - i) % stride === 0;
 }
 
 /** Bars for revenue / operating income. Missing quarters render as a gap. */
@@ -330,11 +339,12 @@ export function BarChart({
 
   // A label per bar only while they can be read. Below roughly 34pt a slot the
   // figures start touching, and two overlapping numbers are worse than one
-  // honest gap — so every other period is labelled instead, ends first.
+  // honest gap — so an even stride is labelled instead, counted back from the
+  // newest bar. The figure and the period use the same stride, so a labelled
+  // bar always carries both halves of its identity.
   const showEveryValue = slot >= 34;
   const showEveryPeriod = slot >= 30;
-  const keep = (i: number) =>
-    i === 0 || i === ordered.length - 1 || i % 2 === ordered.length % 2;
+  const keep = labelEvery(ordered.length, w);
 
   return (
     <View
@@ -514,7 +524,7 @@ export function GroupedBarChart({
   const barW = Math.max(groupW / series.length - 2, 3);
   const zeroY = padT + innerH - ((0 - lo) / span) * innerH;
   const showEveryPeriod = slot >= 44;
-  const keep = (i: number) => i === 0 || i === periods.length - 1 || i % 2 === periods.length % 2;
+  const keep = labelEvery(periods.length, w);
 
   return (
     <View style={style} onLayout={onLayout} accessible accessibilityRole="image" accessibilityLabel={summary}>

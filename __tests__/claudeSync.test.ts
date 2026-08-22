@@ -194,7 +194,9 @@ describe('merging research', () => {
   it('keeps the existing series when the model returns no quarters', () => {
     const before = SEED_STOCKS.META!;
     const after = mergeResearch(before, research(), 'META');
-    expect(after.fundamentals.value!.revenue).toHaveLength(8);
+    // Ten quarters: two complete calendar years plus the two that make up
+    // the current one, which is what the annual view needs.
+    expect(after.fundamentals.value!.revenue).toHaveLength(10);
     expect(after.multipleHistory.value!.peHistory).toHaveLength(10);
   });
 

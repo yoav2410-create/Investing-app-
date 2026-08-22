@@ -56,10 +56,16 @@ function trendCheckTerm(label: string): GlossaryKey {
 }
 
 /**
- * Quarterly points as-is, or rolled into two twelve-month bars: the latest
- * four quarters against the four before. A year with any missing quarter sums
- * to null rather than to a smaller "year" — a bar that quietly covered nine
- * months would be the invented number this app refuses to show.
+ * Quarterly points as-is, or rolled up: every complete calendar year in the
+ * data, plus the trailing twelve months.
+ *
+ * "Complete" is load-bearing. A year holding three quarters is not a smaller
+ * year, it is an unknown one, and a bar quietly covering nine months next to
+ * bars covering twelve would be the invented number this app exists not to
+ * show. Such a year is left out rather than drawn short.
+ *
+ * Points arrive newest-first and the charts reverse them, so TTM is built
+ * first and the years follow in descending order.
  */
 function finSeries(
   pts: QuarterPoint[] | null | undefined,
@@ -67,17 +73,28 @@ function finSeries(
 ): QuarterPoint[] {
   const list = pts ?? [];
   if (period === 'quarterly') return list;
-  const year = (start: number, label: string): QuarterPoint | null => {
-    const four = list.slice(start, start + 4);
-    if (four.length < 4) return null;
-    const vals = four.map((p) => p.value);
-    return {
-      period: four[0]!.period,
-      label,
-      value: vals.every((v) => v != null) ? vals.reduce((s, v) => (s ?? 0) + (v ?? 0), 0) : null,
-    };
+
+  const sum = (qs: QuarterPoint[]): number | null => {
+    const vals = qs.map((q) => q.value);
+    return vals.every((v) => v != null) ? vals.reduce((s, v) => s + (v ?? 0), 0) : null;
   };
-  return [year(0, 'TTM'), year(4, 'Prior 12m')].filter((p): p is QuarterPoint => p != null);
+
+  const out: QuarterPoint[] = [];
+  const ttm = list.slice(0, 4);
+  if (ttm.length === 4) out.push({ period: ttm[0]!.period, label: 'TTM', value: sum(ttm) });
+
+  const byYear = new Map<string, QuarterPoint[]>();
+  for (const p of list) {
+    const y = p.period.slice(0, 4);
+    const bucket = byYear.get(y);
+    if (bucket) bucket.push(p);
+    else byYear.set(y, [p]);
+  }
+  for (const [y, qs] of [...byYear.entries()].sort(([a], [b]) => b.localeCompare(a))) {
+    if (qs.length < 4) continue;
+    out.push({ period: `${y}-12-31`, label: y, value: sum(qs) });
+  }
+  return out;
 }
 
 /** Which explainer belongs with each headline multiple. */
@@ -433,37 +450,89 @@ export default function StockDetailScreen() {
       </Section>
 
       {/* --------------------------------------------------------- quality */}
-      {stock.quality.value ? (
-        <Section title="Business quality" subtitle="Is this a good business, separate from its price" term="roic">
-          <Card>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
-              <Stat label="Return on equity" term="returnOnEquity" value={percent(stock.quality.value.returnOnEquity, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="ROIC" term="roic" value={percent(stock.quality.value.returnOnInvestedCapital, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="Gross margin" term="grossMargin" value={percent(stock.quality.value.grossMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="FCF margin" term="fcfMargin" value={percent(stock.quality.value.freeCashFlowMargin, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat
-                label="Net debt / EBITDA" term="netDebtToEbitda"
-                value={ratio(stock.quality.value.netDebtToEbitda, 2)}
-                detail={(stock.quality.value.netDebtToEbitda ?? 0) < 0 ? 'net cash' : undefined}
-                tone={(stock.quality.value.netDebtToEbitda ?? 0) > 3 ? 'down' : 'flat'}
-                style={{ flexBasis: '28%', flexGrow: 1 }}
-              />
-              <Stat label="Revenue CAGR 3y" term="revenueCagr" value={percent(stock.quality.value.revenueCagr3y, { decimals: 1 })} tone={tone(stock.quality.value.revenueCagr3y)} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="Revenue YoY" value={percent(stock.quality.value.revenueGrowthYoY, { decimals: 1 })} tone={tone(stock.quality.value.revenueGrowthYoY)} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="EPS YoY" value={percent(stock.quality.value.epsGrowthYoY, { decimals: 1 })} tone={tone(stock.quality.value.epsGrowthYoY)} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat
-                label="Share count YoY" term="shareCountChange"
-                value={percent(stock.quality.value.shareCountChangePct, { decimals: 1 })}
-                detail={(stock.quality.value.shareCountChangePct ?? 0) < 0 ? 'buying back' : 'diluting'}
-                tone={(stock.quality.value.shareCountChangePct ?? 0) < 0 ? 'up' : 'down'}
-                style={{ flexBasis: '28%', flexGrow: 1 }}
-              />
-              <Stat label="Institutional" term="ownership" value={percent(stock.quality.value.institutionalOwnershipPct, { sign: false, decimals: 1 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-              <Stat label="Insider" value={percent(stock.quality.value.insiderOwnershipPct, { sign: false, decimals: 2 })} style={{ flexBasis: '28%', flexGrow: 1 }} />
-            </View>
-          </Card>
-        </Section>
-      ) : null}
+      {/* Only the metrics that have a figure. Eleven stats of which nine were
+          em dashes — the state of every name the research pass has not
+          reached — read as a broken card rather than as an honest gap, and
+          the owner said so. The gap is still stated, once, in words: these
+          arrive with a research pass, so the card says that instead of
+          drawing a grid of nothing. */}
+      {(() => {
+        const q = stock.quality.value;
+        if (!q) return null;
+        const stats: { label: string; term?: GlossaryKey; value: string; detail?: string; tone?: 'up' | 'down' | 'flat' }[] = [];
+        const pushPct = (label: string, v: number | null, term?: GlossaryKey, signed = false) => {
+          if (v == null) return;
+          stats.push({
+            label,
+            term,
+            value: percent(v, { sign: signed, decimals: 1 }),
+            tone: signed ? tone(v) : undefined,
+          });
+        };
+        pushPct('Return on equity', q.returnOnEquity, 'returnOnEquity');
+        pushPct('ROIC', q.returnOnInvestedCapital, 'roic');
+        pushPct('Gross margin', q.grossMargin, 'grossMargin');
+        pushPct('FCF margin', q.freeCashFlowMargin, 'fcfMargin');
+        if (q.netDebtToEbitda != null) {
+          stats.push({
+            label: 'Net debt / EBITDA',
+            term: 'netDebtToEbitda',
+            value: ratio(q.netDebtToEbitda, 2),
+            detail: q.netDebtToEbitda < 0 ? 'net cash' : undefined,
+            tone: q.netDebtToEbitda > 3 ? 'down' : 'flat',
+          });
+        }
+        pushPct('Revenue CAGR 3y', q.revenueCagr3y, 'revenueCagr', true);
+        pushPct('Revenue YoY', q.revenueGrowthYoY, undefined, true);
+        pushPct('EPS YoY', q.epsGrowthYoY, undefined, true);
+        if (q.shareCountChangePct != null) {
+          stats.push({
+            label: 'Share count YoY',
+            term: 'shareCountChange',
+            value: percent(q.shareCountChangePct, { decimals: 1 }),
+            detail: q.shareCountChangePct < 0 ? 'buying back' : 'diluting',
+            tone: q.shareCountChangePct < 0 ? 'up' : 'down',
+          });
+        }
+        pushPct('Institutional', q.institutionalOwnershipPct, 'ownership');
+        if (q.insiderOwnershipPct != null) {
+          stats.push({
+            label: 'Insider',
+            value: percent(q.insiderOwnershipPct, { sign: false, decimals: 2 }),
+          });
+        }
+        if (!stats.length) return null;
+        const missing = 11 - stats.length;
+        return (
+          <Section
+            title="Business quality"
+            subtitle="Is this a good business, separate from its price"
+            term="roic"
+          >
+            <Card style={{ gap: spacing.sm }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg }}>
+                {stats.map((s) => (
+                  <Stat
+                    key={s.label}
+                    label={s.label}
+                    term={s.term}
+                    value={s.value}
+                    detail={s.detail}
+                    tone={s.tone}
+                    style={{ flexBasis: '28%', flexGrow: 1 }}
+                  />
+                ))}
+              </View>
+              {missing > 0 ? (
+                <Text variant="caption" faint>
+                  {missing} more quality {missing === 1 ? 'measure' : 'measures'} — margins,
+                  returns on capital, ownership — arrive when Claude researches this name.
+                </Text>
+              ) : null}
+            </Card>
+          </Section>
+        );
+      })()}
         </>
       ) : null}
 
@@ -815,8 +884,8 @@ export default function StockDetailScreen() {
         title="Fundamentals"
         subtitle={
           finPeriod === 'quarterly'
-            ? 'Eight quarters, newest on the right'
-            : 'Last four quarters summed, against the four before'
+            ? 'Newest on the right'
+            : 'Complete calendar years, and the trailing twelve months'
         }
         term="fundamentals"
       >

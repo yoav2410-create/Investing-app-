@@ -155,6 +155,15 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   main too now, scheduled runs check out the working branch explicitly, and the
   base path derives from `GITHUB_REPOSITORY`. Verify automation by watching it
   fire, not by reading its YAML.
+- **The tab bar clipped its labels again — on the phone only.** A floating
+  62pt bar with React Navigation's safe-area padding *inside* it leaves 28pt
+  of content box on an installed iPhone app (~34pt inset) and 62pt in a
+  desktop browser: every screenshot taken here was perfect while the owner's
+  phone showed four icons and no words. The bar sets `paddingBottom: 0` and
+  clears the home indicator by floating above it instead, and
+  `verify:pwa` now measures the arithmetic — content box versus
+  icon-plus-label — rather than photographing it. Proven able to fail by
+  putting the padding back.
 - **A cross-check that only ever ran on the author's laptop.** The publish
   compared its Finnhub prices against Yahoo and passed 12 of 12 — locally.
   On GitHub's runners every request came back 429 (Yahoo refuses datacenter

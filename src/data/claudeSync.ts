@@ -219,10 +219,10 @@ export function mergeResearch(existing: Stock | undefined, r: ResearchResult, ti
 
   const quarters = r.quarters ?? [];
   const fundamentals: FundamentalsSeries = {
-    revenue: points(quarters.slice(0, 8), (q) => q.revenue, MILLION),
-    operatingIncome: points(quarters.slice(0, 8), (q) => q.operatingIncome, MILLION),
-    netIncome: points(quarters.slice(0, 8), (q) => q.netIncome, MILLION),
-    eps: points(quarters.slice(0, 8), (q) => q.eps),
+    revenue: points(quarters.slice(0, 12), (q) => q.revenue, MILLION),
+    operatingIncome: points(quarters.slice(0, 12), (q) => q.operatingIncome, MILLION),
+    netIncome: points(quarters.slice(0, 12), (q) => q.netIncome, MILLION),
+    eps: points(quarters.slice(0, 12), (q) => q.eps),
   };
   const multipleHistory: MultipleHistory = {
     peHistory: points(quarters, (q) => q.trailingPe),

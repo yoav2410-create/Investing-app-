@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -8,6 +9,7 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 export default function TabsLayout() {
   const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
   const icon =
     (name: IconName, active: IconName) =>
     ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
@@ -50,13 +52,24 @@ export default function TabsLayout() {
           // a soft shadow — navigation as an object over the page rather than
           // a strip fused to the viewport. sceneStyle below reserves the
           // space so nothing scrolls to a stop underneath it.
+          //
+          // paddingBottom: 0 is the load-bearing line. React Navigation adds
+          // the bottom safe-area inset as padding inside this height, which on
+          // a desktop browser is zero and on an installed iPhone app is ~34pt
+          // — so a fixed 62pt bar had 28pt of usable box there, the icon took
+          // all of it, and every label vanished on the owner's phone while
+          // looking perfect in every screenshot taken on this machine. The
+          // float already clears the home indicator by sitting above it, so
+          // the inset must not be spent twice.
           ...(Platform.OS === 'web'
             ? {
                 height: 62,
+                paddingTop: 6,
+                paddingBottom: 0,
                 position: 'absolute' as const,
                 left: 12,
                 right: 12,
-                bottom: 10,
+                bottom: Math.max(insets.bottom, 10),
                 borderRadius: 31,
                 borderTopWidth: 0,
                 shadowColor: '#000',
@@ -83,8 +96,8 @@ export default function TabsLayout() {
         sceneStyle: {
           backgroundColor: palette.bg,
           // The floating bar no longer reserves layout space, so the scene
-          // must — 82pt clears the 62pt bar plus its 10pt inset and a breath.
-          ...(Platform.OS === 'web' ? { paddingBottom: 82 } : {}),
+          // must: the bar's 62pt, whatever it is lifted by, and a breath.
+          ...(Platform.OS === 'web' ? { paddingBottom: 72 + Math.max(insets.bottom, 10) } : {}),
         },
       }}
     >

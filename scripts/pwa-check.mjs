@@ -175,6 +175,64 @@ else {
 }
 await sync.screenshot({ path: 'docs/screenshots/pwa-import.png' });
 
+// ---- The tab bar has room for its own labels ------------------------------
+// This project has clipped its tab labels three times, and the last one
+// reached the owner's phone while every screenshot taken here looked perfect:
+// an installed iPhone app carries a ~34pt bottom safe-area inset that a
+// desktop browser does not, React Navigation spends it as padding inside the
+// bar's fixed height, and the label — the only part of the row that can
+// shrink — is what gets squeezed out. So this measures the arithmetic rather
+// than the pixels: whatever the bar's height and padding, the content box
+// must still fit an icon and a label. Proven able to fail by putting the
+// padding back (labels then need 42pt in a 28pt box).
+{
+  const tabs = await ctx.newPage();
+  await tabs.goto(BASE + '/', { waitUntil: 'networkidle' });
+  await tabs.waitForTimeout(1200);
+  const box = await tabs.evaluate(() => {
+    const label = [...document.querySelectorAll('div,span')].find(
+      (el) => el.textContent?.trim() === 'Sectors' && el.children.length === 0,
+    );
+    if (!label) return null;
+    // Walk up to the bar: the ancestor that holds all four destinations.
+    let bar = label.parentElement;
+    while (bar && !/Portfolio[\s\S]*Stocks[\s\S]*Sectors[\s\S]*More/.test(bar.textContent ?? '')) {
+      bar = bar.parentElement;
+    }
+    if (!bar) return null;
+    const cs = getComputedStyle(bar);
+    const r = bar.getBoundingClientRect();
+    const lr = label.getBoundingClientRect();
+    return {
+      height: r.height,
+      padTop: parseFloat(cs.paddingTop) || 0,
+      padBottom: parseFloat(cs.paddingBottom) || 0,
+      labelBottom: lr.bottom,
+      labelHeight: lr.height,
+      barBottom: r.bottom,
+      viewportH: window.innerHeight,
+    };
+  });
+  if (!box) {
+    problems.push('could not find the tab bar to measure — the labels may not be rendering at all');
+  } else {
+    const content = box.height - box.padTop - box.padBottom;
+    const NEEDED = 28 + 14; // the icon cannot shrink; the label needs its line
+    if (content < NEEDED) {
+      problems.push(
+        `tab bar content box is ${content.toFixed(0)}pt for an icon and a label that need ${NEEDED}pt — the label will be clipped wherever the safe-area inset is non-zero`,
+      );
+    } else {
+      console.log(`tab bar leaves ${content.toFixed(0)}pt for a ${NEEDED}pt icon-and-label stack`);
+    }
+    if (box.labelHeight < 8) problems.push('a tab label rendered with no height');
+    if (box.labelBottom > box.barBottom + 0.5) {
+      problems.push('a tab label paints below the bar that contains it');
+    }
+  }
+  await tabs.close();
+}
+
 await browser.close();
 server.close();
 

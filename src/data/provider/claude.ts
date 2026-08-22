@@ -517,7 +517,8 @@ const RESEARCH_TOOL: Anthropic.Tool = {
       },
       quarters: {
         type: 'array',
-        description: 'Ten most recent fiscal quarters, newest first.',
+        description:
+          'Twelve most recent fiscal quarters, newest first. Twelve rather than eight because the financials view rolls complete calendar years, and eight quarters can only ever complete one of them.',
         items: {
           type: 'object',
           additionalProperties: false,
