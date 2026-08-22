@@ -219,6 +219,12 @@ export const DEFAULT_SETTINGS: Settings = {
   alertOnInsiderSelling: true,
   alertOnDrift: true,
   alertOnEarningsWithinDays: 7,
-  // Nothing ships pointing at anyone's conversation.
+  // Nothing ships pointing at anyone's conversation. It was briefly bundled
+  // to save the owner a paste, and taken straight back out: this repository
+  // is public, and a link to someone's session is theirs to hold, not the
+  // build's to publish. Set it inside the app instead — Settings has a Paste
+  // button, which also solves the reason the bundled version was tried at
+  // all: an installed home-screen app has its own storage, so configuring it
+  // in Safari never reached the installed copy.
   claudeSessionUrl: '',
 };

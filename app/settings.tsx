@@ -280,6 +280,25 @@ function TalkToClaudeSection() {
           }}
         />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {/* Copy the link in the conversation, tap this, tap Save. Typing a
+              session URL on a phone keyboard is not a thing anyone should be
+              asked to do, and the app cannot ship the link itself: this
+              repository is public. */}
+          <Button
+            label="Paste"
+            onPress={async () => {
+              try {
+                const t = (await navigator.clipboard.readText()).trim();
+                if (!t) return;
+                setDraft(t);
+                update({ claudeSessionUrl: t });
+                setSaved(true);
+              } catch {
+                setSaved(false);
+              }
+            }}
+            style={{ flex: 1 }}
+          />
           <Button
             label={saved ? 'Saved' : 'Save link'}
             onPress={() => {

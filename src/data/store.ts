@@ -206,6 +206,10 @@ export function normalisePersisted<T extends Record<string, unknown>>(persisted:
     ...old,
     alertOnInsiderSelling:
       old.alertOnInsiderSelling ?? old.alertOnOptionsFlip ?? DEFAULT_SETTINGS.alertOnInsiderSelling,
+    // An empty stored value loses to the bundled default rather than beating
+    // it: installs that predate the link have '' on disk, and spreading old
+    // settings over the defaults would keep that emptiness forever.
+    claudeSessionUrl: old.claudeSessionUrl || DEFAULT_SETTINGS.claudeSessionUrl,
   };
   // Stocks written before the business-description block exist without
   // `about`; the detail screen dereferences `about.value`, so the field must
@@ -1062,8 +1066,9 @@ export const useApp = create<AppState>()(
       // re-running it on every bump is free. v4: stocks gained `about`. v5:
       // `about` is backfilled from the bundle, so installs that already had
       // their stocks on disk get the descriptions rather than a blank card.
-      // v6: settings gained claudeSessionUrl.
-      version: 6,
+      // v6: settings gained claudeSessionUrl. v7: it gained a default, which
+      // an already-stored empty string would otherwise mask.
+      version: 7,
       migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.
