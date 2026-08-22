@@ -54,7 +54,7 @@ const head = `
          'unsafe-inline' because react-native-web styles by injected <style>
          tags and inline attributes; script-src does not, and that is the
          directive doing the guarding. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://finnhub.io https://api.anthropic.com https://www.alphavantage.co; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://finnhub.io wss://ws.finnhub.io https://api.anthropic.com https://www.alphavantage.co; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" />
     <!-- Installed to the home screen, this is the app. Without
          apple-mobile-web-app-capable, "Add to Home Screen" makes a Safari
          bookmark that opens with browser chrome instead. -->
@@ -68,7 +68,19 @@ const head = `
     <link rel="icon" type="image/png" sizes="192x192" href="${asset('icon-192.png')}" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F4F6F9" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B0F14" />
+    <link rel="preload" href="${asset('fonts/PlexSansVar.woff2')}" as="font" type="font/woff2" crossorigin />
     <style id="pwa-shell">
+      /* The app's face. Self-hosted because the CSP admits no font host, and
+         variable so one 45KB file carries every weight the type scale uses.
+         The fallback stack below matches the metrics closely enough that the
+         swap does not reflow the hero number. */
+      @font-face {
+        font-family: 'Plex Sans Var';
+        src: url('${asset('fonts/PlexSansVar.woff2')}') format('woff2-variations');
+        font-weight: 100 700;
+        font-style: normal;
+        font-display: swap;
+      }
       /* The document background shows through overscroll, outside anything
          React Native can style. Unset it is white, which flashes against the
          dark theme on every bounce. */

@@ -186,6 +186,7 @@ function PricesSection(_props: { onStatus: (s: string) => void }) {
   const { spacing } = useTheme();
   const refreshingQuotes = useApp((s) => s.refreshingQuotes);
   const quotesFetchedAt = useApp((s) => s.quotesFetchedAt);
+  const crosscheck = useApp((s) => s.feedCrosscheck);
 
   return (
     <Section title="Prices" subtitle="Automatic — nothing here to operate">
@@ -197,6 +198,15 @@ function PricesSection(_props: { onStatus: (s: string) => void }) {
           {quotesFetchedAt ? ` Feed last fetched ${relativeAsOf(quotesFetchedAt)}.` : ''}
           {refreshingQuotes ? ' Refreshing now…' : ''}
         </Text>
+        {crosscheck ? (
+          <Text variant="caption" muted>
+            {crosscheck.agreed === crosscheck.checked
+              ? `Cross-checked against Yahoo Finance: all ${crosscheck.checked} sampled prices agree within ${crosscheck.tolerancePct}% (largest gap ${crosscheck.worst.diffPct}%).`
+              : `Cross-checked against Yahoo Finance: ${crosscheck.agreed} of ${crosscheck.checked} sampled prices within ${crosscheck.tolerancePct}% — ${crosscheck.disagreements
+                  .map((d) => `${d.symbol} differs by ${d.diffPct}%`)
+                  .join(', ')}.`}
+          </Text>
+        ) : null}
         <Divider />
         <KeyField
           name="finnhub"

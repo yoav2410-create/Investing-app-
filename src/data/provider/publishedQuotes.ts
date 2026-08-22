@@ -36,6 +36,16 @@ export interface PublishedVix {
   series: { date: string; value: number }[];
 }
 
+export interface PublishedCrosscheck {
+  source: string;
+  checkedAt: string;
+  checked: number;
+  agreed: number;
+  tolerancePct: number;
+  worst: { symbol: string; diffPct: number };
+  disagreements: { symbol: string; feed: number; yahoo: number; diffPct: number }[];
+}
+
 export interface PublishedQuotes {
   version: number;
   source: string;
@@ -45,6 +55,8 @@ export interface PublishedQuotes {
   failures: { symbol: string; reason: string }[];
   /** Absent when the CBOE fetch failed that run; never a stale pretence. */
   vix?: PublishedVix | null;
+  /** Each publish samples both sources; absent when Yahoo would not answer. */
+  crosscheck?: PublishedCrosscheck | null;
 }
 
 /**

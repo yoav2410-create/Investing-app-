@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState as RNAppState, View } from 'react-native';
+import { ActivityIndicator, AppState as RNAppState, Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -85,6 +85,8 @@ function Root() {
   const { palette, scheme } = useTheme();
   const hydrated = useApp((s) => s.hydrated);
   const refreshLiveQuotes = useApp((s) => s.refreshLiveQuotes);
+  const startLiveStream = useApp((s) => s.startLiveStream);
+  const stopLiveStream = useApp((s) => s.stopLiveStream);
 
   useEffect(() => {
     if (hydrated) ensureFirstSnapshot();
@@ -122,6 +124,25 @@ function Root() {
     };
   }, [hydrated, refreshLiveQuotes]);
 
+  // The trade stream: sub-second marks while a US session is open and a
+  // Finnhub key is on the device. Torn down in the background — a socket
+  // held by a backgrounded PWA is a battery bill — and retried on the hour
+  // boundary so a session opening while the app sits idle still connects.
+  useEffect(() => {
+    if (!hydrated) return;
+    void startLiveStream();
+    const retry = setInterval(() => void startLiveStream(), 5 * 60 * 1000);
+    const sub = RNAppState.addEventListener('change', (s) => {
+      if (s === 'active') void startLiveStream();
+      else if (s === 'background') stopLiveStream();
+    });
+    return () => {
+      clearInterval(retry);
+      sub.remove();
+      stopLiveStream();
+    };
+  }, [hydrated, startLiveStream, stopLiveStream]);
+
   if (!hydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -137,7 +158,15 @@ function Root() {
         screenOptions={{
           headerStyle: { backgroundColor: palette.bg },
           headerTintColor: palette.text,
-          headerTitleStyle: { color: palette.text },
+          headerTitleStyle: {
+            color: palette.text,
+            fontFamily:
+              Platform.OS === 'web'
+                ? "'Plex Sans Var', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+                : undefined,
+            fontSize: 19,
+            fontWeight: '700',
+          },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: palette.bg },
         }}

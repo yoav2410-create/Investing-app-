@@ -44,6 +44,7 @@ export default function PortfolioScreen() {
   const account = useApp((s) => s.account)();
   const cash = useApp((s) => s.cashUsd)();
   const vix = useApp((s) => s.vix);
+  const streamStatus = useApp((s) => s.streamStatus);
 
   const positions = useMemo(
     () => positionViews(holdings, stocks, account.netLiquidationValue),
@@ -129,10 +130,17 @@ export default function PortfolioScreen() {
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#hero)" />
         </Svg>
         <View style={{ padding: spacing.lg, gap: spacing.xs }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <Text variant="caption" muted>
-              Net liquidation value · marks as of {relativeAsOf(oldestQuote)}
+              Net liquidation value ·{' '}
+              {streamStatus === 'open' ? 'streaming live' : `marks as of ${relativeAsOf(oldestQuote)}`}
             </Text>
+            {streamStatus === 'open' ? (
+              <View
+                accessibilityLabel="Live trade stream connected"
+                style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: palette.up }}
+              />
+            ) : null}
             <InfoButton term="netLiquidationValue" size={13} />
           </View>
           <Text variant="display" style={{ fontVariant: ['tabular-nums'] }}>

@@ -50,7 +50,12 @@ import {
 } from '@/domain/allocation';
 import { currency as currencyFmt } from '@/domain/format';
 import { fetchQuotes } from './provider/finnhub';
-import { fetchPublishedQuotes, toQuote as toPublishedQuote } from './provider/publishedQuotes';
+import { inUsSession, openStream, type StreamHandle } from './provider/finnhubStream';
+import {
+  fetchPublishedQuotes,
+  toQuote as toPublishedQuote,
+  type PublishedCrosscheck,
+} from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { runAlertCheck } from './alerts';
@@ -139,6 +144,23 @@ export interface AppState {
   quotesFetchedAt: string | null;
   /** The VIX ladder data from the published feed, for the cash-vs-fear card. */
   vix: { last: number; date: string; series: { date: string; value: number }[] } | null;
+  /**
+   * The feed's own audit trail: each publish samples its prices against Yahoo
+   * Finance and records the agreement. Not persisted — it describes the feed
+   * on file right now, and a day-old attestation shown as current would be
+   * exactly the pretence it exists to rule out.
+   */
+  feedCrosscheck: PublishedCrosscheck | null;
+  /**
+   * The live trade stream. 'open' means ticks are flowing and the hero can
+   * honestly wear a LIVE dot; anything else falls back to the fifteen-minute
+   * machinery without ceremony.
+   */
+  streamStatus: 'off' | 'open' | 'closed' | 'error';
+  startLiveStream: () => Promise<void>;
+  stopLiveStream: () => void;
+  /** Keep the stream's subscription list in step with the book. */
+  syncStreamSymbols: () => void;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -283,6 +305,66 @@ export const useApp = create<AppState>()(
       refreshingQuotes: false,
       quotesFetchedAt: null,
       vix: null,
+      feedCrosscheck: null,
+      streamStatus: 'off',
+      startLiveStream: async () => {
+        if (streamHandle) return;
+        const key = await getKey('finnhub');
+        if (!key || !inUsSession()) return;
+        const symbols = get().holdings.map((h) => h.ticker);
+        if (!symbols.length) return;
+        streamHandle = openStream(
+          key,
+          symbols,
+          (prices) => {
+            const state = get();
+            const stocks = { ...state.stocks };
+            const at = nowIso();
+            const day = todayIso();
+            let touched = 0;
+            for (const [ticker, price] of Object.entries(prices)) {
+              const stock = stocks[ticker];
+              if (!stock) continue;
+              // The tick is a price, not a day-change: previous close stays
+              // whatever the last full quote established, so the day move
+              // keeps meaning something between full refreshes.
+              const prev = stock.quote.value?.previousClose ?? price;
+              stocks[ticker] = {
+                ...stock,
+                quote: {
+                  value: {
+                    price,
+                    previousClose: prev,
+                    change: price - prev,
+                    changePct: prev === 0 ? 0 : ((price - prev) / prev) * 100,
+                    volume: null,
+                    tradingDay: day,
+                  },
+                  asOf: at,
+                  source: 'finnhub',
+                },
+              };
+              touched++;
+            }
+            if (touched) set({ stocks });
+          },
+          (s) => set({ streamStatus: s === 'open' ? 'open' : s === 'error' ? 'error' : 'closed' }),
+        );
+      },
+      stopLiveStream: () => {
+        // A strict no-op when nothing is open. This runs every time the tab
+        // hides — including the unload half of a navigation — and a set() here
+        // makes persist serialise the dying page's state over whatever is in
+        // storage. With no stream that write buys nothing and once raced a
+        // fresher write out of existence.
+        if (!streamHandle && get().streamStatus === 'off') return;
+        streamHandle?.close();
+        streamHandle = null;
+        set({ streamStatus: 'off' });
+      },
+      syncStreamSymbols: () => {
+        streamHandle?.setSymbols(get().holdings.map((h) => h.ticker));
+      },
 
       account: () => deriveAccount(get().holdings, get().stocks, get().cash, SEED_ACCOUNT.realizedPnl),
       cashUsd: () =>
@@ -442,6 +524,9 @@ export const useApp = create<AppState>()(
         // import was trying to fix. Fire-and-forget — the screenshot marks are
         // already applied, so a failed refresh just leaves them in place.
         void get().refreshLiveQuotes();
+        // The stream follows the book too: a name that just arrived starts
+        // ticking without waiting for a reconnect.
+        get().syncStreamSymbols();
         return { applied: touched.length, needResearch: toResearch };
       },
 
@@ -520,6 +605,7 @@ export const useApp = create<AppState>()(
           // holding matched — because the cash ladder is about the market, not
           // about which names happen to be in the book.
           if (published?.vix) set({ vix: published.vix });
+          if (published) set({ feedCrosscheck: published.crosscheck ?? null });
 
           // A device key is optional, and only earns its keep on names the
           // schedule does not carry.
@@ -817,6 +903,8 @@ export const useApp = create<AppState>()(
 let pumping = false;
 /** A refresh asked for while one was running; honoured when it finishes. */
 let queuedQuoteRefresh = false;
+/** The open trade stream, if any. Module-level: sockets do not belong in state. */
+let streamHandle: StreamHandle | null = null;
 
 async function pumpResearchQueue(): Promise<void> {
   if (pumping) return;

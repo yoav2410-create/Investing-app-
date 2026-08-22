@@ -8,7 +8,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
 import { toneColors, type Palette, type Tone } from '@/theme/tokens';
 import { Text } from './ui';
@@ -17,7 +17,7 @@ import { compactNumber } from '@/domain/format';
 // react-native-svg on web inherits the document default for SVG text, which is
 // the browser serif — Times sitting next to system-ui UI text. Every SvgText
 // takes this, or the charts look pasted in from a different app.
-const CHART_FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const CHART_FONT = "'Plex Sans Var', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 import { SECTORS, type QuarterPoint, type SectorId } from '@/domain/types';
 
 /**
@@ -201,6 +201,28 @@ export function LineChart({
               </SvgText>
             </G>
           ) : null}
+          {/* A soft fill under the line grounds it against the grid — the
+              treatment a chart earns rather than a bare wire. Each unbroken
+              segment closes down to the plot floor with its own fade. */}
+          <Defs>
+            <LinearGradient id={`fill-${title.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={c.fg} stopOpacity={0.16} />
+              <Stop offset="1" stopColor={c.fg} stopOpacity={0.01} />
+            </LinearGradient>
+          </Defs>
+          {segments.map((d, i) => {
+            const m = d.match(/^M([\d.]+),/);
+            const lastPoint = d.match(/([\d.]+),[\d.]+$/);
+            if (!m || !lastPoint) return null;
+            const floor = (padT + innerH).toFixed(1);
+            return (
+              <Path
+                key={`a-${i}`}
+                d={`${d}L${lastPoint[1]},${floor}L${m[1]},${floor}Z`}
+                fill={`url(#fill-${title.replace(/\W/g, '')})`}
+              />
+            );
+          })}
           {segments.map((d, i) => (
             <Path key={i} d={d} stroke={c.fg} strokeWidth={2} fill="none" strokeLinejoin="round" />
           ))}
@@ -1227,7 +1249,11 @@ export function FanChart({
               <SvgText
                 fontFamily={CHART_FONT}
                 x={2}
-                y={padT + innerH * f - 3}
+                // The top gridline sits 8px from the SVG edge and an 8.5px
+                // glyph does not fit above it — the owner saw "$313.0K" with
+                // its cap height sliced off. The top label hangs below its
+                // line instead; the others keep sitting above theirs.
+                y={f === 0 ? padT + 9 : padT + innerH * f - 3}
                 fill={palette.textFaint}
                 fontSize={8.5}
               >
@@ -1272,14 +1298,6 @@ export function FanChart({
       ) : (
         <View style={{ height }} />
       )}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs }}>
-        <Text variant="caption" faint>
-          worst 5% {format(last.p5)}
-        </Text>
-        <Text variant="caption" faint>
-          best 5% {format(last.p95)}
-        </Text>
-      </View>
     </View>
   );
 }
@@ -1479,6 +1497,16 @@ export function VixCashChart({
               {`${b.label} · ${b.cashPct}% cash`}
             </SvgText>
           ))}
+          <Defs>
+            <LinearGradient id="vix-fill" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={palette.accent} stopOpacity={0.14} />
+              <Stop offset="1" stopColor={palette.accent} stopOpacity={0.01} />
+            </LinearGradient>
+          </Defs>
+          <Path
+            d={`${path}L${x(series.length - 1).toFixed(1)},${(padT + innerH).toFixed(1)}L0,${(padT + innerH).toFixed(1)}Z`}
+            fill="url(#vix-fill)"
+          />
           <Path d={path} stroke={palette.accent} strokeWidth={2} fill="none" strokeLinejoin="round" />
           <Circle cx={x(series.length - 1)} cy={y(last)} r={4} fill={palette.accent} stroke={palette.card} strokeWidth={1.5} />
           <SvgText

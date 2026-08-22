@@ -155,6 +155,12 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   main too now, scheduled runs check out the working branch explicitly, and the
   base path derives from `GITHUB_REPOSITORY`. Verify automation by watching it
   fire, not by reading its YAML.
+- **A set() on tab-hide that raced storage.** `stopLiveStream` ran on every
+  visibilitychange — including the unload half of a navigation — and its
+  `set({streamStatus:'off'})` made persist serialise the dying page's state
+  over storage, erasing what the interaction check had just planted there.
+  Any handler wired to "the app went to background" must be a strict no-op
+  when it has nothing to do; a gratuitous set() is a gratuitous storage write.
 - **A renamed persisted key with no migration.** `alertOnOptionsFlip` became
   `alertOnInsiderSelling` and every upgraded install rehydrated `undefined` —
   the alert silently off, while fresh installs had it on. The store persists
@@ -238,7 +244,12 @@ a browser. Measured, not assumed:
 
 Yahoo and Finviz return perfectly good data to `curl` and are then refused by
 the browser, which is the worst kind of failure to design around: it looks like
-a bug in the app. So prices come from Alpha Vantage, or from a Google Sheet the
+a bug in the app. Yahoo also 429s Node's `fetch` while answering `curl` 200
+with identical headers — it fingerprints the TLS handshake, not the request —
+so `scripts/yahoo-crosscheck.mjs` shells out to curl. Every scheduled publish
+samples its Finnhub prices against Yahoo there and records the agreement in
+`quotes.json` (`crosscheck`), which Settings shows; the check was proven able
+to fail by planting a halved price and watching it get flagged. So prices come from Alpha Vantage, or from a Google Sheet the
 owner publishes — `GOOGLEFINANCE()` exists only inside Sheets, and publishing
 one as CSV is the only way to get Google's quotes onto the phone without a
 server. `src/data/provider/googleSheet.ts`.

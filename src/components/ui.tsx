@@ -12,10 +12,17 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { Platform } from 'react-native';
 import { useTheme } from '@/theme/ThemeProvider';
 import { toneColors, type Tone } from '@/theme/tokens';
 import { InfoButton } from './InfoButton';
 import type { GlossaryKey } from '@/domain/glossary';
+
+/** IBM Plex Sans, self-hosted by the PWA shell. Web only; see Text. */
+const APP_FONT =
+  Platform.OS === 'web'
+    ? "'Plex Sans Var', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    : undefined;
 
 type TypeKey = 'display' | 'title' | 'heading' | 'body' | 'label' | 'caption' | 'mono';
 
@@ -50,6 +57,9 @@ export function Text({
       style={[
         {
           color,
+          // The self-hosted face ships with the web build only; native keeps
+          // the system font until the file is registered through expo-font.
+          fontFamily: APP_FONT,
           fontSize: t.size,
           fontWeight: t.weight,
           letterSpacing: t.spacing,

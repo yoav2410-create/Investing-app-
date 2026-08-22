@@ -22,6 +22,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { crosscheckQuotes } from './yahoo-crosscheck.mjs';
 
 const OUT_DIR = process.argv[2] ?? fileURLToPath(new URL('../public', import.meta.url));
 const UNIVERSE = fileURLToPath(new URL('../data/universe.txt', import.meta.url));
@@ -140,6 +141,17 @@ try {
   console.log(`VIX history skipped: ${e.message}`);
 }
 
+// Every publish samples its own prices against Yahoo Finance and records the
+// agreement in the payload, so the app can show evidence instead of asking
+// for trust. Lives in its own module so the check below exercises the real
+// code, not a stand-in copy.
+let crosscheck = null;
+try {
+  crosscheck = await crosscheckQuotes(quotes);
+} catch (e) {
+  console.log(`cross-check skipped: ${e.message}`);
+}
+
 const ok = Object.keys(quotes).length;
 console.log(`priced ${ok} of ${symbols.length}${failures.length ? `, ${failures.length} without a price` : ''}`);
 if (failures.length) for (const f of failures.slice(0, 12)) console.log(`  - ${f.symbol}: ${f.reason}`);
@@ -164,6 +176,7 @@ writeFileSync(
       quotes,
       failures,
       vix,
+      crosscheck,
     },
     null,
     2,
