@@ -100,6 +100,41 @@ for (let i = 0; i < symbols.length; i++) {
   if (i < symbols.length - 1) await sleep(GAP_MS);
 }
 
+// The VIX, from CBOE's own published history — the exchange that computes the
+// index, no key, plain CSV. One request; a miss drops the block rather than
+// the run, and the app renders "no VIX on file" instead of a stale pretence.
+let vix = null;
+try {
+  const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv', {
+    headers: { 'User-Agent': UA },
+  });
+  if (res.ok) {
+    const rows = (await res.text()).trim().split('\n').slice(1);
+    const parsed = rows
+      .map((r) => {
+        const [date, , , , close] = r.split(',');
+        const [m, d, y] = date.split('/');
+        const value = Number(close);
+        return Number.isFinite(value) && value > 0 ? { date: `${y}-${m}-${d}`, value } : null;
+      })
+      .filter(Boolean);
+    // A year of context, thinned to weekly closes — the ladder is about
+    // regimes, not daily wiggles — with the exact latest point kept.
+    const year = parsed.slice(-260);
+    const series = year.filter((_, i) => i % 5 === 0);
+    const last = parsed[parsed.length - 1];
+    if (last && series.length > 10) {
+      if (series[series.length - 1].date !== last.date) series.push(last);
+      vix = { last: last.value, date: last.date, series };
+      console.log(`VIX ${last.value.toFixed(2)} as of ${last.date}, ${series.length} weekly points`);
+    }
+  } else {
+    console.log(`VIX history skipped: CBOE answered ${res.status}`);
+  }
+} catch (e) {
+  console.log(`VIX history skipped: ${e.message}`);
+}
+
 const ok = Object.keys(quotes).length;
 console.log(`priced ${ok} of ${symbols.length}${failures.length ? `, ${failures.length} without a price` : ''}`);
 if (failures.length) for (const f of failures.slice(0, 12)) console.log(`  - ${f.symbol}: ${f.reason}`);
@@ -123,6 +158,7 @@ writeFileSync(
       count: ok,
       quotes,
       failures,
+      vix,
     },
     null,
     2,

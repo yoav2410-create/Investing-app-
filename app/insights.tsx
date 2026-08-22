@@ -522,6 +522,9 @@ function AllocationSection({
   const { palette, spacing, radius } = useTheme();
   const stanceDone = useApp((s) => s.stanceDone);
   const toggleStanceDone = useApp((s) => s.toggleStanceDone);
+  const stanceDiff = useApp((s) => s.stanceDiff);
+  const applyStanceMove = useApp((s) => s.applyStanceMove);
+  const [applyStatus, setApplyStatus] = useState<string | null>(null);
   const problems = useMemo(() => stanceProblems(stance), [stance]);
 
   // The checklist half of the dynamic plan: Claude proposes, the app pins the
@@ -551,6 +554,29 @@ function AllocationSection({
       subtitle={`Proposed ${relativeAsOf(at)} · ${doneCount}/${actionable.length} done · refresh the read for a new plan`}
     >
       <Card style={{ gap: spacing.md }}>
+        {/* What this read changed against the one it replaced. Silence means
+            the previous read agreed; the first read ever has nothing to
+            compare with and shows nothing. */}
+        {stanceDiff.length > 0 ? (
+          <View
+            style={{
+              gap: spacing.xs,
+              backgroundColor: palette.accentMuted,
+              borderRadius: radius.md,
+              padding: spacing.md,
+            }}
+          >
+            <Text variant="label" tone="accent">
+              Changed since the previous read
+            </Text>
+            {stanceDiff.map((d, n) => (
+              <Text key={n} variant="caption" muted>
+                • {d}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
         <Text variant="body">{stance.reasoning}</Text>
 
         {(stance.cashFloorPct != null || stance.maxPositionPct != null) && (
@@ -625,9 +651,28 @@ function AllocationSection({
               <Text variant="caption" muted>
                 {m.basis.trim() ? m.basis : 'No figure was cited for this one.'}
               </Text>
+              {/* Ticking says "I did this at the broker; the next screenshot
+                  carries the numbers". Applying does the arithmetic now — and
+                  since applying also ticks, the button disappears once done,
+                  which is what stops the same trim being applied twice. */}
+              {checkable && m.ticker && !done ? (
+                <Button
+                  label="Apply to the book now"
+                  variant="quiet"
+                  onPress={() => setApplyStatus(applyStanceMove(key).message)}
+                  accessibilityHint="Adjusts the position and cash at the current mark, and ticks this move"
+                  style={{ alignSelf: 'flex-start', minHeight: 36, paddingVertical: 6 }}
+                />
+              ) : null}
             </Pressable>
           );
         })}
+
+        {applyStatus ? (
+          <Text variant="caption" muted>
+            {applyStatus}
+          </Text>
+        ) : null}
 
         {stance.caveats.length ? (
           <>

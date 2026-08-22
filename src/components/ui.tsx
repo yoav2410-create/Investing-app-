@@ -1,5 +1,7 @@
 import React from 'react';
 import {
+  AccessibilityInfo,
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -312,6 +314,41 @@ export function Divider() {
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border }} />;
 }
 
+/**
+ * A short entrance for freshly mounted screens: fade in with a small rise.
+ *
+ * The router swaps screens with a hard cut on web, which reads as a page
+ * reload rather than an app. Because each screen's `Screen` wrapper mounts on
+ * navigation, animating the mount is the navigation transition — no router
+ * integration required. Honours the system reduce-motion setting: for those
+ * users the animation resolves instantly rather than being merely faster.
+ */
+function useEntrance() {
+  const progress = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then((reduce) => {
+        if (cancelled) return;
+        if (reduce) {
+          progress.setValue(1);
+          return;
+        }
+        Animated.timing(progress, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [progress]);
+  return {
+    opacity: progress,
+    transform: [
+      { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+    ],
+  };
+}
+
 export function Screen({
   children,
   scroll = true,
@@ -324,8 +361,13 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
 }) {
   const { palette, spacing } = useTheme();
+  const entrance = useEntrance();
   if (!scroll) {
-    return <View style={{ flex: 1, backgroundColor: palette.bg }}>{children}</View>;
+    return (
+      <Animated.View style={[{ flex: 1, backgroundColor: palette.bg }, entrance]}>
+        {children}
+      </Animated.View>
+    );
   }
   return (
     <ScrollView
@@ -337,7 +379,7 @@ export function Screen({
       refreshControl={refreshControl}
       contentInsetAdjustmentBehavior="automatic"
     >
-      {children}
+      <Animated.View style={[{ gap: spacing.lg }, entrance]}>{children}</Animated.View>
     </ScrollView>
   );
 }

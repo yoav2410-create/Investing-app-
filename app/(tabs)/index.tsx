@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Empty, Pill, Screen, Section, Stat, Text } from '@/components/ui';
-import { DonutChart, Sparkline } from '@/components/charts';
+import { DonutChart, Sparkline, VixCashChart } from '@/components/charts';
 import { MonteCarloBlock } from '@/components/MonteCarloBlock';
 import { StockRow } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
@@ -21,6 +21,7 @@ import {
 import {
   capitalSplit,
   concentration,
+  dividendIncome,
   positionViews,
   sectorBuckets,
   topMovers,
@@ -42,6 +43,7 @@ export default function PortfolioScreen() {
   const researchQueue = useApp((s) => s.researchQueue);
   const account = useApp((s) => s.account)();
   const cash = useApp((s) => s.cashUsd)();
+  const vix = useApp((s) => s.vix);
 
   const positions = useMemo(
     () => positionViews(holdings, stocks, account.netLiquidationValue),
@@ -74,6 +76,10 @@ export default function PortfolioScreen() {
     [positions, cash, account.netLiquidationValue],
   );
   const growth = useMemo(() => yearGrowth(snapshots), [snapshots]);
+  const income = useMemo(
+    () => dividendIncome(positions, stocks, account.netLiquidationValue),
+    [positions, stocks, account.netLiquidationValue],
+  );
 
   const cashPct = account.netLiquidationValue === 0 ? 0 : (cash / account.netLiquidationValue) * 100;
   const floorPct = plan.constraints.cashFloorPct * 100;
@@ -212,15 +218,25 @@ export default function PortfolioScreen() {
       <Section
         title="Allocation"
         term="concentration"
-        subtitle={`Share of net liquidation value · targets: ${targets.source === 'manual' ? "Claude's" : 'bundled'}`}
+        subtitle={`Share of net liquidation value · targets: ${targets.source === 'manual' ? "Claude's" : 'bundled'} · tap for the breakdown`}
       >
-        <Card>
-          <DonutChart
-            slices={buckets
-              .filter((b) => b.weightPct > 0)
-              .map((b) => ({ sector: b.sector, label: b.short, pct: b.weightPct }))}
-          />
-        </Card>
+        {/* The donut is the door to its own detail: the Sectors tab opens the
+            same chart with every slice broken into its positions, in the same
+            colours by construction. */}
+        <Pressable
+          onPress={() => router.push('/(tabs)/sectors')}
+          accessibilityRole="button"
+          accessibilityLabel="Allocation donut. Opens the sector breakdown with every position inside each slice."
+          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        >
+          <Card>
+            <DonutChart
+              slices={buckets
+                .filter((b) => b.weightPct > 0)
+                .map((b) => ({ sector: b.sector, label: b.short, pct: b.weightPct }))}
+            />
+          </Card>
+        </Pressable>
       </Section>
 
       <Section title="The book" subtitle="Where the capital sits, and what it has done">
@@ -267,6 +283,18 @@ export default function PortfolioScreen() {
               label="Realised P&L" term="realizedPnl"
               value={compactCurrency(account.realizedPnl)}
               tone={tone(account.realizedPnl)}
+              style={{ flexBasis: '30%', flexGrow: 1 }}
+            />
+            <Stat
+              label="Est. dividends / yr"
+              term="dividendYield"
+              value={income.annualUsd == null ? '—' : compactCurrency(income.annualUsd)}
+              detail={
+                income.annualUsd == null
+                  ? 'no yields on file yet'
+                  : `${income.weightedYieldPct!.toFixed(2)}% yield · covers ${income.coveragePct.toFixed(0)}% of the book`
+              }
+              tone={income.annualUsd != null && income.annualUsd > 0 ? 'up' : 'flat'}
               style={{ flexBasis: '30%', flexGrow: 1 }}
             />
             <Stat
@@ -341,23 +369,32 @@ export default function PortfolioScreen() {
         </Card>
       </Section>
 
-      {underFloor ? (
-        <Card style={{ borderColor: palette.down, gap: spacing.xs }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <Ionicons name="alert-circle" size={18} color={palette.down} />
-            <Text variant="label" tone="down">
-              Cash is {(floorPct - cashPct).toFixed(1)} points under the {floorPct.toFixed(0)}% floor
+      {/* Cash against fear: the ladder chart only — the methodology and its
+          contrarian logic live behind the "?", per the owner's spec. */}
+      <Section title="Cash vs fear" term="vixCashLevels" subtitle="The VIX, its regimes, and where we are">
+        <Card style={{ borderColor: underFloor ? palette.down : palette.border, gap: spacing.sm }}>
+          {underFloor ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Ionicons name="alert-circle" size={18} color={palette.down} />
+              <Text variant="label" tone="down" style={{ flex: 1 }}>
+                Cash is {(floorPct - cashPct).toFixed(1)} points under the {floorPct.toFixed(0)}% floor
+              </Text>
+            </View>
+          ) : null}
+          {vix ? (
+            <VixCashChart series={vix.series} last={vix.last} />
+          ) : (
+            <Text variant="caption" faint>
+              No VIX history on file yet — it arrives with the next scheduled feed.
             </Text>
-          </View>
-          <Text variant="caption" muted>
-            Ask for a portfolio read on the AI insights screen — it proposes the moves that get you
-            back above the floor, and you tick them off as you execute.
-          </Text>
-          <Link href="/insights" asChild>
-            <Button label="See what to change" onPress={() => {}} variant="quiet" />
-          </Link>
+          )}
+          {underFloor ? (
+            <Link href="/insights" asChild>
+              <Button label="See what to change" onPress={() => {}} variant="quiet" />
+            </Link>
+          ) : null}
         </Card>
-      ) : null}
+      </Section>
 
       <MonteCarloBlock />
 

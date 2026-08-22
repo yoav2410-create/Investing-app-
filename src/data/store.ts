@@ -137,6 +137,8 @@ export interface AppState {
   refreshingQuotes: boolean;
   /** When the published feed the marks came from was fetched, for the UI. */
   quotesFetchedAt: string | null;
+  /** The VIX ladder data from the published feed, for the cash-vs-fear card. */
+  vix: { last: number; date: string; series: { date: string; value: number }[] } | null;
   takeSnapshot: () => void;
   resetToSeed: () => void;
 }
@@ -177,6 +179,7 @@ export function normalisePersisted<T extends Record<string, unknown>>(persisted:
       : p.refresh,
     stanceDone: p.stanceDone ?? [],
     stanceDiff: (p as { stanceDiff?: string[] }).stanceDiff ?? [],
+    vix: (p as { vix?: unknown }).vix ?? null,
   };
 }
 
@@ -279,6 +282,7 @@ export const useApp = create<AppState>()(
       },
       refreshingQuotes: false,
       quotesFetchedAt: null,
+      vix: null,
 
       account: () => deriveAccount(get().holdings, get().stocks, get().cash, SEED_ACCOUNT.realizedPnl),
       cashUsd: () =>
@@ -512,6 +516,10 @@ export const useApp = create<AppState>()(
             }
             if (fromFeed > 0) set({ stocks, quotesFetchedAt: published.fetchedAt });
           }
+          // The VIX rides the same feed. Taken whenever present — even when no
+          // holding matched — because the cash ladder is about the market, not
+          // about which names happen to be in the book.
+          if (published?.vix) set({ vix: published.vix });
 
           // A device key is optional, and only earns its keep on names the
           // schedule does not carry.
@@ -788,6 +796,7 @@ export const useApp = create<AppState>()(
         portfolioRead: s.portfolioRead,
         stanceDone: s.stanceDone,
         stanceDiff: s.stanceDiff,
+        vix: s.vix,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setUnlocked(false);

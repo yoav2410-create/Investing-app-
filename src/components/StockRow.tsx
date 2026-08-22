@@ -40,7 +40,7 @@ export function StockRow({
   weightPct?: number | null;
   showValuation?: boolean;
 }) {
-  const { palette, spacing, radius } = useTheme();
+  const { palette, spacing, radius, scheme } = useTheme();
   const quote = stock.quote.value;
   const trend = trendRead(quote?.price ?? null, stock.technicals.value);
   const val = showValuation ? valuationRead(stock) : null;
@@ -69,6 +69,13 @@ export function StockRow({
           borderRadius: radius.lg,
           padding: spacing.md,
           gap: spacing.sm,
+          // The same ambient depth Card carries, so a list of these reads as
+          // part of the same surface system rather than a flat leftover.
+          shadowColor: '#0B1526',
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 8,
+          shadowOpacity: scheme === 'dark' ? 0.35 : 0.07,
+          elevation: 2,
         })}
       >
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>

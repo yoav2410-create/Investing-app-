@@ -75,6 +75,12 @@ export default function SettingsScreen() {
             value={settings.alertOnInsiderSelling}
             onChange={(v) => update({ alertOnInsiderSelling: v })}
           />
+          <Toggle
+            label="Sector drifts from the plan"
+            hint="More than five points from a target the AI read set"
+            value={settings.alertOnDrift}
+            onChange={(v) => update({ alertOnDrift: v })}
+          />
           <Row
             label="Earnings warning"
             value={`${settings.alertOnEarningsWithinDays} days ahead`}

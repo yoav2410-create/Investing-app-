@@ -29,6 +29,13 @@ export interface PublishedQuote {
   asOf: string | null;
 }
 
+export interface PublishedVix {
+  last: number;
+  date: string;
+  /** Weekly closes over the last year, oldest first, exact latest point kept. */
+  series: { date: string; value: number }[];
+}
+
 export interface PublishedQuotes {
   version: number;
   source: string;
@@ -36,6 +43,8 @@ export interface PublishedQuotes {
   count: number;
   quotes: Record<string, PublishedQuote>;
   failures: { symbol: string; reason: string }[];
+  /** Absent when the CBOE fetch failed that run; never a stale pretence. */
+  vix?: PublishedVix | null;
 }
 
 /**

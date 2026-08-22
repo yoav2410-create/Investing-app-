@@ -257,6 +257,13 @@ export const GLOSSARY = {
     read: 'This is the drawdown you are living through. Deeper than about 20% is a genuine correction in that name.',
   },
 
+  vixCashLevels: {
+    title: 'Cash levels by the VIX',
+    what: 'A general ladder: the calmer the market, the more cash to hold — VIX under 15 suggests ~25% cash, 15–20 ~20%, 20–30 ~15%, over 30 ~10%.',
+    read: 'It is deliberately contrarian. A high VIX means fear is already priced in, and forward returns from fear spikes have historically been better — so that is when cash goes to work. A low VIX is complacency, which is when cash is rebuilt.',
+    caveat: 'A regime guide, not a timing signal. VIX spikes cluster — the market can stay panicked and keep falling — and the ladder says nothing about which names to buy. The floor the plan enforces still wins.',
+  },
+
   // ---------------------------------------------------------------- insiders
   insiderActivity: {
     title: 'Insider activity',

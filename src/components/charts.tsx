@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Pressable,
   ScrollView,
   View,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
@@ -69,6 +71,7 @@ export function LineChart({
 }: SeriesChartProps) {
   const { palette, spacing } = useTheme();
   const [width, onLayout] = useWidth();
+  const [selected, setSelected] = useState<number | null>(null);
   const c = toneColors(palette, tone);
 
   const ordered = useMemo(() => [...points].reverse(), [points]);
@@ -128,18 +131,54 @@ export function LineChart({
       accessibilityLabel={summary}
     >
       {width > 0 ? (
+        <Pressable
+          onPress={(e: GestureResponderEvent) => {
+            const x = e.nativeEvent.locationX ?? 0;
+            const step = innerW / Math.max(ordered.length - 1, 1);
+            const i = Math.max(0, Math.min(ordered.length - 1, Math.round((x - padL) / step)));
+            setSelected((cur) => (cur === i ? null : i));
+          }}
+          accessible={false}
+        >
         <Svg width={w} height={height}>
+          {/* The y scale, written on the gridlines themselves rather than in a
+              separate gutter — the plot keeps its full width and the number
+              sits exactly on the line it describes. */}
           {[0, 0.5, 1].map((f) => (
-            <Line
-              key={f}
-              x1={padL}
-              x2={w - padR}
-              y1={padT + innerH * f}
-              y2={padT + innerH * f}
-              stroke={palette.chartGrid}
-              strokeWidth={1}
-            />
+            <G key={f}>
+              <Line
+                x1={padL}
+                x2={w - padR}
+                y1={padT + innerH * f}
+                y2={padT + innerH * f}
+                stroke={palette.chartGrid}
+                strokeWidth={1}
+              />
+              <SvgText
+                fontFamily={CHART_FONT}
+                x={padL + 2}
+                y={padT + innerH * f - 3}
+                fill={palette.textFaint}
+                fontSize={8.5}
+              >
+                {format(hi - f * (hi - lo))}
+              </SvgText>
+            </G>
           ))}
+          {selected != null && ordered[selected]?.value != null ? (
+            <G>
+              <Line
+                x1={x(selected)}
+                x2={x(selected)}
+                y1={padT}
+                y2={padT + innerH}
+                stroke={palette.textFaint}
+                strokeWidth={1}
+                strokeDasharray="2 3"
+              />
+              <Circle cx={x(selected)} cy={y(ordered[selected]!.value!)} r={4.5} fill={c.fg} stroke={palette.card} strokeWidth={1.5} />
+            </G>
+          ) : null}
           {marker ? (
             <G>
               <Line
@@ -196,6 +235,13 @@ export function LineChart({
             );
           })}
         </Svg>
+        {selected != null && ordered[selected] ? (
+          <ChartBubble
+            label={ordered[selected]!.label}
+            value={ordered[selected]!.value == null ? 'no data' : format(ordered[selected]!.value!)}
+          />
+        ) : null}
+        </Pressable>
       ) : (
         <View style={{ height }} />
       )}
@@ -222,6 +268,7 @@ export function BarChart({
 }: SeriesChartProps) {
   const { palette, spacing } = useTheme();
   const [width, onLayout] = useWidth();
+  const [selected, setSelected] = useState<number | null>(null);
   const c = toneColors(palette, tone);
   const ordered = useMemo(() => [...points].reverse(), [points]);
   const values = ordered.map((p) => p.value).filter((v): v is number => v != null);
@@ -276,8 +323,33 @@ export function BarChart({
       accessibilityLabel={summary}
     >
       {width > 0 ? (
+        <Pressable
+          onPress={(e: GestureResponderEvent) => {
+            // Which slot the finger landed in. Tapping the selected bar again
+            // clears it, so the bubble never needs its own close affordance.
+            const x = e.nativeEvent.locationX ?? 0;
+            const i = Math.max(0, Math.min(ordered.length - 1, Math.floor(x / slot)));
+            setSelected((cur) => (cur === i ? null : i));
+          }}
+          accessible={false}
+        >
         <Svg width={w} height={height}>
           <Line x1={0} x2={w} y1={zeroY} y2={zeroY} stroke={palette.chartGrid} strokeWidth={1} />
+          {/* The y scale: the top of the range and its midpoint, on their own
+              faint gridlines, plus zero (already the axis). The bars carry
+              their exact figures; these give the eye the height rule. */}
+          {[hi, (hi + lo) / 2].map((v, n) => {
+            if (v === 0) return null;
+            const gy = padT + innerH - ((v - lo) / span) * innerH;
+            return (
+              <G key={`gy-${n}`}>
+                <Line x1={0} x2={w} y1={gy} y2={gy} stroke={palette.chartGrid} strokeWidth={0.75} strokeDasharray="2 4" />
+                <SvgText fontFamily={CHART_FONT} x={2} y={gy - 3} fill={palette.textFaint} fontSize={8.5}>
+                  {compactNumber(v)}
+                </SvgText>
+              </G>
+            );
+          })}
           {ordered.map((p, i) => {
             if (p.value == null) return null;
             const vy = padT + innerH - ((p.value - lo) / span) * innerH;
@@ -292,7 +364,9 @@ export function BarChart({
                 height={h}
                 rx={2}
                 fill={p.value < 0 ? toneColors(palette, 'down').fg : c.fg}
-                opacity={i === ordered.length - 1 ? 1 : 0.62}
+                opacity={i === ordered.length - 1 || i === selected ? 1 : 0.62}
+                stroke={i === selected ? palette.text : 'none'}
+                strokeWidth={i === selected ? 1.5 : 0}
               />
             );
           })}
@@ -337,6 +411,13 @@ export function BarChart({
             );
           })}
         </Svg>
+        {selected != null && ordered[selected] ? (
+          <ChartBubble
+            label={ordered[selected]!.label}
+            value={ordered[selected]!.value == null ? '—' : format(ordered[selected]!.value!)}
+          />
+        ) : null}
+        </Pressable>
       ) : (
         <View style={{ height }} />
       )}
@@ -344,6 +425,33 @@ export function BarChart({
       <Text variant="caption" faint style={{ marginTop: spacing.xs }}>
         {ordered.length} quarters · figures in {unitOf(values)} · latest{' '}
         {format(values[values.length - 1]!)}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The tap read-out. One fixed pill above the plot rather than a balloon
+ * chasing the finger: it can never clip at the edges, and the tapped mark is
+ * already highlighted, so the eye has both ends of the connection.
+ */
+function ChartBubble({ label, value }: { label: string; value: string }) {
+  const { palette, radius, spacing } = useTheme();
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: 0,
+        alignSelf: 'center',
+        backgroundColor: palette.text,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 3,
+      }}
+    >
+      <Text variant="caption" style={{ color: palette.bg, fontWeight: '600' }}>
+        {label} · {value}
       </Text>
     </View>
   );
@@ -1107,15 +1215,25 @@ export function FanChart({
       {width > 0 ? (
         <Svg width={w} height={height}>
           {[0, 0.5, 1].map((f) => (
-            <Line
-              key={f}
-              x1={0}
-              x2={w}
-              y1={padT + innerH * f}
-              y2={padT + innerH * f}
-              stroke={palette.chartGrid}
-              strokeWidth={1}
-            />
+            <G key={f}>
+              <Line
+                x1={0}
+                x2={w}
+                y1={padT + innerH * f}
+                y2={padT + innerH * f}
+                stroke={palette.chartGrid}
+                strokeWidth={1}
+              />
+              <SvgText
+                fontFamily={CHART_FONT}
+                x={2}
+                y={padT + innerH * f - 3}
+                fill={palette.textFaint}
+                fontSize={8.5}
+              >
+                {format(hi - f * (hi - lo))}
+              </SvgText>
+            </G>
           ))}
           <Path d={areaPath((b) => b.p95, (b) => b.p5)} fill={palette.accent} opacity={0.14} />
           <Path d={areaPath((b) => b.p75, (b) => b.p25)} fill={palette.accent} opacity={0.24} />
@@ -1237,6 +1355,148 @@ export function Histogram({
           </SvgText>
           <SvgText fontFamily={CHART_FONT} x={w - 2} y={height - 3} fill={palette.textFaint} fontSize={9} textAnchor="end">
             {format(hi)}
+          </SvgText>
+        </Svg>
+      ) : (
+        <View style={{ height }} />
+      )}
+    </View>
+  );
+}
+
+// --------------------------------------------------------------------------
+// The VIX cash ladder
+// --------------------------------------------------------------------------
+
+/**
+ * General cash levels by fear regime. Methodology, not advice: the bands and
+ * the reasoning live in the glossary behind the card's "?" — on screen there
+ * is only the chart, which is the owner's requested split.
+ */
+export const VIX_BANDS = [
+  { below: 15, cashPct: 25, label: 'calm' },
+  { below: 20, cashPct: 20, label: 'normal' },
+  { below: 30, cashPct: 15, label: 'stressed' },
+  { below: Infinity, cashPct: 10, label: 'panic' },
+] as const;
+
+export function vixBand(v: number) {
+  return VIX_BANDS.find((b) => v < b.below) ?? VIX_BANDS[VIX_BANDS.length - 1]!;
+}
+
+/**
+ * A year of the VIX with the regime boundaries drawn through it and today
+ * marked. The right edge carries the cash level each regime suggests, so the
+ * chart answers "how much cash does this level of fear call for" without a
+ * single sentence on screen.
+ */
+export function VixCashChart({
+  series,
+  last,
+  height = 150,
+  style,
+}: {
+  series: { date: string; value: number }[];
+  last: number;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { palette, spacing } = useTheme();
+  const [width, onLayout] = useWidth();
+
+  const band = vixBand(last);
+  const summary = `VIX at ${last.toFixed(1)}, the ${band.label} regime — the ladder suggests roughly ${band.cashPct} percent cash. One year of weekly closes with the regime boundaries at 15, 20 and 30.`;
+
+  if (series.length < 2) {
+    return (
+      <View style={style}>
+        <Text variant="caption" faint>
+          No VIX history on file yet — it arrives with the next scheduled feed.
+        </Text>
+      </View>
+    );
+  }
+
+  const padT = 8;
+  const padB = 18;
+  const padR = 78; // room for the per-band cash labels
+  const w = Math.max(width, 1);
+  const innerW = Math.max(w - padR, 1);
+  const innerH = Math.max(height - padT - padB, 1);
+  const values = series.map((s) => s.value);
+  const hi = Math.max(...values, 32, last);
+  const lo = Math.max(0, Math.min(...values, 12) - 2);
+  const y = (v: number) => padT + innerH - ((Math.min(v, hi) - lo) / (hi - lo)) * innerH;
+  const x = (i: number) => (i / (series.length - 1)) * innerW;
+
+  const path = series
+    .map((s, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(s.value).toFixed(1)}`)
+    .join('');
+
+  const boundaries = [15, 20, 30].filter((b) => b > lo && b < hi);
+  // Label each band at its vertical middle. VIX_BANDS is ordered calm→panic,
+  // and calm is LOW VIX — the bottom of the plot. Getting this backwards put
+  // "calm" at the top of a fear chart, which is exactly the kind of quiet
+  // wrongness a reader absorbs without noticing.
+  const bandMid = (i: number) => {
+    const tops = [15, 20, 30, hi];
+    const bottoms = [lo, 15, 20, 30];
+    const t = Math.min(tops[i]!, hi);
+    const b = Math.max(bottoms[i]!, lo);
+    return y((t + b) / 2);
+  };
+
+  return (
+    <View
+      style={style}
+      onLayout={onLayout}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={summary}
+    >
+      {width > 0 ? (
+        <Svg width={w} height={height}>
+          {boundaries.map((b) => (
+            <G key={b}>
+              <Line x1={0} x2={innerW} y1={y(b)} y2={y(b)} stroke={palette.chartGrid} strokeWidth={1} strokeDasharray="3 3" />
+              <SvgText fontFamily={CHART_FONT} x={2} y={y(b) - 3} fill={palette.textFaint} fontSize={8.5}>
+                {b}
+              </SvgText>
+            </G>
+          ))}
+          {/* The regime the market is in right now is the loud one. */}
+          {VIX_BANDS.map((b, i) => (
+            <SvgText
+              fontFamily={CHART_FONT}
+              key={b.label}
+              x={w - 2}
+              y={bandMid(i) + 3}
+              fill={b.label === band.label ? palette.text : palette.textFaint}
+              fontSize={9}
+              fontWeight={b.label === band.label ? '700' : '400'}
+              textAnchor="end"
+            >
+              {`${b.label} · ${b.cashPct}% cash`}
+            </SvgText>
+          ))}
+          <Path d={path} stroke={palette.accent} strokeWidth={2} fill="none" strokeLinejoin="round" />
+          <Circle cx={x(series.length - 1)} cy={y(last)} r={4} fill={palette.accent} stroke={palette.card} strokeWidth={1.5} />
+          <SvgText
+            fontFamily={CHART_FONT}
+            x={Math.min(x(series.length - 1), innerW - 4)}
+            y={Math.max(y(last) - 8, 10)}
+            fill={palette.text}
+            fontSize={10}
+            fontWeight="700"
+            textAnchor="end"
+          >
+            {last.toFixed(1)}
+          </SvgText>
+          <SvgText fontFamily={CHART_FONT} x={0} y={height - 4} fill={palette.textFaint} fontSize={9}>
+            {series[0]!.date.slice(0, 7)}
+          </SvgText>
+          <SvgText fontFamily={CHART_FONT} x={innerW} y={height - 4} fill={palette.textFaint} fontSize={9} textAnchor="end">
+            {series[series.length - 1]!.date}
           </SvgText>
         </Svg>
       ) : (
