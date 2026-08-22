@@ -12,6 +12,36 @@ fresh session would otherwise have to rediscover.
 - Never put a model identifier in a commit message, PR body, code comment or
   anything else pushed to the repository.
 
+## When the owner sends a screenshot of their portfolio
+
+This is the app's main loop now, and it runs through the conversation rather
+than through an API key — the owner pays for a Claude.ai subscription, which
+is not API access, and every in-app model call has been removed rather than
+left as a button that asks for credits they do not have.
+
+What to do when a broker screenshot arrives:
+
+1. **Read it and answer with both halves in one reply** — the positions as a
+   plain table (`SYMBOL  QUANTITY  AVG COST`, one per line), and the portfolio
+   read as a single fenced ```json block matching the shape in
+   `src/data/readExchange.ts`. The app's one paste box takes either or both,
+   tells them apart, and routes each to the right place.
+2. **Transcribe, never derive.** Report only figures that are printed. A null
+   is always better than a plausible number: these drive real trades.
+3. **The read is the judgement part** — what the book is actually betting on,
+   which positions move together regardless of sector label, the single
+   biggest risk named rather than hedged, and sector targets that total 100
+   with a reason attached to each.
+
+**The owner's positions never enter this repository.** Not in the seed data,
+not in a test fixture, not in a screenshot committed to `docs/`. This repo is
+public: their book lives only in the browser storage on their phone, and the
+only copy that leaves it is the one they choose to paste into a conversation.
+When a real book is needed to verify something, build the fixture with
+invented tickers and keep any artefact in the scratchpad. This has already
+been caught once — a replica of their broker screen was rendered into
+`docs/screenshots/` during testing and deleted before it was committed.
+
 ## What this app is, and what it refuses to be
 
 The original brief said: not a WebView wrapper, do not drop analytical depth to

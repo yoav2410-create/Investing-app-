@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -120,7 +120,7 @@ export default function StockDetailScreen() {
   );
   const nlv = useApp((s) => s.account)().netLiquidationValue;
   const researching = useApp((s) => s.researching.includes(ticker));
-  const researchTicker = useApp((s) => s.researchTicker);
+  const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
   const staleNarrative = useApp((s) => s.staleNarratives.includes(ticker));
   const [status, setStatus] = useState<string | null>(null);
   // One quote page, four sections, one continuous piece of navigation —
@@ -151,8 +151,17 @@ export default function StockDetailScreen() {
 
   const research = async () => {
     setStatus('Researching with Claude…');
-    const res = await researchTicker(ticker);
-    setStatus(res.message);
+    // No API key path any more: the research happens in the conversation,
+    // and comes back as a paste on the AI insights screen. The button copies
+    // the ask so the owner does not have to compose it on a phone.
+    const ask = `Research ${ticker} (${stock.name}) for my investment app: the latest quarter's reported figures, current multiples, what management said on the most recent call with quotes, analyst revisions, insider filings, and a verdict with what would change it. Search the web — do not answer from memory.`;
+    try {
+      await navigator.clipboard.writeText(ask);
+      setStatus('The ask is on your clipboard — open the conversation and paste it.');
+    } catch {
+      setStatus('Open the conversation and ask for a fresh read on this name.');
+    }
+    Linking.openURL(sessionUrl || 'https://claude.ai/code');
   };
 
   const share = async () => {
@@ -1081,10 +1090,9 @@ export default function StockDetailScreen() {
 
       <View style={{ gap: spacing.sm }}>
         <Button
-          label={researching ? 'Researching…' : 'Re-research with Claude'}
+          label="Research this in the conversation"
           onPress={research}
-          disabled={researching}
-          accessibilityHint="Asks Claude to refresh the figures and the write-up for this stock"
+          accessibilityHint="Copies the ask and opens the conversation"
         />
         <Button label="Share this brief" onPress={share} variant="quiet" />
         {researching ? <ActivityIndicator color={palette.accent} /> : null}

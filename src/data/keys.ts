@@ -19,13 +19,12 @@ import { Platform } from 'react-native';
  * Either way the key stays on the device and is sent only to Anthropic.
  */
 
-export type KeyName = 'alphavantage' | 'anthropic' | 'finnhub' | 'gemini';
+export type KeyName = 'alphavantage' | 'anthropic' | 'finnhub';
 
 const STORE_KEYS: Record<KeyName, string> = {
   alphavantage: 'alphavantage.apiKey',
   anthropic: 'anthropic.apiKey',
   finnhub: 'finnhub.apiKey',
-  gemini: 'gemini.apiKey',
 };
 
 /** Last-resort store for a browser with localStorage disabled (private mode). */

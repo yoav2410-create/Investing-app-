@@ -121,11 +121,15 @@ await page.evaluate(() => {
   el.scrollTop = 99999;
 });
 await page.waitForTimeout(500);
-await page.getByText('Re-research with Claude').click();
-await page.waitForTimeout(1500);
-const noKey = await text();
-if (!noKey.includes('Anthropic API key')) problems.push('no-key path did not explain itself: ' + noKey.slice(-300));
-else console.log('no API key set -> app explains rather than crashing');
+// The research button no longer calls an API: it composes the ask and opens
+// the conversation. What must be true is that it is there and says so.
+const researchBtn = page.getByText('Research this in the conversation');
+if ((await researchBtn.count()) === 0) problems.push('the research button is missing from the stock page');
+else console.log('research routes to the conversation rather than an API key');
+const stockText = await text();
+if (/Re-research with Claude|Anthropic API key/.test(stockText)) {
+  problems.push('the stock page still offers an API route this build cannot use');
+}
 await page.screenshot({ path: `${OUT}/interaction-no-key.png` });
 
 await browser.close();

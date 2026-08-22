@@ -59,7 +59,6 @@ import {
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
 import { parsePositionsTable } from './import/positionsTable';
-import { readPositionsWithGemini } from './provider/gemini';
 import { buildReadRequest, parsePastedRead } from './readExchange';
 import { runAlertCheck } from './alerts';
 
@@ -151,6 +150,13 @@ export interface AppState {
   buildReadPrompt: () => string;
   /** Take the answer back. Untrusted text; validated before it is stored. */
   applyPastedRead: (text: string) => { ok: boolean; message: string };
+  /**
+   * One paste box for whatever the conversation sent back. A portfolio read
+   * and a positions table look nothing alike, so the app can tell them apart
+   * rather than making the owner remember which button to press — and a
+   * single answer carrying both is applied as both.
+   */
+  applyAnythingPasted: (text: string) => { ok: boolean; message: string };
   /** Live marks for whatever is held right now. Follows the book, not a list. */
   refreshLiveQuotes: (opts?: { fetchImpl?: typeof fetch }) => Promise<{ ok: boolean; message: string }>;
   refreshingQuotes: boolean;
@@ -532,27 +538,23 @@ export const useApp = create<AppState>()(
       },
 
       readScreenshot: async ({ uri, base64, mediaType, hint }) => {
-        // Gemini first, and not as a fallback: it has a free tier, it answers
-        // a browser directly, and a Claude.ai subscription is not API access —
-        // so for this owner it is the only reader that exists. Anthropic stays
-        // for anyone holding API credits, and both return the same shape, so
-        // the review diff below cannot tell which one read the picture.
-        const geminiKey = await getKey('gemini');
+        // Reading a picture in the app needs an Anthropic key. Without one the
+        // screenshot goes to the conversation instead, which is the route the
+        // owner actually uses — see the button on the Portfolio screen.
         const key = await getClaudeKey();
-        if (!geminiKey && !key) {
+        if (!key) {
           return {
             ok: false,
-            message: 'Add a Gemini key in Settings first — it is free, and it reads the screenshot.',
+            message:
+              'Reading a screenshot inside the app needs an Anthropic API key. Send the screenshot to Claude instead — the Update button on the Portfolio screen opens the conversation — and paste the answer back below.',
           };
         }
         try {
-          const read = geminiKey
-            ? await readPositionsWithGemini(geminiKey, { base64, mediaType }, hint)
-            : await readPositionsFromImage(
-                createClaude({ apiKey: key!, allowBrowser: Platform.OS === 'web' }),
-                { base64, mediaType },
-                hint,
-              );
+          const read = await readPositionsFromImage(
+            createClaude({ apiKey: key, allowBrowser: Platform.OS === 'web' }),
+            { base64, mediaType },
+            hint,
+          );
           if (read.positions.length === 0) {
             return {
               ok: false,
@@ -863,6 +865,44 @@ export const useApp = create<AppState>()(
             ? `${outcome.message} The targets need a look: ${problems.join(' ')}`
             : outcome.message,
         };
+      },
+
+      applyAnythingPasted: (text) => {
+        const raw = String(text ?? '').trim();
+        if (!raw) return { ok: false, message: 'Nothing was pasted.' };
+        const messages: string[] = [];
+        let any = false;
+
+        // A read is JSON with a headline; a positions table is rows. An answer
+        // can contain both, so both are tried and both are reported.
+        const readOutcome = parsePastedRead(raw);
+        if (readOutcome.ok) {
+          const applied = get().applyPastedRead(raw);
+          messages.push(applied.message);
+          any = any || applied.ok;
+        }
+
+        // Strip any fenced JSON before looking for a table, or the JSON's own
+        // lines get read as positions.
+        const withoutJson = raw.replace(/```(?:json)?[\s\S]*?```/g, '').trim();
+        const looksTabular = /[\r\n]/.test(withoutJson) && /\d/.test(withoutJson);
+        if (looksTabular) {
+          const table = get().readPositionsTable(withoutJson);
+          if (table.ok) {
+            messages.push(table.message + ' Review the rows below before applying.');
+            any = true;
+          } else if (!any) {
+            messages.push(table.message);
+          }
+        }
+
+        if (!any) {
+          return {
+            ok: false,
+            message: messages[0] ?? 'That did not look like a portfolio read or a positions table.',
+          };
+        }
+        return { ok: true, message: messages.join(' ') };
       },
 
       analysePortfolioNow: async () => {

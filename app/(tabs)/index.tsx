@@ -160,18 +160,16 @@ export default function PortfolioScreen() {
         </View>
       </View>
 
+      {/* One button, because it is one errand. The owner sends a screenshot
+          of their broker to the conversation and gets back both halves —
+          the positions and the read — in a single answer they paste once.
+          Splitting it into "update" and "analyse" made the app look like it
+          had two features where it has one loop. */}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Button
-          label="Update from screenshot"
+          label="Update positions & get insights"
           onPress={() => router.push('/sync')}
-          accessibilityHint="Photograph your broker's positions screen and Claude will read it"
-          style={{ flex: 1 }}
-        />
-        <Button
-          label="AI insights"
-          onPress={() => router.push('/insights')}
-          variant="quiet"
-          accessibilityHint="Claude's read across the whole portfolio"
+          accessibilityHint="Send your broker screenshot to Claude and paste the answer back"
           style={{ flex: 1 }}
         />
       </View>

@@ -30,20 +30,12 @@ export default function InsightsScreen() {
   const cash = useApp((s) => s.cashUsd)();
   const nlv = useApp((s) => s.account)().netLiquidationValue;
   const read = useApp((s) => s.portfolioRead);
-  const analysing = useApp((s) => s.analysingPortfolio);
-  const analyse = useApp((s) => s.analysePortfolioNow);
   const [status, setStatus] = useState<string | null>(null);
 
   const i = useMemo(
     () => buildInsights(holdings, stocks, plan, cash, nlv),
     [holdings, stocks, plan, cash, nlv],
   );
-
-  const run = async () => {
-    setStatus(null);
-    const res = await analyse();
-    setStatus(res.ok ? null : res.message);
-  };
 
   const severityTone: Record<'good' | 'watch' | 'risk', Tone> = {
     good: 'up',
@@ -57,25 +49,7 @@ export default function InsightsScreen() {
       <Section
         title="What Claude sees"
         subtitle={read ? `Written ${relativeAsOf(read.at)}` : 'Not run yet'}
-        action={
-          <Button
-            label={analysing ? 'Reading…' : read ? 'Refresh' : 'Run analysis'}
-            onPress={run}
-            disabled={analysing}
-            variant="quiet"
-          />
-        }
       >
-        {analysing ? (
-          <Card style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
-            <ActivityIndicator color={palette.accent} />
-            <Text variant="body" muted style={{ flex: 1 }}>
-              Reading the whole book — concentration, what the positions have in common, and where
-              the risk actually sits.
-            </Text>
-          </Card>
-        ) : null}
-
         <ReadByHand />
 
         {status ? (
@@ -169,14 +143,14 @@ export default function InsightsScreen() {
               </>
             ) : null}
           </Card>
-        ) : !analysing ? (
+        ) : (
           <Card>
             <Empty
               title="No portfolio read yet."
-              detail="Everything below is computed from your positions and is always available. Run the analysis to have Claude read across it — what the book is actually betting on, which positions move together, where the risk sits, and what the sector targets should be."
+              detail="Everything below is computed from your positions and is always available. The read is what Claude adds on top — what the book is actually betting on, which positions move together, where the risk sits, and what the sector targets should be."
             />
           </Card>
-        ) : null}
+        )}
       </Section>
 
       {read?.result.allocation ? (
@@ -744,24 +718,16 @@ function ReadByHand() {
     }
   };
 
-  if (!open) {
-    return (
-      <Card style={{ gap: spacing.sm }}>
-        <Text variant="body" muted>
-          No API key? Have the conversation do the read instead — it costs nothing beyond the
-          subscription and the result lands in exactly the same place.
-        </Text>
-        <Button label="Read it in the conversation" variant="quiet" onPress={() => setOpen(true)} />
-      </Card>
-    );
-  }
-
+  void open;
+  void setOpen;
   return (
     <Card style={{ gap: spacing.sm }}>
       <Text variant="label">Three steps</Text>
       <Text variant="caption" muted>
-        1. Copy the request — it contains your whole book, the previous recommendations and the
-        projection. 2. Paste it into the conversation. 3. Paste the answer back here.
+        1. Copy the request — it carries your whole book, the previous recommendations and the
+        projection. 2. Paste it into the conversation. 3. Paste the answer back here. The read is
+        done by Claude in the conversation, so it needs no API key and costs nothing beyond the
+        subscription.
       </Text>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Button label="Copy the request" onPress={copyRequest} style={{ flex: 1 }} />
@@ -799,15 +765,21 @@ function ReadByHand() {
           onPress={() => {
             const res = applyPasted(answer);
             setNote({ ok: res.ok, text: res.message });
-            if (res.ok) {
-              setAnswer('');
-              setOpen(false);
-            }
+            if (res.ok) setAnswer('');
           }}
           disabled={answer.trim().length === 0}
           style={{ flex: 1 }}
         />
-        <Button label="Close" variant="quiet" onPress={() => setOpen(false)} style={{ flex: 1 }} />
+        <Button
+          label="Clear"
+          variant="quiet"
+          onPress={() => {
+            setAnswer('');
+            setNote(null);
+          }}
+          disabled={answer.length === 0}
+          style={{ flex: 1 }}
+        />
       </View>
       {note ? (
         <Text variant="caption" tone={note.ok ? undefined : 'down'} muted={note.ok}>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +23,9 @@ export default function SyncScreen() {
   const { palette, spacing, radius } = useTheme();
   const pending = useApp((s) => s.pendingImport);
   const readScreenshot = useApp((s) => s.readScreenshot);
-  const readPositionsTable = useApp((s) => s.readPositionsTable);
+  const applyAnything = useApp((s) => s.applyAnythingPasted);
+  const buildReadPrompt = useApp((s) => s.buildReadPrompt);
+  const sessionUrl = useApp((s) => s.settings.claudeSessionUrl);
   const toggleSkip = useApp((s) => s.toggleImportSkip);
   const applyImport = useApp((s) => s.applyPendingImport);
   const discard = useApp((s) => s.discardPendingImport);
@@ -32,13 +34,6 @@ export default function SyncScreen() {
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [hint, setHint] = useState('');
   const [pasted, setPasted] = useState('');
-
-  const readTable = (text: string) => {
-    setStatus(null);
-    const res = readPositionsTable(text);
-    setStatus(res);
-    if (res.ok) setPasted('');
-  };
 
   // Straight from the clipboard, so the Live Text route is screenshot →
   // copy → one button, with no textarea in the middle. Safari asks the owner
@@ -51,12 +46,22 @@ export default function SyncScreen() {
         setStatus({ ok: false, message: 'The clipboard is empty. Copy the table first.' });
         return;
       }
-      readTable(text);
+      setStatus(applyAnything(text));
     } catch {
       setStatus({
         ok: false,
         message: 'The browser would not hand over the clipboard. Paste into the box below instead.',
       });
+    }
+  };
+
+  // The book as text, so the read can account for what is already held.
+  const copyBook = async () => {
+    try {
+      await navigator.clipboard.writeText(buildReadPrompt());
+      setStatus({ ok: true, message: 'The book is on the clipboard — paste it into the conversation.' });
+    } catch {
+      setStatus({ ok: false, message: 'The browser refused the clipboard. Ask for the read in the conversation instead.' });
     }
   };
 
@@ -68,7 +73,7 @@ export default function SyncScreen() {
     }
     const text = await pickPositionsFile();
     if (text == null) return;
-    readTable(text);
+    setStatus(applyAnything(text));
   };
 
   const pick = async (from: 'library' | 'camera') => {
@@ -101,7 +106,14 @@ export default function SyncScreen() {
             quality: 1,
             mediaTypes: ['images'],
           });
-    if (result.canceled || !result.assets?.[0]) return;
+    // A silent return here is how a broken picker looks like a dead button:
+    // the file chooser closes, nothing happens, and there is nothing on
+    // screen to explain it. Cancelling is the only case that should be quiet.
+    if (result.canceled) return;
+    if (!result.assets?.[0]) {
+      setStatus({ ok: false, message: 'The picker returned no image. Try again, or paste the table instead.' });
+      return;
+    }
 
     const asset = result.assets[0];
     if (!asset.base64) {
@@ -140,59 +152,55 @@ export default function SyncScreen() {
     <Screen>
       {!pending ? (
         <>
-          {/* A screenshot is what the owner actually has on a phone: exporting
-              a CSV from a broker's app means a desktop, an email, a download.
-              So the picture leads, and the two ways to turn one into positions
-              sit side by side — a Gemini key reads it in the app, or iOS Live
-              Text lifts the text out of the picture for free with no key at
-              all. Everything ends in the same review diff. */}
-          <Section title="From a screenshot" subtitle="The whole book at once — nothing typed">
+          {/* The whole loop, in the order it happens. The owner has a
+              screenshot on their phone; the conversation can read it and
+              analyse the book in one answer; the answer comes back here.
+              A single paste box takes whatever that answer contains —
+              positions, the read, or both — because making someone choose the
+              right button for text they did not write is a puzzle, not a
+              feature. */}
+          <Section title="Send it to Claude" subtitle="Positions and the read, in one answer">
             <Card style={{ gap: spacing.sm }}>
               <Text variant="body" muted>
-                Screenshot your broker's positions screen, then pick it here. With a free Gemini
-                key in Settings the app reads the rows itself; without one, open the screenshot in
-                Photos, press and hold the text, Select All, Copy — then paste it below. Either
-                way you approve every row before anything is written.
+                Screenshot your broker's positions screen, open the conversation, attach it and
+                ask for your positions and a portfolio read. Paste the reply below. Nothing is
+                written to the book until you have seen the rows.
               </Text>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button
-                  label="Choose a screenshot"
-                  onPress={() => pick('library')}
-                  disabled={busy}
+                  label="Open the conversation"
+                  onPress={() => Linking.openURL(sessionUrl || 'https://claude.ai/code')}
                   style={{ flex: 1 }}
                 />
                 <Button
-                  label="Paste"
+                  label="Copy the book"
                   variant="quiet"
-                  onPress={pasteFromClipboard}
-                  disabled={busy}
+                  onPress={copyBook}
                   style={{ flex: 1 }}
                 />
               </View>
+              <Text variant="caption" faint>
+                {sessionUrl
+                  ? 'Copy the book too when you want the read to account for what you already hold.'
+                  : 'Add your conversation link in Settings and this opens it directly.'}
+              </Text>
             </Card>
           </Section>
 
-          <Section
-            title="Or from a file your broker exports"
-            subtitle="A CSV, or the table copied off their website"
-          >
+          <Section title="Paste the answer" subtitle="Positions, a portfolio read, or both">
             <Card style={{ gap: spacing.sm }}>
-              <Text variant="body" muted>
-                Read on this device — no key involved. Paste the table or pick the file, and the
-                app shows you what changed before writing anything.
-              </Text>
               <TextInput
                 value={pasted}
                 onChangeText={(t) => {
                   setPasted(t);
                   setStatus(null);
                 }}
-                placeholder={'Paste your positions table here\nSymbol  Quantity  Avg cost\nAAPL    25        180.00'}
+                placeholder={'Paste what Claude sent back — a positions table, a ```json read, or both'}
                 placeholderTextColor={palette.textFaint}
                 multiline
-                accessibilityLabel="Paste your positions table"
+                accessibilityLabel="Paste the answer from Claude"
                 style={{
-                  minHeight: 96,
+                  minHeight: 110,
                   color: palette.text,
                   backgroundColor: palette.cardMuted,
                   borderColor: palette.border,
@@ -204,61 +212,27 @@ export default function SyncScreen() {
               />
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button
-                  label="Read the paste"
-                  onPress={() => readTable(pasted)}
+                  label="Apply"
+                  onPress={() => {
+                    const res = applyAnything(pasted);
+                    setStatus(res);
+                    if (res.ok) setPasted('');
+                  }}
                   disabled={busy || pasted.trim().length === 0}
                   style={{ flex: 1 }}
                 />
                 <Button
-                  label="Choose a file"
+                  label="Paste from clipboard"
                   variant="quiet"
-                  onPress={chooseFile}
+                  onPress={pasteFromClipboard}
                   disabled={busy}
                   style={{ flex: 1 }}
                 />
               </View>
               <Text variant="caption" faint>
-                A CSV, TSV or plain text file with a symbol column and a quantity column. Column
-                names, currency symbols and thousands separators are worked out for you.
+                A broker's CSV export works here too — or pick the file directly.
               </Text>
-            </Card>
-          </Section>
-
-          {/* The optional nudge for the model, and the camera. Both belong
-              with the screenshot route above, which is why the duplicate
-              picker that used to sit here is gone: two buttons doing the same
-              thing on one screen is how a reader concludes they must do
-              something different. */}
-          <Section title="Anything the reader should know?" subtitle="Optional">
-            <Card style={{ gap: spacing.sm }}>
-              <TextInput
-                value={hint}
-                onChangeText={setHint}
-                placeholder="e.g. this is the margin account, ignore the pending orders row"
-                placeholderTextColor={palette.textFaint}
-                multiline
-                accessibilityLabel="Optional context for reading the screenshot"
-                style={{
-                  minHeight: 64,
-                  color: palette.text,
-                  backgroundColor: palette.cardMuted,
-                  borderColor: palette.border,
-                  borderWidth: 1,
-                  borderRadius: radius.md,
-                  padding: spacing.md,
-                  fontSize: 15,
-                }}
-              />
-              <Button
-                label="Take a photo instead"
-                onPress={() => pick('camera')}
-                variant="quiet"
-                disabled={busy}
-              />
-              <Text variant="caption" faint>
-                A full-width screenshot showing the ticker, quantity and average cost columns gives
-                the best read. Crop out anything you would rather not send.
-              </Text>
+              <Button label="Choose a file" variant="quiet" onPress={chooseFile} disabled={busy} />
             </Card>
           </Section>
 
