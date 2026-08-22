@@ -44,6 +44,25 @@ export const SEED_HOLDINGS: Holding[] = [
   { ticker: 'LLY', shares: 5, costBasis: 900.0, sector: 'healthcare' },
 ];
 
+/**
+ * Is this still the demo book?
+ *
+ * The seed exists so every screen has something to render on first open, and
+ * it is deliberately realistic — which is exactly what makes it dangerous.
+ * The owner opened the app, recognised four of their own tickers among the
+ * fourteen invented ones, and asked why stocks they do not hold were in their
+ * portfolio. Nothing on screen had told them these were not theirs.
+ *
+ * Matched on the ticker set rather than deep equality: the moment a real
+ * import lands, the names change, and a re-marked seed price should not make
+ * the app claim the book is real.
+ */
+export function isSeedBook(holdings: Holding[]): boolean {
+  if (holdings.length !== SEED_HOLDINGS.length) return false;
+  const mine = new Set(holdings.map((h) => h.ticker));
+  return SEED_HOLDINGS.every((h) => mine.has(h.ticker));
+}
+
 /** Non-USD balances are converted with these rates on the account screen. */
 /** A second currency so the multi-currency account tiles have something to convert. */
 export const FX_TO_USD: Record<string, number> = { USD: 1, EUR: 1.08 };

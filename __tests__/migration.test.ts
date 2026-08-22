@@ -6,7 +6,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 import { normalisePersisted } from '@/data/store';
-import { SEED_STOCKS } from '@/data/seed';
+import { SEED_HOLDINGS, SEED_STOCKS, isSeedBook } from '@/data/seed';
 import type { Stock } from '@/domain/types';
 
 /**
@@ -88,5 +88,26 @@ describe('upgrading a store that is already on disk', () => {
       .filter((s) => !PLACES.test(s.about.value ?? ''))
       .map((s) => s.ticker);
     expect(silent).toEqual([]);
+  });
+});
+
+describe('telling the demo book from a real one', () => {
+  it('recognises the untouched seed', () => {
+    expect(isSeedBook(SEED_HOLDINGS)).toBe(true);
+  });
+
+  it('stops claiming demo the moment one position is replaced', () => {
+    const real = SEED_HOLDINGS.map((h, i) => (i === 0 ? { ...h, ticker: 'ZZZZ' } : h));
+    expect(isSeedBook(real)).toBe(false);
+  });
+
+  it('stops claiming demo when a position is added or removed', () => {
+    expect(isSeedBook(SEED_HOLDINGS.slice(1))).toBe(false);
+    expect(isSeedBook([...SEED_HOLDINGS, { ticker: 'ZZZZ', shares: 1, costBasis: 1, sector: 'tech' }])).toBe(false);
+  });
+
+  it('still says demo when only the marks moved, since the names are the giveaway', () => {
+    const remarked = SEED_HOLDINGS.map((h) => ({ ...h, costBasis: h.costBasis * 1.1 }));
+    expect(isSeedBook(remarked)).toBe(true);
   });
 });

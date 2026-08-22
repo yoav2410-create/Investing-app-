@@ -1,10 +1,12 @@
 import {
   DEFAULT_ASSUMPTIONS,
+  buildInputs,
   runSimulation,
   simulate,
   type HoldingInput,
 } from '@/domain/montecarlo';
-import { SEED_HOLDINGS, SEED_STOCKS } from '@/data/seed';
+
+import { SEED_ACCOUNT, SEED_HOLDINGS, SEED_STOCKS } from '@/data/seed';
 
 /**
  * Invariants the simulation must satisfy exactly, not statistically.
@@ -103,5 +105,48 @@ describe('internal consistency', () => {
     const p50 = sim.portfolioBands[sim.years]!.p50;
     const rebuilt = sim.startingValue * Math.pow(1 + sim.annualised.p50 / 100, sim.years);
     expect(rebuilt).toBeCloseTo(p50, 6);
+  });
+});
+
+describe('holdings the projection cannot price', () => {
+  it('leaves an unpriced position out rather than valuing it at zero', () => {
+    const holdings = [...SEED_HOLDINGS, { ticker: 'NOPRICE', shares: 10, costBasis: 50, sector: 'tech' as const }];
+    const stocks = {
+      ...SEED_STOCKS,
+      NOPRICE: {
+        ...SEED_STOCKS.META!,
+        ticker: 'NOPRICE',
+        quote: { value: null, asOf: null, source: 'unavailable' as const },
+      },
+    };
+    const inputs = buildInputs(holdings, stocks, SEED_ACCOUNT.netLiquidationValue, DEFAULT_ASSUMPTIONS);
+    expect(inputs.some((i) => i.ticker === 'NOPRICE')).toBe(false);
+    // And the rest are all still there, so the omission is one name, not a
+    // silent truncation of the book.
+    expect(inputs.length).toBe(SEED_HOLDINGS.length);
+  });
+
+  it('includes a newly imported name as soon as it has a price', () => {
+    const holdings = [...SEED_HOLDINGS, { ticker: 'FRESH', shares: 10, costBasis: 50, sector: 'tech' as const }];
+    const stocks = {
+      ...SEED_STOCKS,
+      FRESH: {
+        ...SEED_STOCKS.META!,
+        ticker: 'FRESH',
+        quote: {
+          value: { price: 60, previousClose: 59, change: 1, changePct: 1.7, volume: null, tradingDay: '2026-08-22' },
+          asOf: '2026-08-22T00:00:00.000Z',
+          source: 'finnhub' as const,
+        },
+        // Never researched: no beta, no 52-week range.
+        valuation: { value: null, asOf: null, source: 'unavailable' as const },
+      },
+    };
+    const inputs = buildInputs(holdings, stocks, SEED_ACCOUNT.netLiquidationValue, DEFAULT_ASSUMPTIONS);
+    const fresh = inputs.find((i) => i.ticker === 'FRESH');
+    expect(fresh).toBeDefined();
+    // With nothing researched it falls back to market risk, and says so.
+    expect(fresh!.beta).toBe(1);
+    expect(fresh!.volSource).toBe('default');
   });
 });

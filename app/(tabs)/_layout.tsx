@@ -69,7 +69,13 @@ export default function TabsLayout() {
                 position: 'absolute' as const,
                 left: 12,
                 right: 12,
-                bottom: Math.max(insets.bottom, 10),
+                // Lifted clear of the home indicator, not by the whole safe
+                // area. Spending the full inset put the bar a finger's width
+                // above the bottom of the screen with a band of empty page
+                // under it — the owner pointed at the gap. The indicator is a
+                // thin line; eight points past it is clearance, and anything
+                // more is just distance.
+                bottom: Math.max(insets.bottom - 16, 8),
                 borderRadius: 31,
                 borderTopWidth: 0,
                 shadowColor: '#000',
@@ -97,7 +103,9 @@ export default function TabsLayout() {
           backgroundColor: palette.bg,
           // The floating bar no longer reserves layout space, so the scene
           // must: the bar's 62pt, whatever it is lifted by, and a breath.
-          ...(Platform.OS === 'web' ? { paddingBottom: 72 + Math.max(insets.bottom, 10) } : {}),
+          ...(Platform.OS === 'web'
+            ? { paddingBottom: 70 + Math.max(insets.bottom - 16, 8) }
+            : {}),
         },
       }}
     >

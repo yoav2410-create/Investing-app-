@@ -10,7 +10,7 @@ import { MonteCarloBlock } from '@/components/MonteCarloBlock';
 import { StockRow } from '@/components/StockRow';
 import { InfoButton } from '@/components/InfoButton';
 import { useApp } from '@/data/store';
-import { FX_TO_USD } from '@/data/seed';
+import { FX_TO_USD, isSeedBook } from '@/data/seed';
 import {
   compactCurrency,
   currency,
@@ -80,6 +80,7 @@ export default function PortfolioScreen() {
     [positions, stocks, account.netLiquidationValue],
   );
   const invested = useMemo(() => positions.reduce((s, p) => s + p.costValue, 0), [positions]);
+  const showingDemo = useMemo(() => isSeedBook(holdings), [holdings]);
 
   const cashPct = account.netLiquidationValue === 0 ? 0 : (cash / account.netLiquidationValue) * 100;
   const floorPct = plan.constraints.cashFloorPct * 100;
@@ -171,6 +172,25 @@ export default function PortfolioScreen() {
           style={{ flex: 1 }}
         />
       </View>
+
+      {/* The seed is realistic on purpose so every screen has something to
+          draw, and that is exactly what made it dangerous: the owner saw four
+          of their own tickers among fourteen invented ones and asked why
+          stocks they do not hold were in their portfolio. Nothing had said
+          these were not theirs. Now something does, until the day it is not
+          true any more. */}
+      {showingDemo ? (
+        <Card style={{ borderColor: palette.warn, gap: spacing.xs }}>
+          <Text variant="label" tone="warn">
+            This is demo data, not your book
+          </Text>
+          <Text variant="caption" muted>
+            Fourteen invented positions so the screens have something to show. Send a screenshot of
+            your broker to Claude and paste the answer back — every number here becomes yours, and
+            this notice disappears.
+          </Text>
+        </Card>
+      ) : null}
 
       {staleNarratives.length > 0 ? (
         <Card style={{ borderColor: palette.warn, gap: spacing.xs }}>

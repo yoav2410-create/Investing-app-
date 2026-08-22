@@ -51,6 +51,16 @@ export function MonteCarloBlock() {
     () => buildInputs(holdings, stocks, nlv, { ...DEFAULT_ASSUMPTIONS, riskFreePct, years, basis }),
     [holdings, stocks, nlv, riskFreePct, years, basis],
   );
+  // Which holdings the projection could not price, and therefore left out.
+  // A position with no mark has no market value to simulate, so excluding it
+  // is right — but the projected book is then smaller than the real one, and
+  // saying nothing would let the owner read a five-year range for a portfolio
+  // that is missing a name. The app names them instead.
+  const missing = useMemo(() => {
+    const covered = new Set(inputs.map((i) => i.ticker));
+    return holdings.map((h) => h.ticker).filter((t) => !covered.has(t));
+  }, [holdings, inputs]);
+
   const inputsKey = useMemo(
     () => JSON.stringify(inputs) + `|${cash}|${nlv}|${riskFreePct}|${years}|${basis}`,
     [inputs, cash, nlv, riskFreePct, years, basis],
@@ -175,6 +185,18 @@ export function MonteCarloBlock() {
             positions as {sim.inputs.length} independent bets — they fall together because they
             share the factor.
           </Text>
+
+          {missing.length ? (
+            <Text variant="caption" tone="warn">
+              {missing.join(', ')} {missing.length === 1 ? 'is' : 'are'} not in this projection —
+              no price on file, so there is no market value to simulate. Everything above describes
+              the other {sim.inputs.length} {sim.inputs.length === 1 ? 'position' : 'positions'}.
+            </Text>
+          ) : (
+            <Text variant="caption" faint>
+              Covers all {sim.inputs.length} priced positions and the cash sleeve.
+            </Text>
+          )}
 
           <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
             <Chip label="CAPM returns" active={basis === 'capm'} onPress={() => setBasis('capm')} />
