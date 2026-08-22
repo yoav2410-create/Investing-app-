@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Switch, TextInput, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useTheme } from '@/theme/ThemeProvider';
 import { Button, Card, Divider, Row, Screen, Section, Text } from '@/components/ui';
@@ -33,13 +33,30 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <Section title="Claude" subtitle="Reads your screenshots and researches each stock">
-        <KeyField
-          name="anthropic"
-          label="Anthropic API key"
-          placeholder="sk-ant-…"
-          help={`${keyStorageDescription()} It never leaves this device except in requests to Anthropic.`}
-        />
+      <ChangeTheAppSection />
+
+      <Section
+        title="Claude inside the app"
+        subtitle="Optional — reads your screenshots and researches each stock"
+      >
+        <Card style={{ gap: spacing.sm }}>
+          {/* Said plainly because it costs money to discover the hard way: a
+              Claude.ai subscription is not API access. They are separate
+              products with separate billing, and this field wants the second
+              one. Everything else in the app works without it. */}
+          <Text variant="caption" muted>
+            This is the only part of the app that needs an Anthropic API key — a separate paid
+            product from a Claude.ai subscription, billed per request. Without a key the app still
+            prices the book, tracks it and explains every number; what it cannot do is read a
+            broker screenshot or research a name for you.
+          </Text>
+          <KeyField
+            name="anthropic"
+            label="Anthropic API key"
+            placeholder="sk-ant-…"
+            help={`${keyStorageDescription()} It never leaves this device except in requests to Anthropic.`}
+          />
+        </Card>
       </Section>
 
       <PricesSection onStatus={setStatus} />
@@ -170,6 +187,109 @@ export default function SettingsScreen() {
         </Card>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Changing the app from the phone, using the subscription rather than the API.
+ *
+ * The owner pays for Claude.ai and has no API credits, so the key field below
+ * is closed to them — and what they actually wanted was never the in-app
+ * research anyway: it was to send a screenshot, say what is wrong, and have
+ * the app change. That loop exists, it just does not live inside this bundle.
+ * A static page on Pages cannot reach a coding session, and editing the app
+ * means writing files and running a build, which a browser tab cannot do.
+ *
+ * What it can do is hand the request over intact. This composes the note, the
+ * exact build the owner is looking at, and where to send it — so the session
+ * on the other side starts with the commit, not with "which version?".
+ */
+function ChangeTheAppSection() {
+  const { spacing } = useTheme();
+  const [copied, setCopied] = useState<string | null>(null);
+  const [build, setBuild] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const { palette, radius } = useTheme();
+
+  useEffect(() => {
+    // The commit the running site was built from, published beside it.
+    let live = true;
+    const base = (process.env.EXPO_PUBLIC_BASE_URL ?? '').replace(/^\/+|\/+$/g, '');
+    fetch(base ? `/${base}/build-info.json` : '/build-info.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (live && j?.sha) setBuild(`${String(j.sha).slice(0, 7)} · built ${String(j.builtAt ?? '').slice(0, 16).replace('T', ' ')} UTC`);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const request = [
+    'Portfolio Brief — change request from the phone.',
+    build ? `Running build: ${build}` : 'Running build: unknown',
+    'Repo: yoav2410-create/Investing-app-, branch claude/iphone-investment-app-frn8sy',
+    '',
+    note.trim() || '(describe the change, and attach the screenshot)',
+  ].join('\n');
+
+  const copy = async () => {
+    try {
+      if (Platform.OS === 'web' && navigator?.clipboard) {
+        await navigator.clipboard.writeText(request);
+        setCopied('Copied. Paste it into Claude with your screenshot attached.');
+      } else {
+        setCopied('Copying is only available in the browser — select the text above instead.');
+      }
+    } catch {
+      setCopied('The browser refused the clipboard. Select the text above and copy it by hand.');
+    }
+  };
+
+  return (
+    <Section title="Change the app" subtitle="Send a screenshot and say what should be different">
+      <Card style={{ gap: spacing.sm }}>
+        <Text variant="caption" muted>
+          This works on a Claude.ai subscription and needs no API key. Open Claude Code in the
+          browser, attach the screenshot, paste the request below, and the change is made, built
+          and published to this site — the same loop that produced every version of it so far.
+        </Text>
+        <TextInput
+          value={note}
+          onChangeText={(t) => {
+            setNote(t);
+            setCopied(null);
+          }}
+          placeholder="e.g. on the stock page the earnings card should show the quarter's date"
+          placeholderTextColor={palette.textFaint}
+          multiline
+          accessibilityLabel="What should change"
+          style={{
+            minHeight: 64,
+            color: palette.text,
+            backgroundColor: palette.cardMuted,
+            borderColor: palette.border,
+            borderWidth: 1,
+            borderRadius: radius.md,
+            padding: spacing.md,
+            fontSize: 15,
+          }}
+        />
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Button label="Copy the request" onPress={copy} style={{ flex: 1 }} />
+          <Button
+            label="Open Claude Code"
+            variant="quiet"
+            onPress={() => Linking.openURL('https://claude.ai/code')}
+            style={{ flex: 1 }}
+          />
+        </View>
+        <Text variant="caption" faint>
+          {copied ?? (build ? `You are looking at build ${build}.` : 'Build unknown — the site has not published one yet.')}
+        </Text>
+      </Card>
+    </Section>
   );
 }
 

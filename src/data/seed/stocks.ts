@@ -24,7 +24,7 @@ const SPECS: StockSpec[] = [
     ticker: 'META',
     name: 'Meta Platforms',
     about:
-      "Meta Platforms operates the Facebook, Instagram, WhatsApp, and Messenger apps and generates most of its revenue by selling advertising space within them. Ads are sold through a self-serve auction system and a direct sales organization to businesses ranging from small merchants to global brands, while the apps themselves are free for users. The company also sells Quest virtual-reality headsets and smart glasses to consumers through its own online store and retail partners.",
+      "Meta Platforms runs the Facebook, Instagram, WhatsApp and Messenger apps, and builds Quest headsets and Ray-Ban smart glasses. It is based in California and earns in North America, Europe, Asia Pacific and the rest of the world, serving the apps from its own data centres. Nearly all revenue is advertising, bought online by small businesses and through a sales team by large brands; the apps are free, so the advertiser pays.",
     sector: 'tech',
     primaryMultiple: 'forwardPe',
     peerGroup: 'mega-cap platform',
@@ -138,7 +138,7 @@ const SPECS: StockSpec[] = [
     ticker: 'MSFT',
     name: 'Microsoft',
     about:
-      "Microsoft develops software and cloud services, including the Windows operating system, the Microsoft 365 productivity suite, the Azure cloud platform, LinkedIn, GitHub, and Xbox gaming hardware and content. It sells mainly through subscriptions and enterprise licensing agreements, alongside a direct sales force, reseller and distributor networks, and consumer retail and digital storefronts. End customers span businesses, governments, software developers, and consumers.",
+      "Microsoft sells Windows, the Microsoft 365 apps including Office and Teams, the Azure cloud platform, LinkedIn and GitHub, plus Xbox and Surface hardware. It is based in Washington state, sells across the Americas, Europe and Asia, and runs Azure from data centres worldwide. Almost everything is sold as a subscription or metered cloud usage, through direct contracts, resellers and PC makers, so the payers are companies, governments, schools and consumers.",
     sector: 'tech',
     primaryMultiple: 'forwardPe',
     peerGroup: 'mega-cap software',
@@ -204,7 +204,7 @@ const SPECS: StockSpec[] = [
     ticker: 'NOW',
     name: 'ServiceNow',
     about:
-      "ServiceNow develops cloud software for automating enterprise workflows, including IT service management, IT operations, human resources, customer service, and security operations, all built on its Now Platform. The company sells through a direct sales force and channel partners under multi-year subscription contracts. Its customers are large enterprises and government agencies that use the platform to route, track, and automate internal service requests and business processes.",
+      "ServiceNow sells cloud software that runs an organisation's workflows on one platform: IT service desks, HR and employee requests, customer service and security reviews. Based in California, it earns most revenue in North America and the rest in Europe, the Middle East and Asia-Pacific, delivered from the cloud. Customers buy multi-year subscriptions priced by users and modules from its own sales force; large companies and government agencies pay, out of the IT budget.",
     sector: 'tech',
     primaryMultiple: 'forwardPe',
     peerGroup: 'enterprise SaaS',
@@ -259,7 +259,7 @@ const SPECS: StockSpec[] = [
     ticker: 'PLTR',
     name: 'Palantir Technologies',
     about:
-      "Palantir Technologies builds software platforms for integrating and analyzing large, disparate datasets: Gotham for defense and intelligence work, Foundry for commercial operations, and AIP for deploying artificial intelligence models on enterprise data. It sells through a direct sales force, with much of its business under long-term contracts with the U.S. government and allied governments alongside subscriptions to commercial enterprises. End customers include military, intelligence, and civilian government agencies as well as corporations in industries such as manufacturing, energy, and healthcare.",
+      "Palantir makes software that pulls scattered records into one picture staff can search, act on daily and connect AI models to. Based in Florida, it earns most of its money in the United States, the rest in Europe, the Middle East and Asia, and runs on customer and classified networks. It sells through its own salespeople and engineers, on government contracts and multi-year subscriptions, to defence and intelligence agencies, public bodies and large companies.",
     sector: 'tech',
     primaryMultiple: 'forwardPe',
     peerGroup: 'high-growth software',
@@ -316,7 +316,7 @@ const SPECS: StockSpec[] = [
     ticker: 'TSSI',
     name: 'TSS Inc.',
     about:
-      "TSS Inc. provides data center services, including rack-level integration of servers and networking gear for AI and enterprise computing, procurement of third-party hardware and software, and deployment and maintenance of modular data centers. It sells through integration and services contracts, working largely as a partner to a major computer hardware OEM alongside direct engagements. End customers are enterprises, cloud and AI computing operators, and government organizations that buy or operate data center infrastructure.",
+      "TSS assembles and tests racks of AI and high-performance computing servers, designs modular data centers, and handles installation, maintenance, and equipment procurement for computing facilities. It works from integration plants in Texas and deploys systems at customer data centers across the United States. Most work arrives through contracts with large server manufacturers, so the final payers are the enterprises, cloud operators, and government agencies buying that computing capacity.",
     sector: 'tech',
     primaryMultiple: 'ps',
     peerGroup: 'data-centre integrator',
@@ -372,7 +372,7 @@ const SPECS: StockSpec[] = [
     ticker: 'VST',
     name: 'Vistra Corp.',
     about:
-      "Vistra generates electricity from a fleet of natural gas, nuclear, coal, solar, and battery storage facilities across the United States, and it sells retail electricity and natural gas plans under brands such as TXU Energy, Ambit, and Dynegy. Output not sold at retail is sold into wholesale power markets, including through hedging contracts and capacity auctions. End customers are households, businesses, and municipalities in deregulated electricity markets, with the heaviest concentration in Texas, alongside grid operators that buy its wholesale output.",
+      "Vistra generates electricity from natural gas, nuclear, coal, solar and battery plants, and sells retail power plans under brands such as TXU Energy. It is based in Irving, Texas, and operates only in the United States, with plants and customers concentrated in Texas, the Midwest and Northeast. Output is sold into wholesale power markets and under long-term contracts, so the payers are households and businesses on electricity plans, utilities, and large industrial buyers.",
     sector: 'power',
     primaryMultiple: 'evEbitda',
     peerGroup: 'merchant power',
@@ -427,7 +427,7 @@ const SPECS: StockSpec[] = [
     ticker: 'CEG',
     name: 'Constellation Energy',
     about:
-      "Constellation Energy generates electricity from a fleet of nuclear plants along with natural gas, geothermal, hydro, wind, and solar assets in the United States. It sells that power into wholesale markets and through long-term power purchase agreements, and its retail arm supplies electricity and natural gas under fixed and indexed contracts. End customers include commercial and industrial firms, data center operators, government agencies, utilities, and households across competitive energy markets.",
+      "Constellation Energy generates power from nuclear, natural gas, geothermal, hydro, wind and solar plants, and sells electricity, natural gas and energy management services. It is based in Baltimore and operates across the United States, with plants in the Mid-Atlantic, Midwest, Northeast, Texas and California. Output moves through wholesale markets and long-term supply contracts, so payers are households and businesses on retail plans, utilities, and corporate, government and data-center buyers.",
     sector: 'power',
     primaryMultiple: 'evEbitda',
     peerGroup: 'nuclear generation',
@@ -482,7 +482,7 @@ const SPECS: StockSpec[] = [
     ticker: 'FTAI',
     name: 'FTAI Aviation',
     about:
-      "FTAI Aviation owns and leases commercial jet engines and aircraft, and makes and refurbishes engine modules and replacement parts for widely used narrowbody engine types. It leases equipment directly to airlines and lessors and sells engine modules, used serviceable material, and maintenance services through its own commercial team and repair facilities. End customers are passenger and cargo airlines, aircraft leasing companies, and engine repair shops.",
+      "FTAI Aviation owns CFM56 and V2500 jet engines and mid-life aircraft that it leases to airlines, and it repairs engine modules and sells used serviceable parts. Headquartered in New York, it serves carriers across North America, Europe, Asia, and Latin America from repair shops in the United States and Canada. Income arrives as lease rentals and as payments for module swaps and parts, funded ultimately by airlines and their ticket buyers.",
     sector: 'industrials',
     primaryMultiple: 'evEbitda',
     peerGroup: 'aerospace aftermarket',
@@ -537,7 +537,7 @@ const SPECS: StockSpec[] = [
     ticker: 'BWXT',
     name: 'BWX Technologies',
     about:
-      "BWX Technologies manufactures nuclear reactor components, precision-machined parts, and nuclear fuel, including the reactors that power US Navy submarines and aircraft carriers. Most of its work is sold through long-term contracts with the US government, chiefly the Navy and the Department of Energy, whose sites it also helps manage and operate. Its commercial segment supplies components, fuel, and services to nuclear utilities, mainly in Canada, and produces medical radioisotopes for healthcare customers.",
+      "BWX Technologies makes nuclear reactors and fuel for U.S. Navy submarines and aircraft carriers, parts for power plants, medical isotopes, and small land-based reactors, and it operates government nuclear sites. It works from Virginia across the United States and Canada, where its Ontario plants serve commercial nuclear customers. Sales come through long-term government contracts, utility orders, and hospital supply deals, so the payers are mostly U.S. and Canadian taxpayers.",
     sector: 'industrials',
     primaryMultiple: 'evEbitda',
     peerGroup: 'defense prime',
@@ -592,7 +592,7 @@ const SPECS: StockSpec[] = [
     ticker: 'LMT',
     name: 'Lockheed Martin',
     about:
-      "Lockheed Martin designs and manufactures military aircraft, missiles and fire-control systems, helicopters, and space systems, including fighter jets, air and missile defense systems, and satellites. It sells almost entirely through long-term government contracts, primarily with the U.S. Department of Defense and other federal agencies, and to allied governments through foreign military sales and direct commercial agreements. End customers are the U.S. armed forces, NASA and other government agencies, and the defense ministries of allied nations.",
+      "Lockheed Martin builds fighter jets and helicopters, missiles and missile-defense systems, satellites and spacecraft, plus the radars and software that tie them together. Based in Maryland, it manufactures mainly in the United States and sells to the U.S. military and NASA, plus allied governments across Europe, the Middle East, and Asia-Pacific. Work comes as multi-year defense contracts and government-to-government arms deals, paid in the end by U.S. and allied taxpayers.",
     sector: 'industrials',
     primaryMultiple: 'evEbitda',
     peerGroup: 'defense prime',
@@ -647,7 +647,7 @@ const SPECS: StockSpec[] = [
     ticker: 'MCD',
     name: "McDonald's",
     about:
-      "McDonald's sells hamburgers, chicken sandwiches, fries, breakfast items, and beverages through a global chain of quick-service restaurants. The large majority of locations are operated by franchisees, from whom the company collects rent and royalties, while it runs the remaining restaurants itself. End customers are consumers who order at the counter, in the drive-thru, or through the company's app and third-party delivery platforms.",
+      "McDonald's sells fast food from a standard menu of burgers, chicken, fries, breakfast items, coffee, and soft drinks. Headquartered in Chicago, it operates worldwide, with restaurants across the Americas, Europe, the Middle East, Africa, Asia, and Australia. Most locations are run by franchisees who pay royalties and rent while the company operates the rest itself, so the money traces back to everyday diners ordering at counters, drive-thrus, and delivery apps.",
     sector: 'consumer',
     primaryMultiple: 'trailingPe',
     peerGroup: 'global QSR',
@@ -705,7 +705,7 @@ const SPECS: StockSpec[] = [
     ticker: 'MELI',
     name: 'MercadoLibre',
     about:
-      "MercadoLibre operates an online marketplace in Latin America where third-party merchants list and sell goods, alongside the Mercado Pago payments platform, the Mercado Envios logistics network, and consumer and merchant credit. It earns fees from sellers on marketplace transactions, payment processing charges, advertising, shipping services, and interest on loans. End customers are consumers shopping online and merchants selling and collecting payments across the region.",
+      "MercadoLibre runs an online marketplace for everyday goods, plus the payments, credit, shipping, and advertising services built around it. Founded in Argentina and headquartered in Uruguay, it earns across Latin America — mainly Brazil, Mexico, and Argentina — where it also runs its own warehouses and delivery fleet. It takes a commission on each sale plus fees on payments, shipping, and loans, so the money comes from online shoppers and the merchants selling to them.",
     sector: 'consumer',
     primaryMultiple: 'forwardPe',
     peerGroup: 'LatAm e-commerce',
@@ -760,7 +760,7 @@ const SPECS: StockSpec[] = [
     ticker: 'SPGI',
     name: 'S&P Global',
     about:
-      "S&P Global provides credit ratings, financial data and analytics, benchmark indices such as the S&P 500, and commodity price assessments through divisions including Ratings, Market Intelligence, S&P Dow Jones Indices, and Commodity Insights. It earns revenue from fees charged to debt issuers for ratings, subscriptions to its data and research platforms, and licensing of its indices to asset managers and exchanges. Its customers are banks, asset managers, insurers, corporations, and governments.",
+      "S&P Global rates bonds and loans, and sells market data, analytics, stock and bond indexes, and commodity price benchmarks. It works from New York and earns across the Americas, Europe, the Middle East and Asia-Pacific. Ratings are billed per deal to the companies and governments issuing debt, while data and index licenses are sold by subscription to banks, asset managers, insurers and fund sponsors.",
     sector: 'financials',
     primaryMultiple: 'forwardPe',
     peerGroup: 'financial data & ratings',
@@ -815,7 +815,7 @@ const SPECS: StockSpec[] = [
     ticker: 'LLY',
     name: 'Eli Lilly',
     about:
-      "Eli Lilly discovers, manufactures, and sells prescription medicines, with products spanning diabetes and obesity treatments, oncology, immunology, and neuroscience. Its drugs are distributed mainly through pharmaceutical wholesalers that supply pharmacies, hospitals, and clinics, with payment coming largely from private insurers and government health programs. End users are patients who receive the medicines by physician prescription.",
+      "Eli Lilly makes prescription medicines — diabetes and obesity treatments such as Mounjaro and Zepbound, plus cancer, immune-system, and Alzheimer's drugs. Based in Indianapolis, it sells across the United States, Europe, Japan, and China, and manufactures at its own plants in the US and Europe. Doctors prescribe the medicines, wholesalers distribute them to pharmacies and hospitals, and insurers, government health plans, and patients finally pay.",
     sector: 'healthcare',
     primaryMultiple: 'forwardPe',
     peerGroup: 'large-cap pharma',
@@ -870,7 +870,7 @@ const SPECS: StockSpec[] = [
     ticker: 'ISRG',
     name: 'Intuitive Surgical',
     about:
-      "Intuitive Surgical makes robotic-assisted surgery systems, including the da Vinci platform for minimally invasive soft-tissue procedures and the Ion system for lung biopsies, along with the instruments, accessories, and services used with them. It sells through a direct sales force in the United States and most major markets and through distributors elsewhere, placing systems via purchases, leases, and usage-based arrangements that generate recurring instrument and service revenue. Its customers are hospitals, ambulatory surgery centers, and the surgeons who operate the systems.",
+      "Intuitive Surgical makes robotic systems for keyhole surgery — the da Vinci surgical robots and the Ion lung-biopsy platform — along with the single-use instruments and service each one needs. It is based in California and sells in the United States, Europe, Japan, and other markets, mostly through its own sales force to hospitals that buy or lease the systems. Hospitals pay Intuitive, and insurers and government health systems reimburse the operations.",
     sector: 'healthcare',
     watchlistOnly: true,
     primaryMultiple: 'forwardPe',
@@ -924,7 +924,7 @@ const SPECS: StockSpec[] = [
     ticker: 'AMZN',
     name: 'Amazon.com',
     about:
-      "Amazon sells consumer goods through its e-commerce sites, both as a direct retailer and by operating a marketplace where independent merchants pay fees for listings, fulfillment, and advertising. Its Amazon Web Services unit sells on-demand computing, storage, and related cloud services under pay-as-you-go pricing and negotiated contracts to companies, startups, and government agencies. The company also collects subscription revenue from Prime memberships and runs physical grocery stores, serving household consumers alongside its merchant, advertiser, and enterprise customers.",
+      "Amazon sells goods through its online store, rents computing power and storage through Amazon Web Services, sells advertising, and offers Prime membership and Whole Foods groceries. It is based in Seattle, serves shoppers in North America, Europe, Japan and India from its own warehouses, and runs AWS from data centres worldwide. Independent merchants pay commission to sell there, Prime is a subscription and AWS bills by usage, so shoppers, merchants, advertisers and businesses pay.",
     sector: 'consumer',
     watchlistOnly: true,
     primaryMultiple: 'forwardPe',
@@ -978,7 +978,7 @@ const SPECS: StockSpec[] = [
     ticker: 'SMH',
     name: 'VanEck Semiconductor ETF',
     about:
-      "SMH is an exchange-traded fund managed by VanEck that tracks the MarketVector US Listed Semiconductor 25 Index, holding the common stocks of the largest US-listed semiconductor companies, spanning chip designers, manufacturers, and equipment makers such as Nvidia, Taiwan Semiconductor, and Broadcom. Its shares trade on the Nasdaq exchange, where investors buy and sell them through brokerage accounts. Buyers are individual and institutional investors seeking broad exposure to the semiconductor industry in a single security.",
+      "SMH is an exchange-traded fund holding shares in about two dozen of the largest US-listed semiconductor companies — chip designers, manufacturers, and the makers of the machines used to build chips. VanEck, a New York asset manager, runs the fund and tracks an index of those companies; it trades on Nasdaq like a stock. Individual investors, advisers, and institutions buy shares for chip exposure, and pay VanEck an annual fee taken from fund assets.",
     sector: 'tech',
     isEtf: true,
     watchlistOnly: true,

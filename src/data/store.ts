@@ -58,12 +58,14 @@ import {
 } from './provider/publishedQuotes';
 import { DEFAULT_ASSUMPTIONS, runSimulation } from '@/domain/montecarlo';
 import { applyPositions, mergeResearch } from './claudeSync';
+import { parsePositionsTable } from './import/positionsTable';
 import { runAlertCheck } from './alerts';
 
 /** A screenshot import in progress, kept in the store so the review screen
  *  survives a navigation away and back. */
 export interface PendingImport {
-  imageUri: string;
+  /** Null when the positions came from a file or a paste rather than a photo. */
+  imageUri: string | null;
   read: PositionsReadResult;
   diffs: HoldingDiff[];
   /** Tickers the owner has unticked. */
@@ -129,6 +131,8 @@ export interface AppState {
     mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
     hint?: string;
   }) => Promise<{ ok: boolean; message: string }>;
+  /** The whole book from a broker export or a pasted table. No key needed. */
+  readPositionsTable: (text: string) => { ok: boolean; message: string };
   toggleImportSkip: (ticker: string) => void;
   applyPendingImport: () => { applied: number; needResearch: string[] };
   discardPendingImport: () => void;
@@ -196,13 +200,27 @@ export function normalisePersisted<T extends Record<string, unknown>>(persisted:
   // Stocks written before the business-description block exist without
   // `about`; the detail screen dereferences `about.value`, so the field must
   // be present, honestly marked unavailable, not undefined.
+  //
+  // And the placeholder is not enough on its own. The descriptions ship in
+  // the bundle, but an install that already had its stocks on disk keeps
+  // those — so every existing phone rendered no description at all while a
+  // fresh install showed one, which is how the owner found this. Where the
+  // bundle knows a description and the stored stock does not, the stored
+  // stock catches up. A description that came from a research pass (source
+  // 'manual') is never overwritten by the bundle's: it is newer and better.
   const stocks = (p as { stocks?: Record<string, Stock> }).stocks;
   const repairedStocks = stocks
     ? Object.fromEntries(
-        Object.entries(stocks).map(([t, s]) => [
-          t,
-          { ...s, about: s.about ?? { value: null, asOf: null, source: 'unavailable' as const } },
-        ]),
+        Object.entries(stocks).map(([t, s]) => {
+          const seeded = SEED_STOCKS[t]?.about;
+          const about =
+            s.about?.source === 'manual' && s.about.value
+              ? s.about
+              : (s.about?.value ?? null) !== null
+                ? s.about
+                : (seeded ?? { value: null, asOf: null, source: 'unavailable' as const });
+          return [t, { ...s, about }];
+        }),
       )
     : stocks;
   return {
@@ -447,6 +465,56 @@ export const useApp = create<AppState>()(
           });
           return { ok: false, message: e instanceof Error ? e.message : 'Refresh failed.' };
         }
+      },
+
+      // The path that needs nothing: no key, no credits, no model. A broker
+      // export or a pasted table arrives as text, is parsed on the device, and
+      // lands in exactly the same review diff the screenshot produces — so the
+      // owner still approves every row before a number is written, and the
+      // whole book arrives at once rather than a position at a time.
+      readPositionsTable: (text) => {
+        const parsed = parsePositionsTable(text);
+        if (parsed.positions.length === 0) {
+          return {
+            ok: false,
+            message: parsed.warnings[0] ?? 'Nothing in that file looked like a positions table.',
+          };
+        }
+        const state = get();
+        const diffs = diffHoldings(state.holdings, parsed.positions, (t) =>
+          state.stocks[t]?.sector ?? 'tech',
+        );
+        set({
+          pendingImport: {
+            imageUri: null,
+            read: {
+              positions: parsed.positions,
+              warnings: parsed.warnings,
+              // A positions export carries positions. Account totals — cash,
+              // net liquidation value, the day's P&L — are a different report,
+              // so they stay null rather than being reconstructed from the
+              // rows, which would silently drop whatever the file omitted.
+              account: {
+                netLiquidationValue: null,
+                cashUsd: null,
+                dayPnl: null,
+                unrealizedPnl: null,
+                asOfLabel: null,
+              },
+            },
+            diffs,
+            skipped: [],
+            at: nowIso(),
+          },
+        });
+        const changed = diffs.filter((d) => d.kind !== 'unchanged').length;
+        return {
+          ok: true,
+          message:
+            changed === 0
+              ? `Read ${parsed.positions.length} positions — nothing has changed.`
+              : `Read ${parsed.positions.length} positions, ${changed} differ from the book.`,
+        };
       },
 
       readScreenshot: async ({ uri, base64, mediaType, hint }) => {
@@ -875,8 +943,10 @@ export const useApp = create<AppState>()(
       // for every toggle. That is how the renamed insider-selling alert
       // silently never fired for upgraded installs, and it would have happened
       // again to alertOnDrift at v2. normalisePersisted is idempotent, so
-      // re-running it on every bump is free. v4: stocks gained `about`.
-      version: 4,
+      // re-running it on every bump is free. v4: stocks gained `about`. v5:
+      // `about` is backfilled from the bundle, so installs that already had
+      // their stocks on disk get the descriptions rather than a blank card.
+      version: 5,
       migrate: (persisted: unknown) => normalisePersisted(persisted as Record<string, unknown>),
       // `unlocked` is deliberately not persisted: Face ID must be satisfied
       // again on every cold start.

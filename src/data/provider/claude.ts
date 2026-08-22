@@ -301,7 +301,7 @@ export function diffHoldings(
       after: null,
       price: null,
       confidence: 1,
-      note: 'Not present in the screenshot.',
+      note: 'Not present in this import.',
     });
   }
 

@@ -184,7 +184,7 @@ function Root() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="stock/[ticker]" options={{ title: '' }} />
-        <Stack.Screen name="sync" options={{ title: 'Update from screenshot' }} />
+        <Stack.Screen name="sync" options={{ title: 'Update positions' }} />
         <Stack.Screen name="market" options={{ title: 'Market' }} />
         <Stack.Screen name="returns" options={{ title: 'Returns' }} />
         <Stack.Screen name="watchlist" options={{ title: 'Watchlist' }} />

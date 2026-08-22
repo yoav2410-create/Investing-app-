@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { Button, Card, Divider, Pill, Screen, Section, Text } from '@/components
 import { useApp } from '@/data/store';
 import { currency, percent, shares as fmtShares } from '@/domain/format';
 import type { HoldingDiff } from '@/data/provider/claude';
+import { pickPositionsFile } from '@/data/import/positionsTable';
 
 /**
  * Update the book from a broker screenshot.
@@ -22,6 +23,7 @@ export default function SyncScreen() {
   const { palette, spacing, radius } = useTheme();
   const pending = useApp((s) => s.pendingImport);
   const readScreenshot = useApp((s) => s.readScreenshot);
+  const readPositionsTable = useApp((s) => s.readPositionsTable);
   const toggleSkip = useApp((s) => s.toggleImportSkip);
   const applyImport = useApp((s) => s.applyPendingImport);
   const discard = useApp((s) => s.discardPendingImport);
@@ -29,6 +31,25 @@ export default function SyncScreen() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [hint, setHint] = useState('');
+  const [pasted, setPasted] = useState('');
+
+  const readTable = (text: string) => {
+    setStatus(null);
+    const res = readPositionsTable(text);
+    setStatus(res);
+    if (res.ok) setPasted('');
+  };
+
+  const chooseFile = async () => {
+    setStatus(null);
+    if (Platform.OS !== 'web') {
+      setStatus({ ok: false, message: 'File picking is available in the browser; paste the table here instead.' });
+      return;
+    }
+    const text = await pickPositionsFile();
+    if (text == null) return;
+    readTable(text);
+  };
 
   const pick = async (from: 'library' | 'camera') => {
     setStatus(null);
@@ -94,13 +115,70 @@ export default function SyncScreen() {
     <Screen>
       {!pending ? (
         <>
+          {/* The export route comes first and deliberately so: it is the one
+              that needs no API key, no credits and no model, brings the whole
+              book in one go, and is exact rather than read off a picture. The
+              screenshot route below stays for when there is no export to
+              hand. Both end in the same review diff. */}
+          <Section
+            title="From your broker's export"
+            subtitle="The whole book at once — no key, no typing"
+          >
+            <Card style={{ gap: spacing.sm }}>
+              <Text variant="body" muted>
+                Every broker can export positions as a CSV, and most let you select the positions
+                table on their own page and copy it. Either one lands here: the app reads it on
+                this device, shows you what changed, and writes nothing until you approve.
+              </Text>
+              <TextInput
+                value={pasted}
+                onChangeText={(t) => {
+                  setPasted(t);
+                  setStatus(null);
+                }}
+                placeholder={'Paste your positions table here\nSymbol  Quantity  Avg cost\nAAPL    25        180.00'}
+                placeholderTextColor={palette.textFaint}
+                multiline
+                accessibilityLabel="Paste your positions table"
+                style={{
+                  minHeight: 96,
+                  color: palette.text,
+                  backgroundColor: palette.cardMuted,
+                  borderColor: palette.border,
+                  borderWidth: 1,
+                  borderRadius: radius.md,
+                  padding: spacing.md,
+                  fontSize: 15,
+                }}
+              />
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button
+                  label="Read the paste"
+                  onPress={() => readTable(pasted)}
+                  disabled={busy || pasted.trim().length === 0}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  label="Choose a file"
+                  variant="quiet"
+                  onPress={chooseFile}
+                  disabled={busy}
+                  style={{ flex: 1 }}
+                />
+              </View>
+              <Text variant="caption" faint>
+                A CSV, TSV or plain text file with a symbol column and a quantity column. Column
+                names, currency symbols and thousands separators are worked out for you.
+              </Text>
+            </Card>
+          </Section>
+
           <Card style={{ gap: spacing.sm }}>
-            <Text variant="heading">How this works</Text>
+            <Text variant="heading">Or from a screenshot</Text>
             <Text variant="body" muted>
               Take a screenshot of your broker's positions screen and pick it here. Claude reads the
               rows, shows you exactly what it thinks changed, and only writes to the book once you
-              approve. Nothing is fetched from a market-data feed — the marks come from your own
-              statement.
+              approve. This route needs an Anthropic API key — the export above does not.
             </Text>
             <Text variant="body" muted>
               Once you apply, every position that moved goes into a research queue: Claude searches
@@ -168,23 +246,27 @@ export default function SyncScreen() {
             title="Review before applying"
             subtitle={`${pending.diffs.filter((d) => d.kind !== 'unchanged').length} of ${pending.diffs.length} rows differ`}
           >
-            <Image
-              source={{ uri: pending.imageUri }}
-              style={{
-                width: '100%',
-                height: 160,
-                borderRadius: radius.md,
-                resizeMode: 'contain',
-                backgroundColor: palette.cardMuted,
-              }}
-              accessibilityLabel="The screenshot you selected"
-            />
+            {/* A file import has no picture to show; the rows below are the
+                evidence, and a grey placeholder box would be furniture. */}
+            {pending.imageUri ? (
+              <Image
+                source={{ uri: pending.imageUri }}
+                style={{
+                  width: '100%',
+                  height: 160,
+                  borderRadius: radius.md,
+                  resizeMode: 'contain',
+                  backgroundColor: palette.cardMuted,
+                }}
+                accessibilityLabel="The screenshot you selected"
+              />
+            ) : null}
           </Section>
 
           {pending.read.warnings.length ? (
             <Card style={{ borderColor: palette.warn, gap: spacing.xs }}>
               <Text variant="label" tone="warn">
-                Claude flagged {pending.read.warnings.length} thing
+                {pending.imageUri ? 'Claude flagged' : 'Worth knowing —'} {pending.read.warnings.length} thing
                 {pending.read.warnings.length === 1 ? '' : 's'}
               </Text>
               {pending.read.warnings.map((w, i) => (
@@ -218,6 +300,32 @@ export default function SyncScreen() {
             </Card>
           ) : null}
 
+          {/* An import is read as the whole book: anything it does not mention
+              is a position that was closed. That is right for a full export
+              and wrong for half a paste, and the difference is invisible until
+              it has already happened — so when an import would close more
+              positions than it touches, it says so before the button, not in
+              a row twelve scrolls down. */}
+          {(() => {
+            const closing = pending.diffs.filter(
+              (d) => d.kind === 'removed' && !pending.skipped.includes(d.ticker),
+            ).length;
+            const touching = pending.diffs.filter((d) => d.kind === 'added' || d.kind === 'changed').length;
+            if (closing === 0 || closing <= touching) return null;
+            return (
+              <Card style={{ borderColor: palette.down, gap: spacing.xs }}>
+                <Text variant="label" tone="down">
+                  This closes {closing} position{closing === 1 ? '' : 's'}
+                </Text>
+                <Text variant="caption" muted>
+                  {pending.imageUri
+                    ? 'They are not in the screenshot, so the app reads them as sold. If the screenshot showed only part of your book, untick those rows before applying.'
+                    : 'They are not in the file, so the app reads them as sold. If you pasted only part of your book, untick those rows before applying — or discard and paste the whole table.'}
+                </Text>
+              </Card>
+            );
+          })()}
+
           <Section title="Changes" subtitle="Tap a row to exclude it">
             <View style={{ gap: spacing.sm }}>
               {pending.diffs.map((d) => (
@@ -226,6 +334,7 @@ export default function SyncScreen() {
                   diff={d}
                   skipped={pending.skipped.includes(d.ticker)}
                   onToggle={() => toggleSkip(d.ticker)}
+                  fromImage={pending.imageUri != null}
                 />
               ))}
             </View>
@@ -245,16 +354,20 @@ function DiffRow({
   diff,
   skipped,
   onToggle,
+  fromImage,
 }: {
   diff: HoldingDiff;
   skipped: boolean;
   onToggle: () => void;
+  fromImage: boolean;
 }) {
   const { palette, spacing, radius } = useTheme();
   const toneFor = { added: 'up', removed: 'down', changed: 'warn', unchanged: 'flat' } as const;
+  // The word for where the rows came from: a file import saying "gone from
+  // the screenshot" is the app describing something that never happened.
   const labelFor = {
     added: 'New position',
-    removed: 'Gone from the screenshot',
+    removed: fromImage ? 'Gone from the screenshot' : 'Not in the file',
     changed: 'Size changed',
     unchanged: 'Unchanged',
   } as const;
