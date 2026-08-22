@@ -155,6 +155,22 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   main too now, scheduled runs check out the working branch explicitly, and the
   base path derives from `GITHUB_REPOSITORY`. Verify automation by watching it
   fire, not by reading its YAML.
+- **A cross-check that only ever ran on the author's laptop.** The publish
+  compared its Finnhub prices against Yahoo and passed 12 of 12 — locally.
+  On GitHub's runners every request came back 429 (Yahoo refuses datacenter
+  IPs as well as browsers), so every real publish logged "skipped" and wrote
+  no attestation, while the app showed blank space that read as "nothing
+  wrong". Corroboration now comes from CBOE's delayed-quote CDN — the same
+  host whose VIX history is already proven to answer from CI — and when the
+  check cannot run it writes *why* into quotes.json and the app says so.
+  Verify an external dependency from the machine that will actually call it.
+- **A failing test froze the price feed.** The fifteen-minute cron rebuilt
+  the branch tip, so one work-in-progress commit whose test failed stopped
+  every scheduled publish until someone noticed the email. The refresh exists
+  to re-mark the site that is live, not to ship undeployed code: the build
+  now stamps `dist/build-info.json` with the commit it was built from, and
+  scheduled runs read it back and rebuild exactly that commit. Automation
+  that must never stop cannot share a gate with work in progress.
 - **A set() on tab-hide that raced storage.** `stopLiveStream` ran on every
   visibilitychange — including the unload half of a navigation — and its
   `set({streamStatus:'off'})` made persist serialise the dying page's state
@@ -245,11 +261,15 @@ a browser. Measured, not assumed:
 Yahoo and Finviz return perfectly good data to `curl` and are then refused by
 the browser, which is the worst kind of failure to design around: it looks like
 a bug in the app. Yahoo also 429s Node's `fetch` while answering `curl` 200
-with identical headers — it fingerprints the TLS handshake, not the request —
-so `scripts/yahoo-crosscheck.mjs` shells out to curl. Every scheduled publish
-samples its Finnhub prices against Yahoo there and records the agreement in
-`quotes.json` (`crosscheck`), which Settings shows; the check was proven able
-to fail by planting a halved price and watching it get flagged. So prices come from Alpha Vantage, or from a Google Sheet the
+with identical headers, and refuses GitHub's runners outright — which is why
+the cross-check is not Yahoo's. `scripts/crosscheck.mjs` samples each publish
+against **CBOE's delayed-quote CDN** (`cdn.cboe.com/api/global/delayed_quotes`),
+the exchange's own numbers, no key, on the host already proven to answer from
+CI. The result goes into `quotes.json` as `crosscheck` and Settings states it;
+when the source will not answer, the payload carries the reason instead of
+going quiet. Proven able to fail three ways: a halved price is flagged at 50%,
+a dead source produces an explanation, an honest feed passes. CBOE lags by
+fifteen minutes, hence a 3% tolerance rather than a tight one. So prices come from Alpha Vantage, or from a Google Sheet the
 owner publishes — `GOOGLEFINANCE()` exists only inside Sheets, and publishing
 one as CSV is the only way to get Google's quotes onto the phone without a
 server. `src/data/provider/googleSheet.ts`.

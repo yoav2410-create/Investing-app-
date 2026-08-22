@@ -22,7 +22,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crosscheckQuotes } from './yahoo-crosscheck.mjs';
+import { crosscheckQuotes } from './crosscheck.mjs';
 
 const OUT_DIR = process.argv[2] ?? fileURLToPath(new URL('../public', import.meta.url));
 const UNIVERSE = fileURLToPath(new URL('../data/universe.txt', import.meta.url));
@@ -141,15 +141,25 @@ try {
   console.log(`VIX history skipped: ${e.message}`);
 }
 
-// Every publish samples its own prices against Yahoo Finance and records the
-// agreement in the payload, so the app can show evidence instead of asking
-// for trust. Lives in its own module so the check below exercises the real
-// code, not a stand-in copy.
+// Every publish samples its own prices against the exchange's own delayed
+// feed and records the agreement in the payload, so the app can show evidence
+// instead of asking for trust. Lives in its own module so the check exercises
+// the real code, not a stand-in copy.
 let crosscheck = null;
 try {
   crosscheck = await crosscheckQuotes(quotes);
 } catch (e) {
-  console.log(`cross-check skipped: ${e.message}`);
+  crosscheck = {
+    source: 'cboe-delayed',
+    checkedAt: new Date().toISOString(),
+    tolerancePct: 3,
+    checked: 0,
+    agreed: 0,
+    worst: null,
+    disagreements: [],
+    skipped: e.message,
+  };
+  console.log(`cross-check could not run: ${e.message}`);
 }
 
 const ok = Object.keys(quotes).length;

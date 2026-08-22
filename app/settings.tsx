@@ -198,13 +198,18 @@ function PricesSection(_props: { onStatus: (s: string) => void }) {
           {quotesFetchedAt ? ` Feed last fetched ${relativeAsOf(quotesFetchedAt)}.` : ''}
           {refreshingQuotes ? ' Refreshing now…' : ''}
         </Text>
+        {/* The feed's own audit trail. Three states, all said out loud —
+            a blank space where an attestation should be reads as "nothing
+            wrong", which is a claim no run has earned. */}
         {crosscheck ? (
-          <Text variant="caption" muted>
-            {crosscheck.agreed === crosscheck.checked
-              ? `Cross-checked against Yahoo Finance: all ${crosscheck.checked} sampled prices agree within ${crosscheck.tolerancePct}% (largest gap ${crosscheck.worst.diffPct}%).`
-              : `Cross-checked against Yahoo Finance: ${crosscheck.agreed} of ${crosscheck.checked} sampled prices within ${crosscheck.tolerancePct}% — ${crosscheck.disagreements
-                  .map((d) => `${d.symbol} differs by ${d.diffPct}%`)
-                  .join(', ')}.`}
+          <Text variant="caption" muted tone={crosscheck.checked === 0 ? 'warn' : undefined}>
+            {crosscheck.checked === 0
+              ? `Not cross-checked on the last publish — ${crosscheck.skipped ?? 'the second source did not answer'}. The marks are Finnhub's alone.`
+              : crosscheck.agreed === crosscheck.checked
+                ? `Cross-checked against CBOE's own delayed feed: all ${crosscheck.checked} sampled prices agree within ${crosscheck.tolerancePct}% (largest gap ${crosscheck.worst?.diffPct ?? 0}%).`
+                : `Cross-checked against CBOE's own delayed feed: ${crosscheck.agreed} of ${crosscheck.checked} sampled prices within ${crosscheck.tolerancePct}% — ${crosscheck.disagreements
+                    .map((d) => `${d.symbol} differs by ${d.diffPct}%`)
+                    .join(', ')}. CBOE quotes lag by fifteen minutes, so a fast-moving name can differ honestly.`}
           </Text>
         ) : null}
         <Divider />

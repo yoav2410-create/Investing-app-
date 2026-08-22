@@ -55,14 +55,49 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Which commit this run should build.
+      #
       # A scheduled run fires from main's copy of this file and would check out
       # main — the old app — unless told otherwise. The same applies to a
       # manual dispatch started from main: main's app code is the pre-reshape
       # bundle, and deploying it would silently roll the live site back.
       # Pushes keep their own ref.
+      #
+      # For the cron the branch tip is the wrong answer too, and this cost the
+      # owner a frozen price feed: the fifteen-minute refresh rebuilt whatever
+      # was on the branch, so a work-in-progress commit with one failing test
+      # stopped every scheduled publish until someone noticed. The refresh
+      # exists to re-mark the site that is live, not to ship code nobody has
+      # deployed yet — so it builds exactly the commit the live site was built
+      # from, which the site publishes in build-info.json. Unreachable site,
+      # missing file, unknown commit: fall back to the branch tip and say so.
+      - name: Decide which commit to build
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH=claude/iphone-investment-app-frn8sy
+          REF=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            REF="$BRANCH"
+            OWNER=${GITHUB_REPOSITORY%%/*}
+            NAME=${GITHUB_REPOSITORY#*/}
+            LIVE=$(curl -sf --max-time 20 "https://$OWNER.github.io/$NAME/build-info.json" \
+              | sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{7,40\}\)".*/\1/p' | head -1)
+            if [ -n "$LIVE" ] && gh api "repos/$GITHUB_REPOSITORY/commits/$LIVE" --silent 2>/dev/null; then
+              REF="$LIVE"
+              echo "Refreshing prices on the commit that is live: $LIVE"
+            else
+              echo "::warning title=Live commit unknown::Falling back to $BRANCH. A work-in-progress commit there can fail this run."
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.ref_name }}" = "main" ]; then
+            REF="$BRANCH"
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')) && 'claude/iphone-investment-app-frn8sy' || '' }}
+          ref: ${{ steps.pick.outputs.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -113,6 +148,17 @@ jobs:
       # the resolve step above, for the same scheduled-run reason.
       - name: Apply the PWA shell
         run: node scripts/pwa-shell.mjs dist
+
+      # What the live site was built from. The scheduled refresh reads this
+      # back to rebuild the same commit rather than the branch tip, so the
+      # price feed cannot be frozen by unfinished work. Written from the
+      # checked-out HEAD, not GITHUB_SHA — on a schedule event those differ.
+      - name: Stamp the build
+        run: |
+          printf '{"sha":"%s","builtAt":"%s","event":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ github.event_name }}" \
+            > dist/build-info.json
+          cat dist/build-info.json
 
       # The bundle is what the public actually sees. Fail the build rather than
       # publish credentials or owner-specific data by accident.

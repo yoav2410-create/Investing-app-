@@ -42,8 +42,10 @@ export interface PublishedCrosscheck {
   checked: number;
   agreed: number;
   tolerancePct: number;
-  worst: { symbol: string; diffPct: number };
-  disagreements: { symbol: string; feed: number; yahoo: number; diffPct: number }[];
+  worst: { symbol: string; diffPct: number } | null;
+  disagreements: { symbol: string; feed: number; other: number; diffPct: number }[];
+  /** Why the check could not run, when `checked` is 0. Never silently absent. */
+  skipped?: string | null;
 }
 
 export interface PublishedQuotes {
