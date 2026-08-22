@@ -52,10 +52,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # A scheduled run fires from main's copy of this file and would check out
-      # main — the old app — unless told otherwise. Pushes keep their own ref.
+      # main — the old app — unless told otherwise. The same applies to a
+      # manual dispatch started from main: main's app code is the pre-reshape
+      # bundle, and deploying it would silently roll the live site back.
+      # Pushes keep their own ref.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'schedule' && 'claude/iphone-investment-app-frn8sy' || '' }}
+          ref: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref_name == 'main')) && 'claude/iphone-investment-app-frn8sy' || '' }}
 
       - uses: actions/setup-node@v4
         with:
