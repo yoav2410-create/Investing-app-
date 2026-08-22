@@ -106,7 +106,12 @@ for (let i = 0; i < symbols.length; i++) {
 let vix = null;
 try {
   const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv', {
-    headers: { 'User-Agent': UA },
+    // A plain browser UA. This block was written referencing a constant a
+    // previous rewrite had deleted; the try/catch dutifully reported
+    // "UA is not defined" as a skip, and the only place that ever ran the
+    // real script end to end was CI. Checks that exercise a stand-in copy of
+    // the logic prove the logic, not the script.
+    headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36' },
   });
   if (res.ok) {
     const rows = (await res.text()).trim().split('\n').slice(1);
