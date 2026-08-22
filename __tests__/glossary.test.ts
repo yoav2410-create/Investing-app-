@@ -90,7 +90,9 @@ describe('every metric explainer resolves', () => {
       'priceToSales',
       'revenue',
       'operatingIncome',
-      'netIncome',
+      // netIncome is no longer asserted here: earnings render inside the
+      // revenue-vs-earnings grouped chart, whose "?" is the revenue term.
+      // The glossary entry survives for the screens that still use it.
       'eps',
       'multipleHistory',
       'trendScore',
