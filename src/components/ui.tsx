@@ -383,7 +383,13 @@ export function Screen({
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.bg }}
       contentContainerStyle={[
-        { padding: spacing.lg, paddingBottom: spacing.xxl * 2, gap: spacing.lg },
+        // A comfortable last-row margin and nothing more. The 64pt that used
+        // to sit here was doing two jobs — breathing room *and* clearing the
+        // tab bar — which made the bar's own reservation invisible: removing
+        // it changed nothing on screen, so the check that guards it could not
+        // fail. Each reservation now has exactly one owner: the tab layout
+        // reserves the floating bar, this reserves the margin.
+        { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
         contentStyle,
       ]}
       refreshControl={refreshControl}

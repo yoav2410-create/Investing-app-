@@ -233,6 +233,63 @@ await sync.screenshot({ path: 'docs/screenshots/pwa-import.png' });
   await tabs.close();
 }
 
+// ---- Nothing hides behind the floating tab bar ----------------------------
+// The bar is positioned out of the layout flow, so the scene has to reserve
+// its height by hand. Get that reservation wrong and the last row of every
+// list becomes unreachable — invisible in any screenshot that is not scrolled
+// all the way down, which is every screenshot the suite takes by default.
+for (const route of ['/', '/stocks', '/sectors', '/more']) {
+  for (const width of [390, 440]) {
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(BASE + route, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1100);
+    await page.evaluate(() => {
+      const el = [...document.querySelectorAll('div')]
+        .filter((d) => d.scrollHeight > d.clientHeight + 50)
+        .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+      if (el) {
+        el.setAttribute('data-scroller', '1');
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    await page.waitForTimeout(500);
+    const res = await page.evaluate(() => {
+      const label = [...document.querySelectorAll('div,span')].find(
+        (el) => el.textContent?.trim() === 'Sectors' && el.children.length === 0,
+      );
+      let bar = label?.parentElement;
+      while (bar && !/Portfolio[\s\S]*Stocks[\s\S]*Sectors[\s\S]*More/.test(bar.textContent ?? '')) {
+        bar = bar.parentElement;
+      }
+      if (!bar) return { error: 'no tab bar' };
+      const b = bar.getBoundingClientRect();
+      // A screen short enough not to scroll cannot hide anything under a bar
+      // pinned to the bottom of the viewport.
+      const scroller = document.querySelector('[data-scroller]');
+      if (!scroller) return { fits: true, covered: [] };
+      const covered = [];
+      for (const el of scroller.querySelectorAll('div,span')) {
+        if (el.children.length) continue;
+        const t = el.textContent?.trim();
+        if (!t) continue;
+        const r = el.getBoundingClientRect();
+        if (r.height === 0) continue;
+        if (r.bottom > b.top + 2 && r.top < b.bottom - 2 && r.right > b.left && r.left < b.right) {
+          covered.push(t.slice(0, 40));
+        }
+      }
+      return { fits: false, covered: [...new Set(covered)].slice(0, 3) };
+    });
+    if (res.error) problems.push(`${route} @${width}pt: ${res.error}`);
+    else if (res.covered.length) {
+      problems.push(`${route} @${width}pt: content sits under the floating tab bar — ${res.covered.join(' | ')}`);
+    }
+    await page.close();
+  }
+}
+console.log('scrolled to the end of every tab screen at both widths: nothing hides behind the bar');
+
 await browser.close();
 server.close();
 

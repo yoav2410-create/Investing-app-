@@ -155,6 +155,13 @@ in N% of paths" is a path-by-path count. `src/domain/montecarlo.ts`.
   main too now, scheduled runs check out the working branch explicitly, and the
   base path derives from `GITHUB_REPOSITORY`. Verify automation by watching it
   fire, not by reading its YAML.
+- **Two owners for one reservation, so neither could be tested.** `Screen`
+  padded 64pt at the bottom — breathing room *and*, by accident, enough to
+  clear the floating tab bar. Deleting the tab layout's own reservation
+  therefore changed nothing on screen, and the check written to guard it
+  passed on a build that had no reservation at all. One owner each: the tab
+  layout reserves the bar, `Screen` reserves the margin. The check now fails
+  on every tab screen at both widths when the reservation goes.
 - **The tab bar clipped its labels again — on the phone only.** A floating
   62pt bar with React Navigation's safe-area padding *inside* it leaves 28pt
   of content box on an installed iPhone app (~34pt inset) and 62pt in a
